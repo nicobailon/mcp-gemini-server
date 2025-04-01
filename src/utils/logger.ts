@@ -16,17 +16,17 @@ const currentLogLevel = LogLevel.DEBUG; // Show all logs by default
 export const logger = {
     debug: (message: string, ...args: unknown[]) => {
         if (currentLogLevel <= LogLevel.DEBUG) {
-            console.debug(chalk.gray(`[DEBUG] `), ...args);
+            console.error(chalk.gray(`[DEBUG] `), ...args);
         }
     },
     info: (message: string, ...args: unknown[]) => {
         if (currentLogLevel <= LogLevel.INFO) {
-            console.info(chalk.blue(`[INFO] `), ...args);
+            console.error(chalk.blue(`[INFO] `), ...args);
         }
     },
     warn: (message: string, ...args: unknown[]) => {
         if (currentLogLevel <= LogLevel.WARN) {
-            console.warn(chalk.yellow(`[WARN] `), ...args);
+            console.error(chalk.yellow(`[WARN] `), ...args);
         }
     },
     error: (message: string, ...args: unknown[]) => {

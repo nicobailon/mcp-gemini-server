@@ -1,6 +1,6 @@
 ﻿// Import config types for services as they are added
 import { ExampleServiceConfig, GeminiServiceConfig } from '../types/index.js'; // Import GeminiServiceConfig
-
+import { logger } from '../utils/logger.js';
 // Define the structure for all configurations managed
 // Note: GeminiServiceConfig itself now has an optional defaultModel
 interface ManagedConfigs {
@@ -138,15 +138,15 @@ export class ConfigurationManager {
             this.config.geminiService.apiKey = process.env.GOOGLE_GEMINI_API_KEY;
         } else {
             // Log a warning if the key is missing, the service constructor will throw
-            console.warn('[ConfigurationManager] WARNING: GOOGLE_GEMINI_API_KEY environment variable not set.');
+            logger.warn('[ConfigurationManager] WARNING: GOOGLE_GEMINI_API_KEY environment variable not set.');
         }
 
         // Load Default Gemini Model Name
         if (process.env.GOOGLE_GEMINI_MODEL) {
             this.config.geminiService.defaultModel = process.env.GOOGLE_GEMINI_MODEL;
-            console.info(`[ConfigurationManager] Default Gemini model set to: ${this.config.geminiService.defaultModel}`);
+            logger.info(`[ConfigurationManager] Default Gemini model set to: ${this.config.geminiService.defaultModel}`);
         } else {
-            console.info('[ConfigurationManager] GOOGLE_GEMINI_MODEL environment variable not set. No default model configured.');
+            logger.info('[ConfigurationManager] GOOGLE_GEMINI_MODEL environment variable not set. No default model configured.');
         }
     }
 }

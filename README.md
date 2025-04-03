@@ -1,4 +1,6 @@
-﻿# MCP Gemini Server
+# MCP Gemini Server
+
+[![smithery badge](https://smithery.ai/badge/@bsmi021/mcp-gemini-server)](https://smithery.ai/server/@bsmi021/mcp-gemini-server)
 
 ## Overview
 
@@ -21,6 +23,16 @@ This server aims to simplify integration with Gemini models by providing a consi
   * **Important:** The File Handling and Caching APIs are **only compatible with Google AI Studio API keys** and are **not supported** when using Vertex AI credentials. This server does not currently support Vertex AI authentication.
 
 ## Installation & Setup
+
+### Installing via Smithery
+
+To install Gemini Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@bsmi021/mcp-gemini-server):
+
+```bash
+npx -y @smithery/cli install @bsmi021/mcp-gemini-server --client claude
+```
+
+### Installing Manually
 
 1. **Clone/Place Project:** Ensure the `mcp-gemini-server` project directory is accessible on your system.
 2. **Install Dependencies:** Navigate to the project directory in your terminal and run:

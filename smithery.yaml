@@ -1,0 +1,25 @@
+# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+
+startCommand:
+  type: stdio
+  configSchema:
+    # JSON Schema defining the configuration options for the MCP.
+    type: object
+    required:
+      - GOOGLE_GEMINI_API_KEY
+    properties:
+      GOOGLE_GEMINI_API_KEY:
+        type: string
+        description: Your API key from Google AI Studio.
+      GOOGLE_GEMINI_MODEL:
+        type: string
+        default: gemini-1.5-flash
+        description: Default Gemini model. Optional; if not provided, 'gemini-1.5-flash'
+          is used.
+  commandFunction:
+    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
+    |-
+    (config) => ({ command: 'node', args: ['dist/server.js'], env: { GOOGLE_GEMINI_API_KEY: config.GOOGLE_GEMINI_API_KEY, GOOGLE_GEMINI_MODEL: config.GOOGLE_GEMINI_MODEL || 'gemini-1.5-flash' } })
+  exampleConfig:
+    GOOGLE_GEMINI_API_KEY: your-api-key-here
+    GOOGLE_GEMINI_MODEL: gemini-1.5-flash

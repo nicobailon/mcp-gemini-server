@@ -1,12 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-// Commented out for now as it's not currently used
-// import { ConfigurationManager } from "./config/ConfigurationManager.js";
 import { registerTools } from "./tools/index.js";
 import { logger } from "./utils/index.js";
 
 /**
  * Creates and configures an MCP server instance.
  * This is the central function for server creation and tool registration.
+ * Note: ConfigurationManager is imported directly by services as needed.
  * @returns {McpServer} The configured MCP server instance
  */
 export function createServer(): McpServer {
@@ -18,9 +17,6 @@ export function createServer(): McpServer {
     version: "1.0.0",
     description: "MCP Server based on recommended practices",
   });
-
-  // Get configuration (for future use)
-  // const configManager = ConfigurationManager.getInstance();
 
   // Register all tools
   registerTools(server);

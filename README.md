@@ -4,7 +4,7 @@
 
 ## Overview
 
-This project provides a dedicated MCP (Model Context Protocol) server that wraps the latest `@google/genai` SDK (v0.10.0) which was released on April 23, 2025. It exposes Google's Gemini model capabilities (including Gemini 2.5 models) as standard MCP tools, allowing other LLMs (like Claude) or MCP-compatible systems to leverage Gemini's features as a backend workhorse.
+This project provides a dedicated MCP (Model Context Protocol) server that wraps the `@google/genai` SDK (v0.10.0). It exposes Google's Gemini model capabilities (including Gemini 2.5 models) as standard MCP tools, allowing other LLMs (like Claude) or MCP-compatible systems to leverage Gemini's features as a backend workhorse.
 
 This server aims to simplify integration with Gemini models by providing a consistent, tool-based interface managed via the MCP standard. It fully supports the latest Gemini 2.5 Pro Exp and Gemini 2.5 Flash models.
 
@@ -377,7 +377,7 @@ The server aims to return structured errors using the MCP standard `McpError` ty
 * **Safety Blocks:** May result in `InternalError` with details indicating `SAFETY` as the block reason or finish reason.
 * **File/Cache Not Found:** May result in `NotFound` or `InternalError` depending on how the SDK surfaces the error.
 * **Rate Limits:** May result in `ResourceExhausted` or `InternalError`.
-* **Image Processing Errors:** May result in `InvalidParams` or `InternalError` for issues with image format, size, or content.
+* **Image Processing Errors:** May result in `InvalidParams`, `IMAGE_PROCESSING_ERROR`, or `InternalError` for issues with image format, size limitations, content analysis failures, or incompatible image types. For base64-encoded images, ensure the mimeType is correctly specified.
 
 Check the `message` and `details` fields of the returned `McpError` for specific clues when troubleshooting.
 
@@ -398,7 +398,5 @@ This server follows the standard MCP server structure outlined in the project's 
 * `gemini_uploadFile` requires absolute file paths when run from the server environment.
 * File Handling & Caching APIs are **not supported on Vertex AI**, only Google AI Studio API keys.
 * This server is primarily tested and optimized for Gemini 2.5 Pro Exp and Gemini 2.5 Flash models. While other models should work, these models are the primary focus for testing and feature compatibility.
-* Image processing requires significant resource usage, especially for large resolution images. Consider using smaller resolutions when possible.
-* Base64-encoded images are streamed in chunks to handle large file sizes efficiently.
 * Image processing requires significant resource usage, especially for large resolution images. Consider using smaller resolutions when possible.
 * Base64-encoded images are streamed in chunks to handle large file sizes efficiently.

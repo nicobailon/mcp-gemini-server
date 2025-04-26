@@ -1432,9 +1432,20 @@ export class GeminiService {
         };
       }
 
-      // Try to parse the JSON response
+      // Try to parse the JSON response with robust error handling
       try {
-        const detectedObjects = JSON.parse(responseText);
+        // Wrap the JSON parsing in its own try-catch for specific handling
+        let detectedObjects;
+        try {
+          detectedObjects = JSON.parse(responseText);
+        } catch (jsonError) {
+          logger.error(
+            `JSON parse error in detectObjects for model ${effectiveModelName}:`,
+            jsonError
+          );
+          throw new Error(`Failed to parse JSON: ${jsonError.message}`);
+        }
+        
         if (!Array.isArray(detectedObjects)) {
           throw new Error("Response is not an array");
         }
@@ -1504,31 +1515,6 @@ export class GeminiService {
     }
   }
 
-  public async detectObjects(
-    imagePart: Part,
-    promptAddition?: string,
-    modelName?: string,
-    safetySettings?: SafetySetting[]
-  ): Promise<ObjectDetectionResult> {
-    const effectiveModelName = modelName ?? this.defaultModelName;
-    if (!effectiveModelName) {
-      throw new GeminiApiError(
-        "Model name must be provided either as a parameter or via the GOOGLE_GEMINI_MODEL environment variable."
-      );
-    }
-    logger.debug(`detectObjects called with model: ${effectiveModelName}`);
-
-    try {
-      // Validate image part has required fields
-      if (!imagePart || !("inlineData" in imagePart) || !imagePart.inlineData) {
-        throw new GeminiApiError("Invalid image part: missing inlineData", { imagePart });
-      }
-
-      // ... rest of method implementation ...
-    } catch (error: unknown) {
-      // ... error handling ...
-    }
-  }
 
   /**
    * Analyzes visual content like charts and diagrams to extract information.
@@ -1636,7 +1622,18 @@ export class GeminiService {
       // Try to parse JSON if structured output was requested
       if (structuredOutput) {
         try {
-          const jsonData = JSON.parse(responseText);
+          // Wrap the JSON parsing in its own try-catch for specific handling
+          let jsonData;
+          try {
+            jsonData = JSON.parse(responseText);
+          } catch (jsonError) {
+            logger.error(
+              `JSON parse error in analyzeContent for model ${effectiveModelName}:`,
+              jsonError
+            );
+            throw new Error(`Failed to parse JSON: ${jsonError.message}`);
+          }
+          
           return {
             analysis: {
               data: jsonData,

@@ -33,6 +33,10 @@ export class ConfigurationManager {
         apiKey: "",
         // defaultModel is initially undefined, loaded from env var later
         defaultModel: undefined,
+        // Default image processing settings
+        defaultImageResolution: "1024x1024",
+        maxImageSizeMB: 10,
+        supportedImageFormats: ["image/jpeg", "image/png", "image/webp"],
       },
       // Initialize other service configs with defaults:
       // yourService: {
@@ -162,6 +166,53 @@ export class ConfigurationManager {
       logger.info(
         "[ConfigurationManager] GOOGLE_GEMINI_MODEL environment variable not set. No default model configured."
       );
+    }
+
+    // Load image-specific settings if provided
+    if (process.env.GOOGLE_GEMINI_IMAGE_RESOLUTION) {
+      const resolution = process.env.GOOGLE_GEMINI_IMAGE_RESOLUTION;
+      if (["512x512", "1024x1024", "1536x1536"].includes(resolution)) {
+        this.config.geminiService.defaultImageResolution = resolution as "512x512" | "1024x1024" | "1536x1536";
+        logger.info(
+          `[ConfigurationManager] Default image resolution set to: ${resolution}`
+        );
+      } else {
+        logger.warn(
+          `[ConfigurationManager] Invalid image resolution '${resolution}' specified in GOOGLE_GEMINI_IMAGE_RESOLUTION. Using default.`
+        );
+      }
+    }
+
+    if (process.env.GOOGLE_GEMINI_MAX_IMAGE_SIZE_MB) {
+      const sizeMB = parseInt(process.env.GOOGLE_GEMINI_MAX_IMAGE_SIZE_MB, 10);
+      if (!isNaN(sizeMB) && sizeMB > 0) {
+        this.config.geminiService.maxImageSizeMB = sizeMB;
+        logger.info(
+          `[ConfigurationManager] Maximum image size set to: ${sizeMB}MB`
+        );
+      } else {
+        logger.warn(
+          `[ConfigurationManager] Invalid max image size '${process.env.GOOGLE_GEMINI_MAX_IMAGE_SIZE_MB}' specified. Using default.`
+        );
+      }
+    }
+
+    if (process.env.GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS) {
+      try {
+        const formats = JSON.parse(process.env.GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS);
+        if (Array.isArray(formats) && formats.every(f => typeof f === "string")) {
+          this.config.geminiService.supportedImageFormats = formats;
+          logger.info(
+            `[ConfigurationManager] Supported image formats set to: ${formats.join(", ")}`
+          );
+        } else {
+          throw new Error("Invalid format array");
+        }
+      } catch (error) {
+        logger.warn(
+          `[ConfigurationManager] Invalid image formats specified in GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS. Using default.`
+        );
+      }
     }
   }
 }

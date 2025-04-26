@@ -22,7 +22,10 @@ import { geminiListCachesTool } from "./geminiListCachesTool.js";
 import { geminiGetCacheTool } from "./geminiGetCacheTool.js";
 import { geminiUpdateCacheTool } from "./geminiUpdateCacheTool.js";
 import { geminiDeleteCacheTool } from "./geminiDeleteCacheTool.js";
-// import { yourTool } from "./yourTool.js";
+// Import image feature tools
+import { geminiGenerateImageTool } from "./geminiGenerateImageTool.js";
+import { geminiObjectDetectionTool } from "./geminiObjectDetectionTool.js";
+import { geminiContentUnderstandingTool } from "./geminiContentUnderstandingTool.js";
 
 /**
  * Register all defined tools with the MCP server instance.
@@ -62,7 +65,10 @@ export function registerTools(server: McpServer): void {
   geminiUpdateCacheTool(server, geminiServiceInstance);
   geminiDeleteCacheTool(server, geminiServiceInstance);
 
-  // yourTool(server, configManager.getYourServiceConfig());
+  // Register image feature tools
+  geminiGenerateImageTool(server, geminiServiceInstance);
+  geminiObjectDetectionTool(server, geminiServiceInstance);
+  geminiContentUnderstandingTool(server, geminiServiceInstance);
 
   logger.info("All tools registered.");
 }

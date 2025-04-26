@@ -15,6 +15,9 @@ This server aims to simplify integration with Gemini models by providing a consi
 * **Stateful Chat:** Manages conversational context across multiple turns (`gemini_startChat`, `gemini_sendMessage`, `gemini_sendFunctionResult`).
 * **File Handling:** Upload, list, retrieve, and delete files using the Gemini API.
 * **Caching:** Create, list, retrieve, update, and delete cached content to optimize prompts.
+* **Image Generation:** Generate images from text prompts using Gemini 2.5 Flash (`gemini_generateImage`).
+* **Object Detection:** Detect objects in images and return bounding box coordinates (`gemini_objectDetection`).
+* **Visual Content Understanding:** Extract information from charts, diagrams, and other visual content (`gemini_contentUnderstanding`).
 
 ## Prerequisites
 
@@ -106,42 +109,79 @@ This server provides the following MCP tools. Parameter schemas are defined usin
 ### Stateful Chat
 
 * **`gemini_startChat`**
-  * *Description:* Initiates a new stateful chat session and returns a unique `sessionId`.\n    *   *Required Params:* None
+  * *Description:* Initiates a new stateful chat session and returns a unique `sessionId`.
+  * *Required Params:* None
   * *Optional Params:* `modelName` (string), `history` (array), `tools` (array), `generationConfig` (object), `safetySettings` (array), `systemInstruction` (object), `cachedContentName` (string)
 * **`gemini_sendMessage`**
-  * *Description:* Sends a message within an existing chat session.\n    *   *Required Params:* `sessionId` (string), `message` (string)
+  * *Description:* Sends a message within an existing chat session.
+  * *Required Params:* `sessionId` (string), `message` (string)
   * *Optional Params:* `generationConfig` (object), `safetySettings` (array), `tools` (array), `toolConfig` (object), `cachedContentName` (string)
 * **`gemini_sendFunctionResult`**
-  * *Description:* Sends the result of a function execution back to a chat session.\n    *   *Required Params:* `sessionId` (string), `functionResponses` (array)
+  * *Description:* Sends the result of a function execution back to a chat session.
+  * *Required Params:* `sessionId` (string), `functionResponses` (array)
   * *Optional Params:* `generationConfig` (object), `safetySettings` (array)
 
 ### File Handling (Google AI Studio Key Required)
 
 * **`gemini_uploadFile`**
-  * *Description:* Uploads a file from a local path.\n    **Required Params:* `filePath` (string - **must be an absolute path**)\n*   *Optional Params:* `displayName` (string), `mimeType` (string)
+  * *Description:* Uploads a file from a local path.
+  * *Required Params:* `filePath` (string - **must be an absolute path**)
+  * *Optional Params:* `displayName` (string), `mimeType` (string)
 * **`gemini_listFiles`**
-  * *Description:* Lists previously uploaded files.\n    *   *Required Params:* None
+  * *Description:* Lists previously uploaded files.
+  * *Required Params:* None
   * *Optional Params:* `pageSize` (number), `pageToken` (string - Note: `pageToken` may not be reliably returned currently).
 * **`gemini_getFile`**
-  * *Description:* Retrieves metadata for a specific uploaded file.\n    *   *Required Params:* `fileName` (string - e.g., `files/abc123xyz`)
+  * *Description:* Retrieves metadata for a specific uploaded file.
+  * *Required Params:* `fileName` (string - e.g., `files/abc123xyz`)
 * **`gemini_deleteFile`**
-  * *Description:* Deletes an uploaded file.\n    *   *Required Params:* `fileName` (string - e.g., `files/abc123xyz`)
+  * *Description:* Deletes an uploaded file.
+  * *Required Params:* `fileName` (string - e.g., `files/abc123xyz`)
 
 ### Caching (Google AI Studio Key Required)
 
 * **`gemini_createCache`**
-  * *Description:* Creates cached content for compatible models (e.g., `gemini-1.5-flash`).\n    *   *Required Params:* `contents` (array)
+  * *Description:* Creates cached content for compatible models (e.g., `gemini-1.5-flash`).
+  * *Required Params:* `contents` (array)
   * *Optional Params:* `modelName` (string), `displayName` (string), `systemInstruction` (object), `ttl` (string - e.g., '3600s'), `tools` (array), `toolConfig` (object)
 * **`gemini_listCaches`**
-  * *Description:* Lists existing cached content.\n    *   *Required Params:* None
+  * *Description:* Lists existing cached content.
+  * *Required Params:* None
   * *Optional Params:* `pageSize` (number), `pageToken` (string - Note: `pageToken` may not be reliably returned currently).
 * **`gemini_getCache`**
-  * *Description:* Retrieves metadata for specific cached content.\n    *   *Required Params:* `cacheName` (string - e.g., `cachedContents/abc123xyz`)
+  * *Description:* Retrieves metadata for specific cached content.
+  * *Required Params:* `cacheName` (string - e.g., `cachedContents/abc123xyz`)
 * **`gemini_updateCache`**
-  * *Description:* Updates metadata (TTL, displayName) for cached content.\n    *   *Required Params:* `cacheName` (string)
+  * *Description:* Updates metadata (TTL, displayName) for cached content.
+  * *Required Params:* `cacheName` (string)
   * *Optional Params:* `ttl` (string), `displayName` (string)
 * **`gemini_deleteCache`**
-  * *Description:* Deletes cached content.\n    *   *Required Params:* `cacheName` (string - e.g., `cachedContents/abc123xyz`)
+  * *Description:* Deletes cached content.
+  * *Required Params:* `cacheName` (string - e.g., `cachedContents/abc123xyz`)
+
+### Image Generation
+
+* **`gemini_generateImage`**
+  * *Description:* Generates images from text prompts using Gemini 2.5 Flash.
+  * *Required Params:* `prompt` (string - descriptive text prompt for image generation)
+  * *Optional Params:* `modelName` (string - defaults to "gemini-2.5-flash"), `resolution` (string enum: "512x512", "1024x1024", "1536x1536"), `numberOfImages` (number - 1-4, default: 1), `safetySettings` (array), `negativePrompt` (string - features to avoid in the generated image)
+  * *Response:* Returns an array of base64-encoded images with metadata including dimensions and MIME type.
+
+### Object Detection
+
+* **`gemini_objectDetection`**
+  * *Description:* Detects objects in images and returns their positions with bounding box coordinates.
+  * *Required Params:* `image` (object with `type` ["url" | "base64"], `data` [URL string or base64 data], and `mimeType`)
+  * *Optional Params:* `modelName` (string - defaults to server's default model), `promptAddition` (string - custom instructions for detection), `outputFormat` (string enum: "json" | "text", default: "json"), `safetySettings` (array)
+  * *Response:* JSON array of detected objects with labels, normalized bounding box coordinates (0-1000 scale), and confidence scores. When `outputFormat` is "text", returns natural language description.
+
+### Visual Content Understanding
+
+* **`gemini_contentUnderstanding`**
+  * *Description:* Analyzes and extracts information from visual content like charts, diagrams, and documents.
+  * *Required Params:* `image` (object with `type` ["url" | "base64"], `data` [URL string or base64 data], and `mimeType`), `prompt` (string - instructions for analyzing the content)
+  * *Optional Params:* `modelName` (string - defaults to server's default model), `structuredOutput` (boolean - whether to return JSON structure), `safetySettings` (array)
+  * *Response:* When `structuredOutput` is true, returns JSON-structured data extracted from the visual content. Otherwise, returns natural language analysis.
 
 ## Usage Examples
 
@@ -264,6 +304,64 @@ Here are examples of how an MCP client (like Cline) might call these tools using
 </use_mcp_tool>
 ```
 
+
+**Example 7: Generating an Image**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateImage</tool_name>
+  <arguments>
+    {
+      "prompt": "A futuristic cityscape with flying cars and neon lights",
+      "resolution": "1024x1024",
+      "numberOfImages": 1,
+      "negativePrompt": "dystopian, ruins, dark, gloomy"
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 8: Detecting Objects in an Image**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_objectDetection</tool_name>
+  <arguments>
+    {
+      "image": {
+        "type": "url",
+        "data": "https://example.com/images/street_scene.jpg",
+        "mimeType": "image/jpeg"
+      },
+      "outputFormat": "json",
+      "promptAddition": "Focus on vehicles and pedestrians, ignore buildings"
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 9: Understanding Chart Content**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_contentUnderstanding</tool_name>
+  <arguments>
+    {
+      "image": {
+        "type": "base64",
+        "data": "data:image/png;base64,iVBORw0KGgoAA...", // Base64 encoded chart image
+        "mimeType": "image/png"
+      },
+      "prompt": "Extract the data from this sales chart and identify the key trends",
+      "structuredOutput": true
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
 ## Error Handling
 
 The server aims to return structured errors using the MCP standard `McpError` type when tool execution fails. This object typically contains:
@@ -279,6 +377,7 @@ The server aims to return structured errors using the MCP standard `McpError` ty
 * **Safety Blocks:** May result in `InternalError` with details indicating `SAFETY` as the block reason or finish reason.
 * **File/Cache Not Found:** May result in `NotFound` or `InternalError` depending on how the SDK surfaces the error.
 * **Rate Limits:** May result in `ResourceExhausted` or `InternalError`.
+* **Image Processing Errors:** May result in `InvalidParams` or `InternalError` for issues with image format, size, or content.
 
 Check the `message` and `details` fields of the returned `McpError` for specific clues when troubleshooting.
 
@@ -299,3 +398,7 @@ This server follows the standard MCP server structure outlined in the project's 
 * `gemini_uploadFile` requires absolute file paths when run from the server environment.
 * File Handling & Caching APIs are **not supported on Vertex AI**, only Google AI Studio API keys.
 * This server is primarily tested and optimized for Gemini 2.5 Pro Exp and Gemini 2.5 Flash models. While other models should work, these models are the primary focus for testing and feature compatibility.
+* Image processing requires significant resource usage, especially for large resolution images. Consider using smaller resolutions when possible.
+* Base64-encoded images are streamed in chunks to handle large file sizes efficiently.
+* Image processing requires significant resource usage, especially for large resolution images. Consider using smaller resolutions when possible.
+* Base64-encoded images are streamed in chunks to handle large file sizes efficiently.

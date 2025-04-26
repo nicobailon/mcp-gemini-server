@@ -37,6 +37,11 @@ import {
   // New import for content generation parameters
   GenerateContentParameters,
   GenerateContentConfig,
+  // Image generation types
+  GenerateImagesParameters,
+  GenerateImagesConfig,
+  GenerateImagesResponse,
+  Image as GenAIImage,
 } from "@google/genai";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -44,7 +49,8 @@ import {
   FunctionResponseInput,
   FileMetadata,
   CachedContentMetadata,
-} from "../types/index.js"; // Add CachedContentMetadata
+  ImageGenerationResult,
+} from "../types/index.js";
 import { logger } from "../utils/index.js";
 import { GeminiApiError } from "../utils/errors.js";
 
@@ -1307,5 +1313,515 @@ export class GeminiService {
         : undefined,
     };
     return metadata;
+  }
+
+  /**
+   * Generates images based on a text prompt using Gemini models.
+   * @param prompt - The text prompt describing the desired image.
+   * @param modelName - Optional. The name of the Gemini model to use (e.g., 'gemini-2.5-flash').
+   * @param resolution - Optional. The desired resolution (default: '1024x1024').
+   * @param numberOfImages - Optional. Number of images to generate (1-4, default: 1).
+   * @param safetySettings - Optional. Safety settings to apply.
+   * @param negativePrompt - Optional. Text description of features to avoid.
+   * @returns Generated images with metadata.
+   */
+  /**
+   * Detects objects in an image and returns their locations and descriptions.
+   * @param imagePart - The image to analyze as a Part object (contains both data and mimeType).
+   * @param promptAddition - Optional additional text to customize detection behavior.
+   * @param modelName - Optional. The name of the Gemini model to use.
+   * @param safetySettings - Optional safety settings to apply.
+   * @returns Object detection results with normalized bounding box coordinates.
+   */
+  public async detectObjects(
+    imagePart: Part,
+    promptAddition?: string,
+    modelName?: string,
+    safetySettings?: SafetySetting[]
+  ): Promise<ObjectDetectionResult> {
+    const effectiveModelName = modelName ?? this.defaultModelName;
+    if (!effectiveModelName) {
+      throw new GeminiApiError(
+        "Model name must be provided either as a parameter or via the GOOGLE_GEMINI_MODEL environment variable."
+      );
+    }
+    logger.debug(`detectObjects called with model: ${effectiveModelName}`);
+
+    try {
+      // Validate image part has required fields
+      if (!imagePart || !("inlineData" in imagePart) || !imagePart.inlineData) {
+        throw new GeminiApiError("Invalid image part: missing inlineData", { imagePart });
+      }
+
+      // Construct the base prompt for bounding box detection
+      let prompt = "Detect all objects in this image. For each object detected, return:";
+      prompt += "\n1. A descriptive label";
+      prompt += "\n2. Bounding box coordinates [ymin, xmin, ymax, xmax] normalized to 0-1000 scale";
+      prompt += "\n3. A confidence score between 0 and 1 if applicable";
+      prompt += "\nFormat the response as a valid JSON array of objects.";
+
+      // Add any custom prompt additions
+      if (promptAddition) {
+        prompt += `\nAdditional instructions: ${promptAddition}`;
+      }
+
+      // Construct the config object
+      const callConfig: GenerateContentConfig = {};
+      if (safetySettings) {
+        callConfig.safetySettings = safetySettings;
+      }
+
+      // Create the generate content parameters
+      const params: GenerateContentParameters = {
+        model: effectiveModelName,
+        contents: [{ 
+          role: "user", 
+          parts: [
+            { text: prompt },
+            imagePart
+          ]
+        }],
+        config: Object.keys(callConfig).length > 0 ? callConfig : undefined,
+      };
+
+      // Call the model
+      const result: GenerateContentResponse = await this.genAI.models.generateContent(params);
+
+      // Check for safety blocks
+      if (result.promptFeedback?.blockReason === BlockedReason.SAFETY) {
+        logger.warn(
+          `Object detection blocked due to SAFETY for model ${effectiveModelName}. Throwing error.`
+        );
+        throw new GeminiApiError("Object detection blocked due to safety settings.", {
+          blockReason: result.promptFeedback.blockReason,
+          safetyRatings: result.promptFeedback.safetyRatings,
+        });
+      }
+
+      // Get the response text
+      let responseText: string | undefined;
+      if (result.text !== undefined) {
+        responseText = result.text;
+      } else {
+        const firstCandidate = result.candidates?.[0];
+        if (firstCandidate?.finishReason === FinishReason.SAFETY) {
+          throw new GeminiApiError(
+            "Object detection stopped due to safety settings.",
+            {
+              finishReason: firstCandidate.finishReason,
+              safetyRatings: firstCandidate.safetyRatings,
+            }
+          );
+        }
+        const firstPart = firstCandidate?.content?.parts?.[0];
+        if (firstPart && "text" in firstPart && typeof firstPart.text === "string") {
+          responseText = firstPart.text;
+        }
+      }
+
+      if (!responseText) {
+        logger.warn(
+          `No text response received for object detection with model ${effectiveModelName}.`
+        );
+        return {
+          objects: [],
+          promptSafetyMetadata: {
+            blocked: true,
+            reasons: ["No response generated"],
+          }
+        };
+      }
+
+      // Try to parse the JSON response
+      try {
+        const detectedObjects = JSON.parse(responseText);
+        if (!Array.isArray(detectedObjects)) {
+          throw new Error("Response is not an array");
+        }
+
+        // Process and validate each object
+        const objects = detectedObjects.map((obj: any) => {
+          // Basic validation of required fields
+          if (!obj.label || !Array.isArray(obj.boundingBox) || obj.boundingBox.length !== 4) {
+            throw new Error(`Invalid object format: ${JSON.stringify(obj)}`);
+          }
+
+          // Normalize and validate coordinates
+          const [yMin, xMin, yMax, xMax] = obj.boundingBox.map((coord: number) => {
+            if (typeof coord !== "number" || coord < 0 || coord > 1000) {
+              throw new Error(`Invalid coordinate value: ${coord}`);
+            }
+            return coord;
+          });
+
+          return {
+            label: String(obj.label),
+            boundingBox: { yMin, xMin, yMax, xMax },
+            ...(obj.confidence !== undefined && {
+              confidence: Number(obj.confidence)
+            })
+          };
+        });
+
+        return {
+          objects,
+          promptSafetyMetadata: result.promptFeedback ? {
+            blocked: false,
+            reasons: result.promptFeedback.safetyRatings?.map(r => r.category)
+          } : undefined
+        };
+      } catch (parseError) {
+        logger.error(
+          `Failed to parse object detection response as JSON for model ${effectiveModelName}:`,
+          parseError
+        );
+        // Return the raw text for potential debugging or alternate parsing
+        return {
+          objects: [],
+          rawText: responseText,
+          promptSafetyMetadata: {
+            blocked: true,
+            reasons: [`Failed to parse response: ${parseError.message}`]
+          }
+        };
+      }
+    } catch (error: unknown) {
+      // Handle specific error thrown above for SAFETY issues
+      if (
+        error instanceof GeminiApiError &&
+        error.message.includes("safety settings")
+      ) {
+        throw error; // Re-throw the specific error
+      }
+      // Handle other errors
+      logger.error(
+        `Gemini SDK error in detectObjects for model ${effectiveModelName}:`,
+        error
+      );
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown SDK error";
+      throw new GeminiApiError(errorMessage, error);
+    }
+  }
+
+  public async detectObjects(
+    imagePart: Part,
+    promptAddition?: string,
+    modelName?: string,
+    safetySettings?: SafetySetting[]
+  ): Promise<ObjectDetectionResult> {
+    const effectiveModelName = modelName ?? this.defaultModelName;
+    if (!effectiveModelName) {
+      throw new GeminiApiError(
+        "Model name must be provided either as a parameter or via the GOOGLE_GEMINI_MODEL environment variable."
+      );
+    }
+    logger.debug(`detectObjects called with model: ${effectiveModelName}`);
+
+    try {
+      // Validate image part has required fields
+      if (!imagePart || !("inlineData" in imagePart) || !imagePart.inlineData) {
+        throw new GeminiApiError("Invalid image part: missing inlineData", { imagePart });
+      }
+
+      // ... rest of method implementation ...
+    } catch (error: unknown) {
+      // ... error handling ...
+    }
+  }
+
+  /**
+   * Analyzes visual content like charts and diagrams to extract information.
+   * @param imagePart - The image to analyze as a Part object (contains both data and mimeType).
+   * @param prompt - Instructions for analyzing the image (e.g., "Extract metrics from this chart").
+   * @param structuredOutput - Whether to return structured JSON data (defaults to false).
+   * @param modelName - Optional. The name of the Gemini model to use.
+   * @param safetySettings - Optional safety settings to apply.
+   * @returns Analysis results with extracted information.
+   */
+  public async analyzeContent(
+    imagePart: Part,
+    prompt: string,
+    structuredOutput: boolean = false,
+    modelName?: string,
+    safetySettings?: SafetySetting[]
+  ): Promise<ContentUnderstandingResult> {
+    const effectiveModelName = modelName ?? this.defaultModelName;
+    if (!effectiveModelName) {
+      throw new GeminiApiError(
+        "Model name must be provided either as a parameter or via the GOOGLE_GEMINI_MODEL environment variable."
+      );
+    }
+    logger.debug(`analyzeContent called with model: ${effectiveModelName}`);
+
+    try {
+      // Validate image part has required fields
+      if (!imagePart || !("inlineData" in imagePart) || !imagePart.inlineData) {
+        throw new GeminiApiError("Invalid image part: missing inlineData", { imagePart });
+      }
+
+      // Modify prompt if structured output is requested
+      let effectivePrompt = prompt;
+      if (structuredOutput) {
+        effectivePrompt += "\nFormat your response as a valid JSON object with appropriate fields for the extracted information.";
+      }
+
+      // Construct the config object
+      const callConfig: GenerateContentConfig = {};
+      if (safetySettings) {
+        callConfig.safetySettings = safetySettings;
+      }
+
+      // Create the generate content parameters
+      const params: GenerateContentParameters = {
+        model: effectiveModelName,
+        contents: [{ 
+          role: "user", 
+          parts: [
+            { text: effectivePrompt },
+            imagePart
+          ]
+        }],
+        config: Object.keys(callConfig).length > 0 ? callConfig : undefined,
+      };
+
+      // Call the model
+      const result: GenerateContentResponse = await this.genAI.models.generateContent(params);
+
+      // Check for safety blocks
+      if (result.promptFeedback?.blockReason === BlockedReason.SAFETY) {
+        logger.warn(
+          `Content analysis blocked due to SAFETY for model ${effectiveModelName}. Throwing error.`
+        );
+        throw new GeminiApiError("Content analysis blocked due to safety settings.", {
+          blockReason: result.promptFeedback.blockReason,
+          safetyRatings: result.promptFeedback.safetyRatings,
+        });
+      }
+
+      // Get the response text
+      let responseText: string | undefined;
+      if (result.text !== undefined) {
+        responseText = result.text;
+      } else {
+        const firstCandidate = result.candidates?.[0];
+        if (firstCandidate?.finishReason === FinishReason.SAFETY) {
+          throw new GeminiApiError(
+            "Content analysis stopped due to safety settings.",
+            {
+              finishReason: firstCandidate.finishReason,
+              safetyRatings: firstCandidate.safetyRatings,
+            }
+          );
+        }
+        const firstPart = firstCandidate?.content?.parts?.[0];
+        if (firstPart && "text" in firstPart && typeof firstPart.text === "string") {
+          responseText = firstPart.text;
+        }
+      }
+
+      if (!responseText) {
+        logger.warn(
+          `No text response received for content analysis with model ${effectiveModelName}.`
+        );
+        return {
+          analysis: {},
+          promptSafetyMetadata: {
+            blocked: true,
+            reasons: ["No response generated"],
+          }
+        };
+      }
+
+      // Try to parse JSON if structured output was requested
+      if (structuredOutput) {
+        try {
+          const jsonData = JSON.parse(responseText);
+          return {
+            analysis: {
+              data: jsonData,
+            },
+            promptSafetyMetadata: result.promptFeedback ? {
+              blocked: false,
+              reasons: result.promptFeedback.safetyRatings?.map(r => r.category)
+            } : undefined
+          };
+        } catch (parseError) {
+          logger.error(
+            `Failed to parse content analysis response as JSON for model ${effectiveModelName}:`,
+            parseError
+          );
+          // Fall back to returning raw text
+          return {
+            analysis: {
+              text: responseText
+            },
+            rawText: responseText,
+            promptSafetyMetadata: {
+              blocked: false,
+              reasons: [`Failed to parse JSON: ${parseError.message}`]
+            }
+          };
+        }
+      }
+
+      // Return natural language analysis
+      return {
+        analysis: {
+          text: responseText
+        },
+        promptSafetyMetadata: result.promptFeedback ? {
+          blocked: false,
+          reasons: result.promptFeedback.safetyRatings?.map(r => r.category)
+        } : undefined
+      };
+
+    } catch (error: unknown) {
+      // Handle specific error thrown above for SAFETY issues
+      if (
+        error instanceof GeminiApiError &&
+        error.message.includes("safety settings")
+      ) {
+        throw error; // Re-throw the specific error
+      }
+      // Handle other errors
+      logger.error(
+        `Gemini SDK error in analyzeContent for model ${effectiveModelName}:`,
+        error
+      );
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown SDK error";
+      throw new GeminiApiError(errorMessage, error);
+    }
+  }
+
+  public async generateImage(
+    prompt: string,
+    modelName?: string,
+    resolution?: string, // '512x512' | '1024x1024' | '1536x1536'
+    numberOfImages?: number,
+    safetySettings?: SafetySetting[],
+    negativePrompt?: string
+  ): Promise<ImageGenerationResult> {
+    const effectiveModelName = modelName ?? this.defaultModelName;
+    if (!effectiveModelName) {
+      throw new GeminiApiError(
+        "Model name must be provided either as a parameter or via the GOOGLE_GEMINI_MODEL environment variable."
+      );
+    }
+    logger.debug(`generateImage called with model: ${effectiveModelName}`);
+
+    try {
+      // Construct the config object for the SDK call
+      const config: GenerateImagesConfig = {
+        resolution,
+        numberOfImages: numberOfImages !== undefined ? numberOfImages : 1,
+        safetySettings,
+        negativePrompt,
+      };
+
+      // Create the generate images parameters
+      const params: GenerateImagesParameters = {
+        model: effectiveModelName,
+        prompt,
+        config: Object.keys(config).length > 0 ? config : undefined,
+      };
+
+      // Call models.generateImages with the parameters
+      const result: GenerateImagesResponse = await this.genAI.models.generateImages(params);
+
+      // Check for safety blocks
+      if (result.promptFeedback?.blockReason === BlockedReason.SAFETY) {
+        logger.warn(
+          `Image generation blocked due to SAFETY for model ${effectiveModelName}. Throwing error.`
+        );
+        throw new GeminiApiError("Image generation blocked due to safety settings.", {
+          blockReason: result.promptFeedback.blockReason,
+          safetyRatings: result.promptFeedback.safetyRatings,
+        });
+      }
+
+      // Extract and convert images
+      if (!result.generatedImages?.length) {
+        logger.warn(
+          `No images generated for model ${effectiveModelName}. Check if the model supports image generation.`
+        );
+        return {
+          images: [],
+          promptSafetyMetadata: result.promptFeedback
+            ? {
+                blocked: true,
+                reasons: [
+                  result.promptFeedback.blockReason ??
+                    "Unknown (no images generated)",
+                ],
+              }
+            : undefined,
+        };
+      }
+
+      // Convert GenAIImage objects to our format
+      const images = result.generatedImages.map((genImg) => {
+        // Validate required fields
+        if (!genImg.image?.data) {
+          throw new GeminiApiError(
+            "Generated image missing required data field",
+            { genImg }
+          );
+        }
+        if (!genImg.image?.mimeType) {
+          throw new GeminiApiError(
+            "Generated image missing required mimeType field",
+            { genImg }
+          );
+        }
+
+        // Get dimensions from resolution
+        let width = 1024, height = 1024; // Default if not specified
+        if (resolution) {
+          const [w, h] = resolution.split("x").map(Number);
+          if (w && h) {
+            width = w;
+            height = h;
+          }
+        }
+
+        return {
+          base64Data: genImg.image.data,
+          mimeType: genImg.image.mimeType,
+          width,
+          height,
+        };
+      });
+
+      // Return successfully generated images with any safety metadata
+      return {
+        images,
+        promptSafetyMetadata: result.promptFeedback
+          ? {
+              blocked: false, // Not blocked since we got images
+              reasons: result.promptFeedback.safetyRatings?.map(
+                (r) => r.category
+              ),
+            }
+          : undefined,
+      };
+    } catch (error: unknown) {
+      // Handle specific error thrown above for SAFETY finish reason
+      if (
+        error instanceof GeminiApiError &&
+        error.message.includes("safety settings")
+      ) {
+        throw error; // Re-throw the specific error
+      }
+      // Handle other errors
+      logger.error(
+        `Gemini SDK error in generateImage for model ${effectiveModelName}:`,
+        error
+      );
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown SDK error";
+      throw new GeminiApiError(errorMessage, error);
+    }
   }
 }

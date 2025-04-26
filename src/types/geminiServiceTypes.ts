@@ -6,12 +6,16 @@ import { z } from "zod"; // <-- ADD THIS FUCKING IMPORT
 
 /**
  * Configuration interface for the GeminiService.
- * Currently only requires the API key.
+ * Contains API key, model settings, and image processing configurations.
  */
 export interface GeminiServiceConfig {
   apiKey: string;
   defaultModel?: string; // Optional default model name from env var
-  // Potentially add other config options later
+  // Image-specific settings
+  defaultImageResolution?: "512x512" | "1024x1024" | "1536x1536";
+  maxImageSizeMB: number;  // Default: 10MB
+  supportedImageFormats: string[];  // Default: ["image/jpeg", "image/png", "image/webp"]
+  // Safety settings are added per-request as they can vary by endpoint
 }
 
 /**
@@ -120,3 +124,60 @@ export const ContentSchema = z
     role: z.enum(["user", "model", "function", "tool"]).optional(), // Role is optional for some contexts
   })
   .strict();
+
+/**
+ * Interface for results returned by image generation.
+ * Includes the generated images in base64 format with metadata.
+ */
+export interface ImageGenerationResult {
+  images: Array<{
+    base64Data: string;  // Base64-encoded image data
+    mimeType: string;    // Image MIME type (e.g., 'image/png')
+    width: number;       // Image width in pixels
+    height: number;      // Image height in pixels
+  }>;
+  promptSafetyMetadata?: {
+    blocked: boolean;    // Whether the prompt was blocked by safety filters
+    reasons?: string[];  // Reasons for blocking, if applicable
+  };
+}
+
+/**
+ * Interface for results returned by object detection.
+ * Includes detected objects with normalized bounding box coordinates and confidence scores.
+ */
+export interface ObjectDetectionResult {
+  objects: Array<{
+    label: string;          // Description of the detected object
+    boundingBox: {          // Normalized coordinates (0-1000 scale)
+      yMin: number;
+      xMin: number;
+      yMax: number;
+      xMax: number;
+    };
+    confidence?: number;    // Optional confidence score (0-1)
+  }>;
+  promptSafetyMetadata?: {
+    blocked: boolean;       // Whether the prompt was blocked by safety filters
+    reasons?: string[];     // Reasons for blocking, if applicable
+  };
+  rawText?: string;        // Raw model output when outputFormat is 'text'
+}
+
+/**
+ * Interface for results returned by content understanding.
+ * Includes extracted information from charts, diagrams, and other visual content.
+ */
+export interface ContentUnderstandingResult {
+  analysis: {
+    text?: string;         // Natural language description/analysis
+    data?: {              // Structured data when available
+      [key: string]: any; // Type depends on content (could be metrics, relationships, etc.)
+    };
+  };
+  promptSafetyMetadata?: {
+    blocked: boolean;      // Whether the prompt was blocked by safety filters
+    reasons?: string[];    // Reasons for blocking, if applicable
+  };
+  rawText?: string;       // Raw model output when structured parsing fails
+}

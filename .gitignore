@@ -146,3 +146,5 @@ docs/
 .env.development.local
 .env.test.local
 *workspace*
+*.md
+!README.md

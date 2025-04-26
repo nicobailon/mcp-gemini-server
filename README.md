@@ -4,9 +4,9 @@
 
 ## Overview
 
-This project provides a dedicated MCP (Model Context Protocol) server that wraps the `@google/genai` SDK. It exposes Google's Gemini model capabilities as standard MCP tools, allowing other LLMs (like Cline) or MCP-compatible systems to leverage Gemini's features as a backend workhorse.
+This project provides a dedicated MCP (Model Context Protocol) server that wraps the latest `@google/genai` SDK (v0.10.0) which was released on April 23, 2025. It exposes Google's Gemini model capabilities (including Gemini 2.5 models) as standard MCP tools, allowing other LLMs (like Claude) or MCP-compatible systems to leverage Gemini's features as a backend workhorse.
 
-This server aims to simplify integration with Gemini models by providing a consistent, tool-based interface managed via the MCP standard.
+This server aims to simplify integration with Gemini models by providing a consistent, tool-based interface managed via the MCP standard. It fully supports the latest Gemini 2.5 Pro Exp and Gemini 2.5 Flash models.
 
 ## Features
 
@@ -81,7 +81,7 @@ The server uses environment variables for configuration, passed via the `env` ob
 
 This server provides the following MCP tools. Parameter schemas are defined using Zod for validation and description.
 
-**Note on Optional Parameters:** Many tools accept complex optional parameters (e.g., `generationConfig`, `safetySettings`, `toolConfig`, `history`, `functionDeclarations`, `contents`). These parameters are typically objects or arrays whose structure mirrors the types defined in the underlying `@google/genai` SDK. For the exact structure and available fields within these complex parameters, please refer to:
+**Note on Optional Parameters:** Many tools accept complex optional parameters (e.g., `generationConfig`, `safetySettings`, `toolConfig`, `history`, `functionDeclarations`, `contents`). These parameters are typically objects or arrays whose structure mirrors the types defined in the underlying `@google/genai` SDK (v0.10.0). For the exact structure and available fields within these complex parameters, please refer to:
     1. The corresponding `src/tools/*Params.ts` file in this project.
     2. The official [Google AI JS SDK Documentation](https://github.com/google/generative-ai-js).
 
@@ -90,11 +90,11 @@ This server provides the following MCP tools. Parameter schemas are defined usin
 * **`gemini_generateContent`**
   * *Description:* Generates non-streaming text content from a prompt.
   * *Required Params:* `prompt` (string)
-  * *Optional Params:* `modelName` (string), `generationConfig` (object), `safetySettings` (array)
+  * *Optional Params:* `modelName` (string), `generationConfig` (object), `safetySettings` (array), `systemInstruction` (object), `cachedContentName` (string)
 * **`gemini_generateContentStream`**
   * *Description:* Generates text content via streaming. (Note: Current implementation uses a workaround and collects all chunks before returning the full text).
   * *Required Params:* `prompt` (string)
-  * *Optional Params:* `modelName` (string), `generationConfig` (object), `safetySettings` (array)
+  * *Optional Params:* `modelName` (string), `generationConfig` (object), `safetySettings` (array), `systemInstruction` (object), `cachedContentName` (string)
 
 ### Function Calling
 
@@ -107,10 +107,10 @@ This server provides the following MCP tools. Parameter schemas are defined usin
 
 * **`gemini_startChat`**
   * *Description:* Initiates a new stateful chat session and returns a unique `sessionId`.\n    *   *Required Params:* None
-  * *Optional Params:* `modelName` (string), `history` (array), `tools` (array), `generationConfig` (object), `safetySettings` (array)
+  * *Optional Params:* `modelName` (string), `history` (array), `tools` (array), `generationConfig` (object), `safetySettings` (array), `systemInstruction` (object), `cachedContentName` (string)
 * **`gemini_sendMessage`**
   * *Description:* Sends a message within an existing chat session.\n    *   *Required Params:* `sessionId` (string), `message` (string)
-  * *Optional Params:* `generationConfig` (object), `safetySettings` (array), `tools` (array), `toolConfig` (object)
+  * *Optional Params:* `generationConfig` (object), `safetySettings` (array), `tools` (array), `toolConfig` (object), `cachedContentName` (string)
 * **`gemini_sendFunctionResult`**
   * *Description:* Sends the result of a function execution back to a chat session.\n    *   *Required Params:* `sessionId` (string), `functionResponses` (array)
   * *Optional Params:* `generationConfig` (object), `safetySettings` (array)
@@ -131,7 +131,7 @@ This server provides the following MCP tools. Parameter schemas are defined usin
 
 * **`gemini_createCache`**
   * *Description:* Creates cached content for compatible models (e.g., `gemini-1.5-flash`).\n    *   *Required Params:* `contents` (array)
-  * *Optional Params:* `modelName` (string), `displayName` (string), `systemInstruction` (object), `ttl` (string - e.g., '3600s')
+  * *Optional Params:* `modelName` (string), `displayName` (string), `systemInstruction` (object), `ttl` (string - e.g., '3600s'), `tools` (array), `toolConfig` (object)
 * **`gemini_listCaches`**
   * *Description:* Lists existing cached content.\n    *   *Required Params:* None
   * *Optional Params:* `pageSize` (number), `pageToken` (string - Note: `pageToken` may not be reliably returned currently).
@@ -211,7 +211,45 @@ Here are examples of how an MCP client (like Cline) might call these tools using
 </use_mcp_tool>
 ```
 
-**Example 4: Uploading a File**
+**Example 4: Content Generation with System Instructions**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateContent</tool_name>
+  <arguments>
+    {
+      "modelName": "gemini-2.5-pro-exp",
+      "prompt": "What should I do with my day off?",
+      "systemInstruction": {
+        "parts": [
+          {
+            "text": "You are a helpful assistant that provides friendly and detailed advice. You should focus on outdoor activities and wellness."
+          }
+        ]
+      }
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 5: Using Cached Content**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateContent</tool_name>
+  <arguments>
+    {
+      "modelName": "gemini-2.5-pro-exp",
+      "prompt": "Explain how these concepts relate to my product?",
+      "cachedContentName": "cachedContents/abc123xyz"
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 6: Uploading a File**
 
 ```xml
 <use_mcp_tool>
@@ -256,7 +294,8 @@ This server follows the standard MCP server structure outlined in the project's 
 
 ## Known Issues
 
-* `gemini_generateContentStream` uses a workaround, collecting all chunks before returning the full text. True streaming to the MCP client is not yet implemented.
-* `gemini_listFiles` and `gemini_listCaches` may not reliably return `nextPageToken` due to limitations in iterating the SDK's Pager object.
+* `gemini_generateContentStream` uses a workaround, collecting all chunks before returning the full text. True streaming to the MCP client is not yet implemented due to current MCP SDK limitations.
+* `gemini_listFiles` and `gemini_listCaches` may not reliably return `nextPageToken` due to limitations in iterating the SDK's Pager object. A workaround is implemented but has limited reliability.
 * `gemini_uploadFile` requires absolute file paths when run from the server environment.
 * File Handling & Caching APIs are **not supported on Vertex AI**, only Google AI Studio API keys.
+* This server is primarily tested and optimized for Gemini 2.5 Pro Exp and Gemini 2.5 Flash models. While other models should work, these models are the primary focus for testing and feature compatibility.

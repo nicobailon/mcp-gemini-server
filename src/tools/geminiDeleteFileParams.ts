@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 export const TOOL_NAME_DELETE_FILE = "gemini_deleteFile";
 
@@ -10,9 +10,13 @@ Requires the unique file name (e.g., 'files/abc123xyz'). Returns a success confi
 
 // Define an object containing individual Zod schemas for each parameter
 export const DeleteFileParamsObject = {
-    fileName: z.string().min(1).regex(/^files\/.+$/, "File name must start with 'files/'").describe(
-        "Required. The unique name/ID of the file to delete (e.g., 'files/abc123xyz')."
-    )
+  fileName: z
+    .string()
+    .min(1)
+    .regex(/^files\/.+$/, "File name must start with 'files/'")
+    .describe(
+      "Required. The unique name/ID of the file to delete (e.g., 'files/abc123xyz')."
+    ),
 };
 
 // Define the type based on the object of schemas

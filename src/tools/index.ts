@@ -29,40 +29,40 @@ import { geminiDeleteCacheTool } from "./geminiDeleteCacheTool.js";
  * This function centralizes tool registration logic.
  */
 export function registerTools(server: McpServer): void {
-    logger.info("Registering tools...");
-    const configManager = ConfigurationManager.getInstance();
+  logger.info("Registering tools...");
+  const configManager = ConfigurationManager.getInstance();
 
-    // Register each tool, passing necessary config or services
-    exampleTool(server, configManager.getExampleServiceConfig());
-    // Assuming getGeminiServiceConfig exists in ConfigurationManager
-    const geminiConfig = configManager.getGeminiServiceConfig();
-    // Create a single GeminiService instance
-    const geminiServiceInstance = new GeminiService(geminiConfig);
+  // Register each tool, passing necessary config or services
+  exampleTool(server, configManager.getExampleServiceConfig());
+  // Assuming getGeminiServiceConfig exists in ConfigurationManager
+  const geminiConfig = configManager.getGeminiServiceConfig();
+  // Create a single GeminiService instance
+  const geminiServiceInstance = new GeminiService(geminiConfig);
 
-    // Pass the service instance to the tools that need it
-    geminiGenerateContentTool(server, geminiServiceInstance); // Assuming this tool needs the service instance now
-    geminiGenerateContentStreamTool(server, geminiServiceInstance); // Pass instance
-    geminiFunctionCallTool(server, geminiServiceInstance); // Pass instance
+  // Pass the service instance to the tools that need it
+  geminiGenerateContentTool(server, geminiServiceInstance); // Assuming this tool needs the service instance now
+  geminiGenerateContentStreamTool(server, geminiServiceInstance); // Pass instance
+  geminiFunctionCallTool(server, geminiServiceInstance); // Pass instance
 
-    // Register new chat tools, passing the same service instance
-    geminiStartChatTool(server, geminiServiceInstance);
-    geminiSendMessageTool(server, geminiServiceInstance);
-    geminiSendFunctionResultTool(server, geminiServiceInstance);
+  // Register new chat tools, passing the same service instance
+  geminiStartChatTool(server, geminiServiceInstance);
+  geminiSendMessageTool(server, geminiServiceInstance);
+  geminiSendFunctionResultTool(server, geminiServiceInstance);
 
-    // Register File Handling tools
-    geminiUploadFileTool(server, geminiServiceInstance);
-    geminiListFilesTool(server, geminiServiceInstance);
-    geminiGetFileTool(server, geminiServiceInstance);
-    geminiDeleteFileTool(server, geminiServiceInstance);
+  // Register File Handling tools
+  geminiUploadFileTool(server, geminiServiceInstance);
+  geminiListFilesTool(server, geminiServiceInstance);
+  geminiGetFileTool(server, geminiServiceInstance);
+  geminiDeleteFileTool(server, geminiServiceInstance);
 
-    // Register Caching tools
-    geminiCreateCacheTool(server, geminiServiceInstance);
-    geminiListCachesTool(server, geminiServiceInstance);
-    geminiGetCacheTool(server, geminiServiceInstance);
-    geminiUpdateCacheTool(server, geminiServiceInstance);
-    geminiDeleteCacheTool(server, geminiServiceInstance);
+  // Register Caching tools
+  geminiCreateCacheTool(server, geminiServiceInstance);
+  geminiListCachesTool(server, geminiServiceInstance);
+  geminiGetCacheTool(server, geminiServiceInstance);
+  geminiUpdateCacheTool(server, geminiServiceInstance);
+  geminiDeleteCacheTool(server, geminiServiceInstance);
 
-    // yourTool(server, configManager.getYourServiceConfig());
+  // yourTool(server, configManager.getYourServiceConfig());
 
-    logger.info("All tools registered.");
+  logger.info("All tools registered.");
 }

@@ -26,6 +26,8 @@ import { geminiDeleteCacheTool } from "./geminiDeleteCacheTool.js";
 import { geminiGenerateImageTool } from "./geminiGenerateImageTool.js";
 import { geminiObjectDetectionTool } from "./geminiObjectDetectionTool.js";
 import { geminiContentUnderstandingTool } from "./geminiContentUnderstandingTool.js";
+// Import audio transcription tool
+import { geminiAudioTranscriptionTool } from "./geminiAudioTranscriptionTool.js";
 
 /**
  * Register all defined tools with the MCP server instance.
@@ -69,6 +71,9 @@ export function registerTools(server: McpServer): void {
   geminiGenerateImageTool(server, geminiServiceInstance);
   geminiObjectDetectionTool(server, geminiServiceInstance);
   geminiContentUnderstandingTool(server, geminiServiceInstance);
+
+  // Register audio transcription tool
+  geminiAudioTranscriptionTool(server, geminiServiceInstance);
 
   logger.info("All tools registered.");
 }

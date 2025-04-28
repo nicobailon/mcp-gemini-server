@@ -50,11 +50,13 @@ export class ConfigurationManager {
   }
 
   private validateRequiredEnvVars(): void {
-    const requiredVars = ['GOOGLE_GEMINI_API_KEY'];
-    const missingVars = requiredVars.filter(varName => !process.env[varName]);
-    
+    const requiredVars = ["GOOGLE_GEMINI_API_KEY"];
+    const missingVars = requiredVars.filter((varName) => !process.env[varName]);
+
     if (missingVars.length > 0) {
-      throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+      throw new Error(
+        `Missing required environment variables: ${missingVars.join(", ")}`
+      );
     }
   }
 
@@ -181,7 +183,10 @@ export class ConfigurationManager {
     if (process.env.GOOGLE_GEMINI_IMAGE_RESOLUTION) {
       const resolution = process.env.GOOGLE_GEMINI_IMAGE_RESOLUTION;
       if (["512x512", "1024x1024", "1536x1536"].includes(resolution)) {
-        this.config.geminiService.defaultImageResolution = resolution as "512x512" | "1024x1024" | "1536x1536";
+        this.config.geminiService.defaultImageResolution = resolution as
+          | "512x512"
+          | "1024x1024"
+          | "1536x1536";
         logger.info(
           `[ConfigurationManager] Default image resolution set to: ${resolution}`
         );
@@ -208,8 +213,13 @@ export class ConfigurationManager {
 
     if (process.env.GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS) {
       try {
-        const formats = JSON.parse(process.env.GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS);
-        if (Array.isArray(formats) && formats.every(f => typeof f === "string")) {
+        const formats = JSON.parse(
+          process.env.GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS
+        );
+        if (
+          Array.isArray(formats) &&
+          formats.every((f) => typeof f === "string")
+        ) {
           this.config.geminiService.supportedImageFormats = formats;
           logger.info(
             `[ConfigurationManager] Supported image formats set to: ${formats.join(", ")}`

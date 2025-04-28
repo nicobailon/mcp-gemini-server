@@ -148,3 +148,4 @@ docs/
 *workspace*
 *.md
 !README.md
+.env

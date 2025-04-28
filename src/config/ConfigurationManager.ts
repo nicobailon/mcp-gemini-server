@@ -45,8 +45,17 @@ export class ConfigurationManager {
       // },
     };
 
-    // Optional: Load overrides from environment variables or config files here
+    this.validateRequiredEnvVars();
     this.loadEnvironmentOverrides();
+  }
+
+  private validateRequiredEnvVars(): void {
+    const requiredVars = ['GOOGLE_GEMINI_API_KEY'];
+    const missingVars = requiredVars.filter(varName => !process.env[varName]);
+    
+    if (missingVars.length > 0) {
+      throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+    }
   }
 
   /**

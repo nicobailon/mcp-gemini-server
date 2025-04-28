@@ -76,4 +76,24 @@
 * Timestamp accuracy may vary depending on the model and audio quality
 * Some audio formats may require explicit MIME type specification if the extension-based inference fails
 
+## Environment Variables
+
+Required:
+- `GOOGLE_GEMINI_API_KEY`: Your Google Gemini API key (required)
+
+Optional:
+- `GOOGLE_GEMINI_MODEL`: Default model to use for Gemini operations
+- `GOOGLE_GEMINI_IMAGE_RESOLUTION`: Default image resolution (512x512, 1024x1024, or 1536x1536)
+- `GOOGLE_GEMINI_MAX_IMAGE_SIZE_MB`: Maximum allowed image size in MB
+- `GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS`: Comma-separated list of supported image formats
+
+You can create a `.env` file in the root directory with these variables:
+
+```env
+GOOGLE_GEMINI_API_KEY=your_api_key_here
+GOOGLE_GEMINI_MODEL=gemini-pro
+GOOGLE_GEMINI_IMAGE_RESOLUTION=1024x1024
+GOOGLE_GEMINI_MAX_IMAGE_SIZE_MB=10
+```
+
 [Rest of file remains unchanged...]

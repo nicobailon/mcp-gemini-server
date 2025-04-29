@@ -9,7 +9,7 @@ import {
 export const GEMINI_STREAM_TOOL_NAME = "gemini_generateContentStream";
 
 // IMPORTANT: While named "generateContentStream", this tool does NOT actually stream content to the client.
-// Due to limitations in the @modelcontextprotocol/sdk (as of version 1.10.2, April 2025), 
+// Due to limitations in the @modelcontextprotocol/sdk (as of version 1.10.2, April 2025),
 // this tool collects all chunks from the Gemini streaming API internally and returns the complete text at once
 // when generation is finished. The SDK does not currently support true incremental streaming in tool responses.
 // This is a workaround implementation that is functionally equivalent to gemini_generateContent, but uses

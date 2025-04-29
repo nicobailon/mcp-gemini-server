@@ -7,7 +7,6 @@ import {
   GEMINI_GENERATE_CONTENT_PARAMS,
 } from "./geminiGenerateContentParams.js";
 import { GeminiService } from "../services/index.js";
-import { GeminiServiceConfig } from "../types/index.js";
 import { logger } from "../utils/index.js";
 import { GeminiApiError } from "../utils/errors.js"; // Import custom error
 // Import SDK types used in parameters for type safety if needed, although Zod infer should handle it

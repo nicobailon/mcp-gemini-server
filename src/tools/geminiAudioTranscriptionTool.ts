@@ -1,9 +1,9 @@
 import * as fs from "fs";
 import * as path from "path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import { GeminiService } from "../services/index.js";
-import { GeminiApiError, ValidationError } from "../utils/errors.js";
+import { GeminiApiError, ValidationError, mapToMcpError } from "../utils/errors.js";
 import { logger, validateAndResolvePath } from "../utils/index.js";
 import {
   TOOL_NAME_AUDIO_TRANSCRIPTION,
@@ -51,8 +51,7 @@ export function geminiAudioTranscriptionTool(
               mimeType = "audio/flac";
               break;
             default:
-              throw new McpError(
-                ErrorCode.InvalidParams,
+              throw new Error(
                 `Could not determine MIME type for extension '${ext}'. Please provide a 'mimeType' parameter or use a supported format (mp3, wav, ogg, m4a, flac).`
               );
           }
@@ -66,10 +65,8 @@ export function geminiAudioTranscriptionTool(
         try {
           fileStats = fs.statSync(safeFilePath);
         } catch (error) {
-          throw new McpError(
-            ErrorCode.InternalError,
-            `Failed to read file stats: ${error.message}`,
-            { path: safeFilePath }
+          throw new Error(
+            `Failed to read file stats: ${error.message}`
           );
         }
         const fileSizeBytes = fileStats.size;
@@ -114,11 +111,12 @@ export function geminiAudioTranscriptionTool(
             );
           } catch (error) {
             if (error.message?.includes("File API is not supported")) {
-              throw new McpError(
-                ErrorCode.FailedPrecondition,
-                "Audio file exceeds 20MB limit for inline processing. The File API requires a Google AI Studio API key, which is not available or configured.",
-                { fileSizeMB, error: error.message }
+              const apiError = new Error(
+                "Audio file exceeds 20MB limit for inline processing. The File API requires a Google AI Studio API key, which is not available or configured."
               );
+              // Add details property so our mapper can use it
+              (apiError as any).details = { fileSizeMB, error: error.message };
+              throw apiError;
             }
             throw error;
           }
@@ -158,11 +156,12 @@ export function geminiAudioTranscriptionTool(
             );
           } catch (error) {
             if (error instanceof Error && error.message.includes("read file")) {
-              throw new McpError(
-                ErrorCode.InvalidParams,
-                `Failed to read audio file: ${error.message}`,
-                { path: safeFilePath }
+              const fileError = new ValidationError(
+                `Failed to read audio file: ${error.message}`
               );
+              // Add details property so our mapper can use it
+              fileError.details = { path: safeFilePath };
+              throw fileError;
             }
             throw error;
           }
@@ -174,56 +173,9 @@ export function geminiAudioTranscriptionTool(
           `Error processing ${TOOL_NAME_AUDIO_TRANSCRIPTION} for file ${params.filePath || "unknown path"}:`,
           error
         );
-
-        if (error instanceof ValidationError) {
-          // Handle file path validation errors
-          throw new McpError(
-            ErrorCode.InvalidParams,
-            `File validation error: ${error.message}`,
-            { cause: "path_validation_failed" }
-          );
-        } else if (error instanceof GeminiApiError) {
-          if (
-            error.message.includes("safety settings") ||
-            error.message.includes("blocked")
-          ) {
-            throw new McpError(
-              ErrorCode.InvalidRequest,
-              `Audio content blocked by safety settings: ${error.message}`,
-              error.details
-            );
-          }
-          if (
-            error.message.includes("quota") ||
-            error.message.includes("rate limit")
-          ) {
-            throw new McpError(
-              ErrorCode.ResourceExhausted,
-              `API quota or rate limit exceeded: ${error.message}`,
-              error.details
-            );
-          }
-          if (error.message.includes("File API is not supported")) {
-            throw new McpError(
-              ErrorCode.FailedPrecondition,
-              "This operation requires the Gemini File API, which is only available with a Google AI Studio API key, not Vertex AI.",
-              error.details
-            );
-          }
-          throw new McpError(
-            ErrorCode.InternalError,
-            `Gemini API Error: ${error.message}`,
-            error.details
-          );
-        } else if (error instanceof McpError) {
-          throw error;
-        } else {
-          throw new McpError(
-            ErrorCode.InternalError,
-            `An unexpected error occurred: ${error instanceof Error ? error.message : "Unknown error"}`,
-            error
-          );
-        }
+        
+        // Use the centralized error mapping utility to ensure consistent error handling
+        throw mapToMcpError(error, TOOL_NAME_AUDIO_TRANSCRIPTION);
       }
     },
   });

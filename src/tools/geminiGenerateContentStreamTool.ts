@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js"; // Removed McpContent
+import { McpError } from "@modelcontextprotocol/sdk/types.js"; // Removed ErrorCode
 import { z } from "zod";
 import {
   GEMINI_STREAM_TOOL_NAME,
@@ -9,7 +9,7 @@ import {
 import { GeminiService } from "../services/index.js";
 import { GeminiServiceConfig } from "../types/index.js";
 import { logger } from "../utils/index.js";
-import { GeminiApiError } from "../utils/errors.js"; // Import custom error
+import { GeminiApiError, mapToMcpError } from "../utils/errors.js"; // Import mapToMcpError
 // Import SDK types used in parameters for type safety if needed
 import type { GenerationConfig, SafetySetting, Content } from "@google/genai";
 
@@ -94,30 +94,9 @@ export const geminiGenerateContentStreamTool = (
       };
     } catch (error: unknown) {
       logger.error(`Error processing ${GEMINI_STREAM_TOOL_NAME}:`, error);
-
-      // Map errors to McpError
-      if (error instanceof McpError) {
-        throw error;
-      }
-      // Handle specific Gemini API errors from the service
-      if (error instanceof GeminiApiError) {
-        throw new McpError(
-          ErrorCode.InternalError, // Or potentially a more specific code if identifiable
-          error.message, // Use the message from GeminiApiError
-          error.details
-        );
-      }
-      // TODO: Handle other custom errors
-
-      // Generic internal error for other unexpected issues
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "An unexpected error occurred in the tool during streaming.";
-      throw new McpError(
-        ErrorCode.InternalError,
-        `[${GEMINI_STREAM_TOOL_NAME}] Failed: ${errorMessage}`
-      );
+      
+      // Use the centralized error mapping utility to ensure consistent error handling
+      throw mapToMcpError(error, GEMINI_STREAM_TOOL_NAME);
     }
   };
 

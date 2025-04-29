@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import {
   GEMINI_START_CHAT_TOOL_NAME,
   GEMINI_START_CHAT_TOOL_DESCRIPTION,
@@ -9,7 +9,7 @@ import {
 import { GeminiService } from "../services/index.js";
 import { GeminiServiceConfig } from "../types/index.js";
 import { logger } from "../utils/index.js";
-import { GeminiApiError } from "../utils/errors.js";
+import { GeminiApiError, mapToMcpError } from "../utils/errors.js";
 // Import SDK types used in parameters for type safety if needed
 import type {
   Content,
@@ -78,28 +78,9 @@ export const geminiStartChatTool = (
       };
     } catch (error: unknown) {
       logger.error(`Error processing ${GEMINI_START_CHAT_TOOL_NAME}:`, error);
-
-      // Map errors to McpError
-      if (error instanceof McpError) {
-        throw error;
-      }
-      if (error instanceof GeminiApiError) {
-        throw new McpError(
-          ErrorCode.InternalError, // Or potentially a more specific code
-          error.message,
-          error.details
-        );
-      }
-
-      // Generic internal error
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "An unexpected error occurred starting chat session.";
-      throw new McpError(
-        ErrorCode.InternalError,
-        `[${GEMINI_START_CHAT_TOOL_NAME}] Failed: ${errorMessage}`
-      );
+      
+      // Use the centralized error mapping utility to ensure consistent error handling
+      throw mapToMcpError(error, GEMINI_START_CHAT_TOOL_NAME);
     }
   };
 

@@ -1,7 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   McpError,
-  ErrorCode,
   CallToolResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import {
@@ -13,7 +12,7 @@ import {
 import { GeminiService } from "../services/index.js";
 import { GeminiServiceConfig } from "../types/index.js";
 import { logger } from "../utils/index.js";
-import { GeminiApiError } from "../utils/errors.js";
+import { GeminiApiError, mapToMcpError } from "../utils/errors.js";
 // Import SDK types used in parameters/response handling
 import { BlockedReason, FinishReason } from "@google/genai"; // Import enums as values
 import type {
@@ -158,33 +157,21 @@ export const geminiSendFunctionResultTool = (
         `Error processing ${GEMINI_SEND_FUNCTION_RESULT_TOOL_NAME} for session ${args.sessionId}:`,
         error
       );
-
-      // Map errors to McpError
-      if (error instanceof McpError) {
-        throw error;
+      
+      // Enhance error details with session ID for better debugging
+      // Make a copy of the error to add session context before mapping
+      let errorWithContext = error;
+      if (error instanceof GeminiApiError && error.details) {
+        const geminiErrorWithContext = error as GeminiApiError;
+        geminiErrorWithContext.details = {
+          ...geminiErrorWithContext.details,
+          sessionId: args.sessionId
+        };
+        errorWithContext = geminiErrorWithContext;
       }
-      if (error instanceof GeminiApiError) {
-        const details = error.details
-          ? { ...error.details, sessionId: args.sessionId }
-          : { sessionId: args.sessionId };
-        throw new McpError(
-          error.message.includes("not found")
-            ? ErrorCode.InvalidParams
-            : ErrorCode.InternalError,
-          error.message,
-          details
-        );
-      }
-
-      // Generic internal error
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "An unexpected error occurred sending function results.";
-      throw new McpError(
-        ErrorCode.InternalError,
-        `[${GEMINI_SEND_FUNCTION_RESULT_TOOL_NAME}] Failed for session ${args.sessionId}: ${errorMessage}`
-      );
+      
+      // Use the centralized error mapping utility to ensure consistent error handling
+      throw mapToMcpError(errorWithContext, GEMINI_SEND_FUNCTION_RESULT_TOOL_NAME);
     }
   };
 

@@ -1,8 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"; // Reverted import path and name based on guide example
-import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { GeminiService } from "../services/index.js";
-import { GeminiApiError, ValidationError } from "../utils/errors.js";
+import { GeminiApiError, ValidationError, mapToMcpError } from "../utils/errors.js";
 import { logger, validateAndResolvePath } from "../utils/index.js";
 import {
   TOOL_NAME_UPLOAD_FILE,
@@ -67,55 +67,9 @@ export const geminiUploadFileTool = (
       };
     } catch (error: unknown) {
       logger.error(`Error processing ${TOOL_NAME_UPLOAD_FILE}:`, error);
-
-      if (error instanceof ValidationError) {
-        // Handle file path validation errors
-        throw new McpError(
-          ErrorCode.InvalidParams,
-          `File validation error: ${error.message}`,
-          { cause: "path_validation_failed" }
-        );
-      } else if (error instanceof GeminiApiError) {
-        // Handle specific API errors from the service
-        // Check if it's a "File API not supported on Vertex" error
-        if (error.message.includes("File API is not supported on Vertex AI")) {
-          throw new McpError(
-            ErrorCode.InvalidRequest,
-            `Operation failed: ${error.message}`,
-            error.details
-          );
-        }
-        // Check for invalid file path or other specific errors if possible
-        if (
-          error.message.includes("ENOENT") ||
-          error.message.toLowerCase().includes("file not found")
-        ) {
-          // Example check
-          throw new McpError(
-            ErrorCode.InvalidParams,
-            `Invalid file path: ${params.filePath}`,
-            error.details
-          );
-        }
-        // Otherwise, map to internal error
-        throw new McpError(
-          ErrorCode.InternalError,
-          `Gemini API Error: ${error.message}`,
-          error.details
-        );
-      } else if (error instanceof Error) {
-        // Handle generic errors
-        throw new McpError(
-          ErrorCode.InternalError,
-          `An unexpected error occurred: ${error.message}`
-        );
-      } else {
-        // Handle unknown errors
-        throw new McpError(
-          ErrorCode.InternalError,
-          "An unknown error occurred during file upload."
-        );
-      }
+      
+      // Use the centralized error mapping utility to ensure consistent error mapping
+      throw mapToMcpError(error, TOOL_NAME_UPLOAD_FILE);
     }
   };
 

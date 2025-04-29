@@ -5,7 +5,6 @@ import type {
   Content,
   Part,
   File as GenAIFile,
-  Chat,
   GenerateContentResponse,
   FunctionCall,
   FunctionDeclaration,
@@ -18,6 +17,7 @@ import { logger } from "../utils/logger.js";
 import path from "path";
 import fs from "fs/promises";
 import { FileMetadata, CachedContentMetadata } from "../types/index.js";
+import { ChatSession } from "../types/googleGenAITypes.js";
 import { v4 as uuidv4 } from "uuid";
 
 /**
@@ -27,7 +27,7 @@ export class GeminiService {
   private genAI: GoogleGenAI;
   private defaultModelName?: string;
   private secureBasePath?: string;
-  private chatSessions: Map<string, Chat> = new Map();
+  private chatSessions: Map<string, ChatSession> = new Map();
 
   constructor() {
     const configManager = ConfigurationManager.getInstance();
@@ -507,7 +507,9 @@ export class GeminiService {
 
       // Store the chat session
       this.chatSessions.set(sessionId, chat);
-      logger.info(`Chat session created: ${sessionId} using model ${effectiveModelName}`);
+      logger.info(
+        `Chat session created: ${sessionId} using model ${effectiveModelName}`
+      );
 
       return sessionId;
     } catch (error) {
@@ -547,39 +549,31 @@ export class GeminiService {
       throw new GeminiApiError(`Chat session not found: ${sessionId}`);
     }
 
-    // Prepare message parameters
-    const messageParams: {
-      generationConfig?: GenerationConfig;
-      safetySettings?: SafetySetting[];
-      tools?: Tool[];
-      toolConfig?: ToolConfig;
-      cachedContent?: string;
-    } = {};
-
-    // Add optional parameters if provided
-    if (generationConfig) {
-      messageParams.generationConfig = generationConfig;
-    }
-    if (safetySettings && Array.isArray(safetySettings)) {
-      messageParams.safetySettings = safetySettings;
-    }
-    if (tools && Array.isArray(tools)) {
-      messageParams.tools = tools;
-    }
-    if (toolConfig) {
-      messageParams.toolConfig = toolConfig;
-    }
-    if (cachedContentName) {
-      messageParams.cachedContent = cachedContentName;
-    }
-
     try {
       logger.debug(`Sending message to session ${sessionId}`);
+      // Create message object with the text message
+      const messageParams: { message: string } & Record<string, unknown> = {
+        message: message,
+      };
+      // Add optional parameters if provided
+      if (generationConfig) {
+        messageParams.generationConfig = generationConfig;
+      }
+      if (safetySettings && Array.isArray(safetySettings)) {
+        messageParams.safetySettings = safetySettings;
+      }
+      if (tools && Array.isArray(tools)) {
+        messageParams.tools = tools;
+      }
+      if (toolConfig) {
+        messageParams.toolConfig = toolConfig;
+      }
+      if (cachedContentName) {
+        messageParams.cachedContent = cachedContentName;
+      }
+
       // Send the message to the chat session
-      const response = await chatSession.sendMessage(
-        message,
-        Object.keys(messageParams).length > 0 ? messageParams : undefined
-      );
+      const response = await chatSession.sendMessage(messageParams);
       logger.debug(`Got response for session ${sessionId}`);
       return response;
     } catch (error) {
@@ -613,27 +607,28 @@ export class GeminiService {
 
     try {
       logger.debug(`Sending function result to session ${sessionId}`);
-      
-      // Format the function response as content parts
-      const responseParts: Part[] = [
-        { 
+      // Format the function response properly as a message parameter
+      const messageParams = {
+        message: {
           functionResponse: {
             name: functionCall?.name || "unnamed_function",
-            response: { name: functionCall?.name || "unnamed_function", content: functionResponse }
-          }
-        }
-      ];
-      
-      // Send the function result to the chat session
-      const response = await chatSession.sendMessage({
-        role: "function",
-        parts: responseParts
-      });
-      
+            response: {
+              name: functionCall?.name || "unnamed_function",
+              content: functionResponse,
+            },
+          },
+        },
+      };
+      // Send the function response to the chat session
+      const response = await chatSession.sendMessage(messageParams);
+
       logger.debug(`Got response for function result in session ${sessionId}`);
       return response;
     } catch (error) {
-      logger.error(`Error sending function result to session ${sessionId}:`, error);
+      logger.error(
+        `Error sending function result to session ${sessionId}:`,
+        error
+      );
       throw new GeminiApiError(
         `Failed to send function result to chat session: ${(error as Error).message}`,
         error
@@ -709,23 +704,25 @@ export class GeminiService {
     try {
       // Call the Gemini API
       const result = await this.genAI.models.generateContent(requestParams);
-      
+
       // Process the response
       const functionCalls = result.candidates?.[0]?.content?.parts
-        ?.map(part => part.functionCall)
+        ?.map((part) => part.functionCall)
         .filter(Boolean);
-      
+
       // Check if we got a function call
-      if (functionCalls && functionCalls.length > 0) {
-        logger.debug(`Function call generated: ${functionCalls[0].name}`);
+      if (functionCalls && functionCalls.length > 0 && functionCalls[0]) {
+        logger.debug(
+          `Function call generated: ${functionCalls[0].name || "unnamed"}`
+        );
         return { functionCall: functionCalls[0] };
       } else {
         // Return text response if no function call
         const textParts = result.candidates?.[0]?.content?.parts
-          ?.filter(part => typeof part.text === 'string')
-          ?.map(part => part.text);
-          
-        const responseText = textParts?.join('') || '';
+          ?.filter((part) => typeof part.text === "string")
+          ?.map((part) => part.text);
+
+        const responseText = textParts?.join("") || "";
         logger.debug("Text response received instead of function call");
         return { text: responseText };
       }
@@ -801,16 +798,17 @@ export class GeminiService {
 
     try {
       // Call the Gemini API streaming endpoint
-      const response = await this.genAI.models.generateContentStream(requestParams);
-      
-      // Process the stream chunks
-      for await (const chunk of response.stream) {
+      const streamingResponse =
+        await this.genAI.models.generateContentStream(requestParams);
+
+      // Process the stream chunks - the streamingResponse is itself an async generator
+      for await (const chunk of streamingResponse) {
         // Only yield if there is text content
         if (chunk.text) {
           yield chunk.text;
         }
       }
-      
+
       logger.debug("Content stream completed successfully");
     } catch (error) {
       logger.error("Error generating content stream:", error);
@@ -877,12 +875,15 @@ export class GeminiService {
       }
 
       // Create the cache
-      const cachedContent = await this.genAI.models.createCachedContent(cacheParams);
-      
+      const cachedContent =
+        await this.genAI.models.createCachedContent(cacheParams);
+
       if (!cachedContent || !cachedContent.name) {
-        throw new Error("Invalid cache response: missing required name property");
+        throw new Error(
+          "Invalid cache response: missing required name property"
+        );
       }
-      
+
       // Map the response to our metadata type
       const metadata: CachedContentMetadata = {
         name: cachedContent.name,
@@ -892,7 +893,7 @@ export class GeminiService {
         expirationTime: cachedContent.expirationTime,
         state: cachedContent.state || "ACTIVE",
       };
-      
+
       logger.info(`Cache created successfully: ${metadata.name}`);
       return metadata;
     } catch (error) {
@@ -960,12 +961,15 @@ export class GeminiService {
       }
 
       // Update the cache
-      const updatedCache = await this.genAI.models.updateCachedContent(updateParams);
-      
+      const updatedCache =
+        await this.genAI.models.updateCachedContent(updateParams);
+
       if (!updatedCache || !updatedCache.name) {
-        throw new Error("Invalid cache response: missing required name property");
+        throw new Error(
+          "Invalid cache response: missing required name property"
+        );
       }
-      
+
       // Map the response to our metadata type
       const metadata: CachedContentMetadata = {
         name: updatedCache.name,
@@ -975,7 +979,7 @@ export class GeminiService {
         expirationTime: updatedCache.expirationTime,
         state: updatedCache.state || "ACTIVE",
       };
-      
+
       logger.info(`Cache updated successfully: ${metadata.name}`);
       return metadata;
     } catch (error) {
@@ -998,12 +1002,15 @@ export class GeminiService {
 
     try {
       // Get the cache metadata
-      const cacheData = await this.genAI.models.getCachedContent({ name: cacheName });
-      
+      const cacheData = await this.genAI.models.getCachedContent({
+        name: cacheName,
+      });
       if (!cacheData || !cacheData.name) {
-        throw new Error("Invalid cache response: missing required name property");
+        throw new Error(
+          "Invalid cache response: missing required name property"
+        );
       }
-      
+
       // Map the response to our metadata type
       const metadata: CachedContentMetadata = {
         name: cacheData.name,
@@ -1013,7 +1020,7 @@ export class GeminiService {
         expirationTime: cacheData.expirationTime,
         state: cacheData.state || "ACTIVE",
       };
-      
+
       return metadata;
     } catch (error) {
       logger.error(`Error getting cache ${cacheName}:`, error);
@@ -1045,12 +1052,16 @@ export class GeminiService {
         pageSize: pageSize,
         pageToken: pageToken,
       });
-      
+
       // Process the response into our metadata format
       const caches: CachedContentMetadata[] = [];
-      
+
       // Check if there are cached contents in the response
-      if (response && response.cachedContents && Array.isArray(response.cachedContents)) {
+      if (
+        response &&
+        response.cachedContents &&
+        Array.isArray(response.cachedContents)
+      ) {
         for (const cache of response.cachedContents) {
           if (cache && cache.name) {
             caches.push({
@@ -1064,7 +1075,7 @@ export class GeminiService {
           }
         }
       }
-      
+
       return {
         caches,
         nextPageToken: response.nextPageToken,
@@ -1090,7 +1101,7 @@ export class GeminiService {
     try {
       // Delete the cache
       await this.genAI.models.deleteCachedContent({ name: cacheName });
-      
+
       logger.info(`Cache deleted successfully: ${cacheName}`);
       return { success: true };
     } catch (error) {

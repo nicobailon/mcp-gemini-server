@@ -1,8 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { GeminiService } from "../services/index.js";
-import { GeminiApiError } from "../utils/errors.js";
+import { GeminiApiError, mapToMcpError } from "../utils/errors.js";
 import { logger } from "../utils/index.js";
 import {
   TOOL_NAME_UPDATE_CACHE,
@@ -60,53 +60,21 @@ export const geminiUpdateCacheTool = (
         `Error processing ${TOOL_NAME_UPDATE_CACHE} for cache ${params.cacheName}:`,
         error
       );
-
+      
+      // Enhance error details with cache name for better debugging
+      let errorWithContext = error;
       if (error instanceof GeminiApiError) {
-        // Handle specific API errors from the service
-        // Check for cache not found (adjust based on actual error message/code from SDK)
-        if (
-          error.message.toLowerCase().includes("not found") ||
-          (error.details as any)?.code === 404
-        ) {
-          throw new McpError(
-            ErrorCode.InvalidParams,
-            `Cache not found: ${params.cacheName}`,
-            error.details
-          ); // Use InvalidParams
-        }
-        if (error.message.includes("Invalid cache name format")) {
-          throw new McpError(
-            ErrorCode.InvalidParams,
-            `Invalid cache name format: ${params.cacheName}`,
-            error.details
-          );
-        }
-        if (error.message.toLowerCase().includes("invalid ttl")) {
-          throw new McpError(
-            ErrorCode.InvalidParams,
-            `Invalid TTL format provided: ${params.ttl}`,
-            error.details
-          );
-        }
-        // Otherwise, map to internal error
-        throw new McpError(
-          ErrorCode.InternalError,
-          `Gemini API Error: ${error.message}`,
-          error.details
-        );
-      } else if (error instanceof Error) {
-        // Handle generic errors
-        throw new McpError(
-          ErrorCode.InternalError,
-          `An unexpected error occurred: ${error.message}`
-        );
-      } else {
-        // Handle unknown errors
-        throw new McpError(
-          ErrorCode.InternalError,
-          "An unknown error occurred while updating cache metadata."
-        );
+        const geminiErrorWithContext = error as GeminiApiError;
+        // Add cache name to the error details for better context
+        geminiErrorWithContext.details = {
+          ...((geminiErrorWithContext.details as any) || {}),
+          cacheName: params.cacheName
+        };
+        errorWithContext = geminiErrorWithContext;
       }
+      
+      // Use the centralized error mapping utility to ensure consistent error handling
+      throw mapToMcpError(errorWithContext, TOOL_NAME_UPDATE_CACHE);
     }
   };
 

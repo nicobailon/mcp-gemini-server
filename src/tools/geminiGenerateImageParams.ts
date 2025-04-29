@@ -17,10 +17,10 @@ export const imageResolutionSchema = z
   .describe("The desired resolution of generated images.");
 
 // Reuse existing safety settings schema from content generation
-import { safetySettingSchema } from "./geminiGenerateContentParams";
+import { safetySettingSchema } from "./geminiGenerateContentParams.js";
 
 // Main parameters schema
-export const GEMINI_GENERATE_IMAGE_PARAMS = {
+export const GEMINI_GENERATE_IMAGE_PARAMS = z.object({
   modelName: z
     .string()
     .min(1)
@@ -60,7 +60,7 @@ export const GEMINI_GENERATE_IMAGE_PARAMS = {
     .describe(
       "Optional. Text description of features to avoid in the generated image(s)."
     ),
-};
+});
 
 // Type for parameter object using zod inference
 export type GeminiGenerateImageArgs = z.infer<

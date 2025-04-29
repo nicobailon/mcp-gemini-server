@@ -13,14 +13,16 @@ import {
 } from "./geminiAudioTranscriptionParams.js";
 
 export function geminiAudioTranscriptionTool(
-  server: McpServer,
-  geminiService: GeminiService
+  server: McpServer
 ) {
-  server.tool({
-    name: TOOL_NAME_AUDIO_TRANSCRIPTION,
-    description: TOOL_DESCRIPTION_AUDIO_TRANSCRIPTION,
-    parameters: AudioTranscriptionParamsObject,
-    handler: async (params: AudioTranscriptionParams) => {
+  // Define geminiService at the top level to avoid using before declaration
+  const geminiService = require("../services/index.js").GeminiService.getInstance();
+  
+  server.tool(
+    TOOL_NAME_AUDIO_TRANSCRIPTION,
+    TOOL_DESCRIPTION_AUDIO_TRANSCRIPTION,
+    AudioTranscriptionParamsObject,
+    async (params: AudioTranscriptionParams) => {
       let transcriptionResult;
 
       try {
@@ -65,8 +67,9 @@ export function geminiAudioTranscriptionTool(
         try {
           fileStats = fs.statSync(safeFilePath);
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
           throw new Error(
-            `Failed to read file stats: ${error.message}`
+            `Failed to read file stats: ${errorMessage}`
           );
         }
         const fileSizeBytes = fileStats.size;
@@ -100,23 +103,24 @@ export function geminiAudioTranscriptionTool(
             }
             const prompt = promptParts.join(". ");
 
-            transcriptionResult = await geminiService.generateContent(
+            // Use the geminiService defined at the top level
+            
+            // Call generateContent with compatible parameters
+            transcriptionResult = await geminiService.generateContent({
               prompt,
-              params.modelName,
-              undefined,
-              undefined,
-              undefined,
-              undefined,
-              uploadedFile
-            );
+              modelName: params.modelName,
+              // Avoid passing uploadedFile which appears incompatible
+              parts: [{ text: prompt }, { fileData: uploadedFile }]
+            });
           } catch (error) {
-            if (error.message?.includes("File API is not supported")) {
+            if (error instanceof Error && error.message?.includes("File API is not supported")) {
               const apiError = new Error(
                 "Audio file exceeds 20MB limit for inline processing. The File API requires a Google AI Studio API key, which is not available or configured."
               );
               // Add details property so our mapper can use it
-              (apiError as any).details = { fileSizeMB, error: error.message };
-              throw apiError;
+              // Enhanced error with more details
+              const enhancedError = new Error(`Audio file exceeds 20MB limit for inline processing. The File API requires a Google AI Studio API key, which is not available or configured. Details: ${error instanceof Error ? error.message : String(error)}`);
+              throw enhancedError;
             }
             throw error;
           }
@@ -144,23 +148,33 @@ export function geminiAudioTranscriptionTool(
             }
             const prompt = promptParts.join(". ");
 
-            transcriptionResult = await geminiService.generateContent(
+            // Use the geminiService defined at the top level
+            
+            // Call generateContent with compatible parameters
+            transcriptionResult = await geminiService.generateContent({
               prompt,
-              params.modelName,
-              undefined,
-              undefined,
-              undefined,
-              undefined,
-              audioBase64,
-              mimeType
-            );
+              modelName: params.modelName,
+              // Use parts array for audio data
+              parts: [
+                { text: prompt },
+                { 
+                  inlineData: {
+                    data: audioBase64,
+                    mimeType: mimeType
+                  }
+                }
+              ]
+            });
           } catch (error) {
             if (error instanceof Error && error.message.includes("read file")) {
               const fileError = new ValidationError(
                 `Failed to read audio file: ${error.message}`
               );
-              // Add details property so our mapper can use it
-              fileError.details = { path: safeFilePath };
+              // Instead of modifying details, create a new ValidationError with the details
+              const newFileError = new ValidationError(
+                `Failed to read audio file: ${error.message}. Path: ${safeFilePath}`
+              );
+              throw newFileError;
               throw fileError;
             }
             throw error;
@@ -177,6 +191,6 @@ export function geminiAudioTranscriptionTool(
         // Use the centralized error mapping utility to ensure consistent error handling
         throw mapToMcpError(error, TOOL_NAME_AUDIO_TRANSCRIPTION);
       }
-    },
-  });
+    }
+  );
 }

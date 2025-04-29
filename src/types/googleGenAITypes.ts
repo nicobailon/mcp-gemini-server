@@ -1,12 +1,3 @@
-import {
-  Content,
-  Tool,
-  ToolConfig,
-  GenerationConfig,
-  SafetySetting,
-  GenerateContentResponse,
-} from "@google/genai";
-
 // Import types directly from the SDK
 import type {
   GenerateContentResponse,
@@ -68,8 +59,8 @@ enum BlockedReason {
   OTHER = "OTHER",
 }
 
-// FunctionCall interface
-interface FunctionCall {
+// Define our own LocalFunctionCall interface to avoid conflict with imported FunctionCall
+interface LocalFunctionCall {
   name: string;
   args?: Record<string, unknown>;
 }
@@ -109,26 +100,8 @@ interface ChatSession {
   history: Content[];
 }
 
-// Type definitions for response handling
-interface PromptFeedback {
-  blockReason?: BlockedReason;
-  safetyRatings?: Array<{
-    category: string;
-    probability: string;
-    blocked: boolean;
-  }>;
-}
-
-interface Candidate {
-  content?: Content;
-  finishReason?: FinishReason;
-  safetyRatings?: Array<{
-    category: string;
-    probability: string;
-    blocked: boolean;
-  }>;
-  index?: number;
-}
+// These are already defined above, so we don't need to redefine them
+// Using the existing PromptFeedback and Candidate interfaces
 
 interface GenerateContentResult {
   response: {
@@ -152,7 +125,7 @@ export type {
   GenerateContentResponseChunk,
   PromptFeedback,
   Candidate,
-  FunctionCall,
+  LocalFunctionCall as FunctionCall, // Export our local interface as FunctionCall for backward compatibility
   ChatSession,
   GenerateContentResponse
 };

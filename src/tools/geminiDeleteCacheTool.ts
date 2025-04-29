@@ -1,8 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { GeminiService } from "../services/index.js";
-import { GeminiApiError } from "../utils/errors.js";
+import { GeminiService, CacheId } from "../services/index.js";
+import { 
+  GeminiApiError, 
+  GeminiResourceNotFoundError, 
+  GeminiInvalidParameterError 
+} from "../utils/errors.js";
 import { logger } from "../utils/index.js";
 import {
   TOOL_NAME_DELETE_CACHE,
@@ -32,9 +36,16 @@ export const geminiDeleteCacheTool = (
     logger.debug("Received params:", params);
 
     try {
-      // Call the GeminiService method
+      // Make sure cacheName is in the correct format and cast it to CacheId
+      if (!params.cacheName.startsWith("cachedContents/")) {
+        throw new GeminiInvalidParameterError(
+          `Cache ID must be in the format "cachedContents/{id}", received: ${params.cacheName}`
+        );
+      }
+      
+      // Call the GeminiService method with proper type casting
       const result: { success: boolean } = await geminiService.deleteCache(
-        params.cacheName
+        params.cacheName as CacheId
       );
 
       logger.info(
@@ -56,26 +67,21 @@ export const geminiDeleteCacheTool = (
         error
       );
 
-      if (error instanceof GeminiApiError) {
-        // Handle specific API errors from the service
-        // Check for cache not found (adjust based on actual error message/code from SDK)
-        if (
-          error.message.toLowerCase().includes("not found") ||
-          (error.details as any)?.code === 404
-        ) {
-          throw new McpError(
-            ErrorCode.InvalidParams,
-            `Cache not found: ${params.cacheName}`,
-            error.details
-          ); // Use InvalidParams
-        }
-        if (error.message.includes("Invalid cache name format")) {
-          throw new McpError(
-            ErrorCode.InvalidParams,
-            `Invalid cache name format: ${params.cacheName}`,
-            error.details
-          );
-        }
+      if (error instanceof GeminiResourceNotFoundError) {
+        // Handle resource not found errors with appropriate error code
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `Cache not found: ${params.cacheName}`,
+          error.details
+        );
+      } else if (error instanceof GeminiInvalidParameterError) {
+        // Handle invalid parameter errors
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `Invalid cache name format: ${params.cacheName}`,
+          error.details
+        );
+      } else if (error instanceof GeminiApiError) {
         // Otherwise, map to internal error
         throw new McpError(
           ErrorCode.InternalError,

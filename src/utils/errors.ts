@@ -2,7 +2,7 @@
  * Base custom error class for application-specific errors.
  */
 export class BaseError extends Error {
-  public readonly code: string;
+  public code: string;
   public readonly status: number; // HTTP status code equivalent
   public readonly details?: unknown; // Additional details
 
@@ -74,8 +74,67 @@ export class GeminiApiError extends ServiceError {
   }
 }
 
+/**
+ * Error specifically for when a file or resource is not found in the Gemini API.
+ * Extends GeminiApiError to maintain the error hierarchy.
+ */
+export class GeminiResourceNotFoundError extends GeminiApiError {
+  constructor(resourceType: string, resourceId: string, details?: unknown) {
+    super(`${resourceType} not found: ${resourceId}`, details);
+    this.code = "GEMINI_RESOURCE_NOT_FOUND";
+  }
+}
+
+/**
+ * Error for invalid parameters when calling the Gemini API.
+ * Extends GeminiApiError to maintain the error hierarchy.
+ */
+export class GeminiInvalidParameterError extends GeminiApiError {
+  constructor(message: string, details?: unknown) {
+    super(`Invalid parameter: ${message}`, details);
+    this.code = "GEMINI_INVALID_PARAMETER";
+  }
+}
+
+/**
+ * Error for authentication failures with the Gemini API.
+ * Extends GeminiApiError to maintain the error hierarchy.
+ */
+export class GeminiAuthenticationError extends GeminiApiError {
+  constructor(message: string, details?: unknown) {
+    super(`Authentication error: ${message}`, details);
+    this.code = "GEMINI_AUTHENTICATION_ERROR";
+  }
+}
+
+/**
+ * Error for when Gemini API quota is exceeded or rate limits are hit.
+ * Extends GeminiApiError to maintain the error hierarchy.
+ */
+export class GeminiQuotaExceededError extends GeminiApiError {
+  constructor(message: string, details?: unknown) {
+    super(`Quota exceeded: ${message}`, details);
+    this.code = "GEMINI_QUOTA_EXCEEDED";
+  }
+}
+
+/**
+ * Error for when content is blocked by Gemini's safety settings.
+ * Extends GeminiApiError to maintain the error hierarchy.
+ */
+export class GeminiSafetyError extends GeminiApiError {
+  constructor(message: string, details?: unknown) {
+    super(`Content blocked by safety settings: ${message}`, details);
+    this.code = "GEMINI_SAFETY_ERROR";
+  }
+}
+
 // Import the McpError and ErrorCode from the MCP SDK for use in the mapping function
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import { ToolError } from "./ToolError.js";
+
+// Re-export ToolError for use by tools
+export { ToolError };
 
 /**
  * Maps internal application errors to standardized MCP errors.
@@ -135,13 +194,54 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
   // ConfigurationError mapping
   if (error instanceof ConfigurationError) {
     return new McpError(
-      ErrorCode.FailedPrecondition,
+      ErrorCode.InternalError, // Changed from FailedPrecondition which is not in MCP SDK
       `Configuration error: ${errorMessage}`,
       errorDetails
     );
   }
 
-  // GeminiApiError mapping with enhanced pattern detection
+  // Handle more specific Gemini API error subtypes first
+  if (error instanceof GeminiResourceNotFoundError) {
+    return new McpError(
+      ErrorCode.InvalidRequest, // MCP SDK lacks NotFound, mapping to InvalidRequest
+      `Resource not found: ${errorMessage}`,
+      errorDetails
+    );
+  }
+  
+  if (error instanceof GeminiInvalidParameterError) {
+    return new McpError(
+      ErrorCode.InvalidParams,
+      `Invalid parameters: ${errorMessage}`,
+      errorDetails
+    );
+  }
+  
+  if (error instanceof GeminiAuthenticationError) {
+    return new McpError(
+      ErrorCode.InvalidRequest, // Changed from PermissionDenied which is not in MCP SDK
+      `Authentication failed: ${errorMessage}`,
+      errorDetails
+    );
+  }
+  
+  if (error instanceof GeminiQuotaExceededError) {
+    return new McpError(
+      ErrorCode.InternalError, // Changed from ResourceExhausted which is not in MCP SDK
+      `Quota exceeded or rate limit hit: ${errorMessage}`,
+      errorDetails
+    );
+  }
+  
+  if (error instanceof GeminiSafetyError) {
+    return new McpError(
+      ErrorCode.InvalidRequest,
+      `Content blocked by safety settings: ${errorMessage}`,
+      errorDetails
+    );
+  }
+  
+  // Generic GeminiApiError mapping with enhanced pattern detection
   if (error instanceof GeminiApiError) {
     // Convert message to lowercase for case-insensitive pattern matching
     const lowerCaseMessage = errorMessage.toLowerCase();
@@ -156,7 +256,7 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
       lowerCaseMessage.includes("too many requests")
     ) {
       return new McpError(
-        ErrorCode.ResourceExhausted,
+        ErrorCode.InternalError, // Changed from ResourceExhausted which is not in MCP SDK
         `Quota exceeded or rate limit hit: ${errorMessage}`,
         errorDetails
       );
@@ -172,7 +272,7 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
       lowerCaseMessage.includes("access denied")
     ) {
       return new McpError(
-        ErrorCode.PermissionDenied,
+        ErrorCode.InvalidRequest, // Changed from PermissionDenied which is not in MCP SDK
         `Permission denied: ${errorMessage}`,
         errorDetails
       );
@@ -234,7 +334,7 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
       lowerCaseMessage.includes("not implemented")
     ) {
       return new McpError(
-        ErrorCode.FailedPrecondition,
+        ErrorCode.InvalidRequest, // Changed from FailedPrecondition which is not in MCP SDK
         `Operation not supported: ${errorMessage}`,
         errorDetails
       );
@@ -331,7 +431,7 @@ export function mapToolErrorToMcpError(toolError: any, toolName: string): McpErr
       
       if (code.includes('QUOTA') || code.includes('RATE_LIMIT')) {
         return new McpError(
-          ErrorCode.ResourceExhausted,
+          ErrorCode.InternalError, // Changed from ResourceExhausted which is not in MCP SDK
           `API quota or rate limit exceeded: ${errorMessage}`,
           errorDetails
         );
@@ -339,7 +439,7 @@ export function mapToolErrorToMcpError(toolError: any, toolName: string): McpErr
       
       if (code.includes('PERMISSION') || code.includes('AUTH')) {
         return new McpError(
-          ErrorCode.PermissionDenied,
+          ErrorCode.InvalidRequest, // Changed from PermissionDenied which is not in MCP SDK
           `Permission denied: ${errorMessage}`,
           errorDetails
         );
@@ -363,7 +463,7 @@ export function mapToolErrorToMcpError(toolError: any, toolName: string): McpErr
       
       if (code.includes('UNSUPPORTED') || code.includes('NOT_SUPPORTED')) {
         return new McpError(
-          ErrorCode.FailedPrecondition,
+          ErrorCode.InvalidRequest, // Changed from FailedPrecondition which is not in MCP SDK
           `Operation not supported: ${errorMessage}`,
           errorDetails
         );

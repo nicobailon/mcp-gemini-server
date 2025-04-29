@@ -1,12 +1,13 @@
-import { McpServer } from "../server/mcp";
-import { GeminiService } from "../services/GeminiService";
-import { McpError, ToolError } from "../utils/errors";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { GeminiService } from "../services/index.js";
+import { GeminiApiError, ToolError } from "../utils/index.js";
+import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import {
   GEMINI_CONTENT_UNDERSTANDING_PARAMS,
   GeminiContentUnderstandingArgs,
   TOOL_NAME_CONTENT_UNDERSTANDING,
   TOOL_DESCRIPTION_CONTENT_UNDERSTANDING,
-} from "./geminiContentUnderstandingParams";
+} from "./geminiContentUnderstandingParams.js";
 import { Part } from "@google/genai";
 import { TypeOf } from "zod";
 import { logger } from "../utils/index.js";
@@ -50,9 +51,10 @@ async function* streamBase64Data(
  * @param serviceInstance - Instance of the GeminiService.
  */
 export function geminiContentUnderstandingTool(
-  server: McpServer,
-  serviceInstance: GeminiService
+  server: McpServer
 ) {
+  // Get the GeminiService instance
+  const serviceInstance = require("../services/index.js").GeminiService.getInstance();
   const toolName = TOOL_NAME_CONTENT_UNDERSTANDING;
   const toolDescription = TOOL_DESCRIPTION_CONTENT_UNDERSTANDING;
 
@@ -60,7 +62,7 @@ export function geminiContentUnderstandingTool(
    * Handles the conversion of input parameters into proper Gemini SDK formats and calls the service.
    * @param args - Arguments for content analysis.
    */
-  async function processRequest(args: GeminiContentUnderstandingArgs) {
+  async function processRequest(args: GeminiContentUnderstandingArgs): Promise<{content: Array<{type: 'text', text: string}>}> {
     try {
       // Validate args against schema
       try {
@@ -137,16 +139,36 @@ export function geminiContentUnderstandingTool(
         args.safetySettings
       );
 
-      // Return either JSON or text format based on what we got from the service
+      // Return in the format expected by McpServer
       if (args.structuredOutput && result.analysis.data) {
+        // For structured data
         return {
-          response: result,
-          format: "application/json",
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result.analysis.data, null, 2)
+            }
+          ]
+        };
+      } else if (result.analysis.text) {
+        // For plain text
+        return {
+          content: [
+            {
+              type: "text",
+              text: result.analysis.text
+            }
+          ]
         };
       } else {
+        // Fallback
         return {
-          response: result,
-          format: "text/plain",
+          content: [
+            {
+              type: "text",
+              text: "Analysis completed. No textual content to display."
+            }
+          ]
         };
       }
     } catch (error: unknown) {
@@ -198,12 +220,12 @@ export function geminiContentUnderstandingTool(
   }
 
   // Register the tool with the server
-  server.tools.register({
-    name: toolName,
-    description: toolDescription,
-    parameters: GEMINI_CONTENT_UNDERSTANDING_PARAMS,
-    func: processRequest,
-  });
+  server.tool(
+    toolName,
+    toolDescription,
+    GEMINI_CONTENT_UNDERSTANDING_PARAMS.shape, // Use the shape property of the zod object
+    processRequest
+  );
 
   // Return the tool config (optional, for testing/verification)
   return {

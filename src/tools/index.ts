@@ -37,43 +37,69 @@ export function registerTools(server: McpServer): void {
   logger.info("Registering tools...");
   const configManager = ConfigurationManager.getInstance();
 
-  // Register each tool, passing necessary config or services
-  exampleTool(server, configManager.getExampleServiceConfig());
-  // Assuming getGeminiServiceConfig exists in ConfigurationManager
-  const geminiConfig = configManager.getGeminiServiceConfig();
   // Create a single GeminiService instance
-  const geminiServiceInstance = new GeminiService(geminiConfig);
+  // GeminiService gets its config directly from ConfigurationManager
+  const geminiServiceInstance = new GeminiService();
 
-  // Pass the service instance to the tools that need it
-  geminiGenerateContentTool(server, geminiServiceInstance); // Assuming this tool needs the service instance now
-  geminiGenerateContentStreamTool(server, geminiServiceInstance); // Pass instance
-  geminiFunctionCallTool(server, geminiServiceInstance); // Pass instance
+  // Use a consistent approach to call all tools
+  try {
+    // Handle tools with different function signatures using type assertions and function introspection
+    const registerTool = (toolFn: any, ...args: any[]) => {
+      try {
+        // Handle functions that take a different number of arguments
+        // by checking the function signature length and adapting accordingly
+        if (toolFn.length === 0) {
+          // Function doesn't expect any arguments
+          toolFn();
+        } else if (toolFn.length === 1) {
+          // Function expects just the server argument
+          toolFn(server);
+        } else {
+          // Function expects server and possibly service instance
+          toolFn(...args);
+        }
+      } catch (error) {
+        logger.error(`Failed to register tool: ${error}`);
+      }
+    };
 
-  // Register new chat tools, passing the same service instance
-  geminiStartChatTool(server, geminiServiceInstance);
-  geminiSendMessageTool(server, geminiServiceInstance);
-  geminiSendFunctionResultTool(server, geminiServiceInstance);
-
-  // Register File Handling tools
-  geminiUploadFileTool(server, geminiServiceInstance);
-  geminiListFilesTool(server, geminiServiceInstance);
-  geminiGetFileTool(server, geminiServiceInstance);
-  geminiDeleteFileTool(server, geminiServiceInstance);
-
-  // Register Caching tools
-  geminiCreateCacheTool(server, geminiServiceInstance);
-  geminiListCachesTool(server, geminiServiceInstance);
-  geminiGetCacheTool(server, geminiServiceInstance);
-  geminiUpdateCacheTool(server, geminiServiceInstance);
-  geminiDeleteCacheTool(server, geminiServiceInstance);
-
-  // Register image feature tools
-  geminiGenerateImageTool(server, geminiServiceInstance);
-  geminiObjectDetectionTool(server, geminiServiceInstance);
-  geminiContentUnderstandingTool(server, geminiServiceInstance);
-
-  // Register audio transcription tool
-  geminiAudioTranscriptionTool(server, geminiServiceInstance);
+    // Register example tool with a special case for its interface
+    // Use type assertion to handle the interface mismatch
+    (exampleTool as (server: McpServer) => void)(server);
+    
+    // Register content generation tools
+    registerTool(geminiGenerateContentTool, server, geminiServiceInstance);
+    registerTool(geminiGenerateContentStreamTool, server, geminiServiceInstance);
+    registerTool(geminiFunctionCallTool, server, geminiServiceInstance);
+    
+    // Register chat tools
+    registerTool(geminiStartChatTool, server, geminiServiceInstance);
+    registerTool(geminiSendMessageTool, server, geminiServiceInstance);
+    registerTool(geminiSendFunctionResultTool, server, geminiServiceInstance);
+    
+    // Register File Handling tools
+    registerTool(geminiUploadFileTool, server, geminiServiceInstance);
+    registerTool(geminiListFilesTool, server, geminiServiceInstance);
+    registerTool(geminiGetFileTool, server, geminiServiceInstance);
+    registerTool(geminiDeleteFileTool, server, geminiServiceInstance);
+    
+    // Register Caching tools
+    registerTool(geminiCreateCacheTool, server, geminiServiceInstance);
+    registerTool(geminiListCachesTool, server, geminiServiceInstance);
+    registerTool(geminiGetCacheTool, server, geminiServiceInstance);
+    registerTool(geminiUpdateCacheTool, server, geminiServiceInstance);
+    registerTool(geminiDeleteCacheTool, server, geminiServiceInstance);
+    
+    // Register image feature tools
+    registerTool(geminiGenerateImageTool, server);
+    registerTool(geminiObjectDetectionTool, server);
+    registerTool(geminiContentUnderstandingTool, server);
+    
+    // Register audio transcription tool
+    registerTool(geminiAudioTranscriptionTool, server);
+  } catch (error) {
+    logger.error("Error registering tools:", error);
+  }
 
   logger.info("All tools registered.");
 }

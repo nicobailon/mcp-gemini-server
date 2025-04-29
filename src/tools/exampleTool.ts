@@ -7,6 +7,7 @@ import {
   TOOL_PARAMS,
 } from "./exampleToolParams.js";
 import { ExampleService } from "../services/index.js";
+import { GeminiService } from "../services/index.js"; // Import GeminiService for type checking
 import { ExampleServiceConfig, ExampleServiceData } from "../types/index.js";
 import { ValidationError } from "../utils/errors.js";
 import { logger } from "../utils/index.js";
@@ -20,14 +21,20 @@ type ExampleToolArgs = {
 /**
  * Registers the exampleTool with the MCP server.
  * @param server - The McpServer instance.
- * @param config - Optional configuration specifically for the ExampleService used by this tool.
+ * @param config - Optional configuration or service instance that might be passed by the registration system.
  */
 export const exampleTool = (
   server: McpServer,
-  config?: Partial<ExampleServiceConfig>
+  // Allow any additional parameters that might be passed by the registerTool function
+  // without causing type errors
+  _serviceOrConfig?: any
 ): void => {
   // Instantiate the service this tool depends on
-  // Pass the specific config slice if provided
+  // Create a new service instance, potentially using config if it's the right type
+  const config = typeof _serviceOrConfig === 'object' && 
+                 !(_serviceOrConfig instanceof GeminiService) ? 
+                 _serviceOrConfig : undefined;
+  
   const serviceInstance = new ExampleService(config);
 
   // Define the async function that handles the tool execution

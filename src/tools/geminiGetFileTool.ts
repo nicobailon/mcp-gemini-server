@@ -1,8 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { GeminiService } from "../services/index.js";
-import { GeminiApiError } from "../utils/errors.js";
+import { GeminiService, FileId } from "../services/index.js";
+import { GeminiApiError, GeminiResourceNotFoundError, GeminiInvalidParameterError } from "../utils/errors.js";
 import { logger } from "../utils/index.js";
 import {
   TOOL_NAME_GET_FILE,
@@ -33,9 +33,16 @@ export const geminiGetFileTool = (
     logger.debug("Received params:", params);
 
     try {
-      // Call the GeminiService method
+      // Make sure fileName is in the correct format and cast it to FileId
+      if (!params.fileName.startsWith("files/")) {
+        throw new GeminiInvalidParameterError(
+          `File ID must be in the format "files/{file_id}", received: ${params.fileName}`
+        );
+      }
+      
+      // Call the GeminiService method with proper type casting
       const fileMetadata: FileMetadata = await geminiService.getFile(
-        params.fileName
+        params.fileName as FileId
       );
 
       logger.info(
@@ -57,31 +64,26 @@ export const geminiGetFileTool = (
         error
       );
 
-      if (error instanceof GeminiApiError) {
-        // Handle specific API errors from the service
+      if (error instanceof GeminiResourceNotFoundError) {
+        // Handle resource not found errors with appropriate error code
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `File not found: ${params.fileName}`,
+          error.details
+        );
+      } else if (error instanceof GeminiInvalidParameterError) {
+        // Handle invalid parameter errors
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `Invalid file name format: ${params.fileName}`,
+          error.details
+        );
+      } else if (error instanceof GeminiApiError) {
+        // Handle other specific API errors from the service
         if (error.message.includes("File API is not supported on Vertex AI")) {
           throw new McpError(
             ErrorCode.InvalidRequest,
             `Operation failed: ${error.message}`,
-            error.details
-          );
-        }
-        // Check for file not found (adjust based on actual error message/code from SDK)
-        // Use InvalidParams as NotFound is not available in ErrorCode enum
-        if (
-          error.message.toLowerCase().includes("not found") ||
-          (error.details as any)?.code === 404
-        ) {
-          throw new McpError(
-            ErrorCode.InvalidParams,
-            `File not found: ${params.fileName}`,
-            error.details
-          );
-        }
-        if (error.message.includes("Invalid file name format")) {
-          throw new McpError(
-            ErrorCode.InvalidParams,
-            `Invalid file name format: ${params.fileName}`,
             error.details
           );
         }

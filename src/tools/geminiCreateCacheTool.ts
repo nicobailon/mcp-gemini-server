@@ -58,8 +58,8 @@ export const geminiCreateCacheTool = (
       // Cast contents to SDK's Content[] type
       const cacheMetadata: CachedContentMetadata =
         await geminiService.createCache(
-          params.contents as Content[], // contents first
-          params.model, // model second
+          params.model ?? "", // model first, provide empty string as fallback
+          params.contents as Content[], // contents second
           Object.keys(cacheOptions).length > 0 ? cacheOptions : undefined // options third
         );
 

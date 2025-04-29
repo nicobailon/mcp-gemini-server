@@ -6,6 +6,8 @@ export const TOOL_DESCRIPTION =
   "An example tool that takes a name and returns a greeting message. Demonstrates the basic structure of an MCP tool using Zod for parameter definition.";
 
 // Define parameters using Zod for validation and description generation
+// We need to define this as a raw object with Zod validators (not wrapped in z.object)
+// to be compatible with the MCP server.tool() method
 export const TOOL_PARAMS = {
   name: z
     .string()
@@ -24,5 +26,5 @@ export const TOOL_PARAMS = {
     ),
 };
 
-// Optional: Define a Zod schema for the entire input object if needed for validation within the tool
-// export const exampleToolInputSchema = z.object(TOOL_PARAMS);
+// For internal validation within the tool, we can create a complete schema
+export const exampleToolSchema = z.object(TOOL_PARAMS);

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { safetySettingSchema } from "./geminiGenerateContentParams";
+import { safetySettingSchema } from "./geminiGenerateContentParams.js";
 
 // Tool Name
 export const TOOL_NAME_OBJECT_DETECTION = "gemini_objectDetection";
@@ -68,7 +68,7 @@ export const ImageInputSchema = z
   );
 
 // Main parameters schema
-export const GEMINI_OBJECT_DETECTION_PARAMS = {
+export const GEMINI_OBJECT_DETECTION_PARAMS = z.object({
   modelName: z
     .string()
     .min(1)
@@ -97,7 +97,7 @@ export const GEMINI_OBJECT_DETECTION_PARAMS = {
     .describe(
       "Optional. A list of safety settings to apply, overriding default model safety settings. Each setting specifies a harm category and a blocking threshold."
     ),
-};
+});
 
 // Type for parameter object using zod inference
 export type GeminiObjectDetectionArgs = z.infer<

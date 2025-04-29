@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { safetySettingSchema } from "./geminiGenerateContentParams";
-import { ImageInputSchema } from "./geminiObjectDetectionParams";
+import { safetySettingSchema } from "./geminiGenerateContentParams.js";
+import { ImageInputSchema } from "./geminiObjectDetectionParams.js";
 
 // Tool Name
 export const TOOL_NAME_CONTENT_UNDERSTANDING = "gemini_contentUnderstanding";
@@ -14,7 +14,7 @@ Can provide responses in either natural language or structured JSON format.
 `;
 
 // Main parameters schema
-export const GEMINI_CONTENT_UNDERSTANDING_PARAMS = {
+export const GEMINI_CONTENT_UNDERSTANDING_PARAMS = z.object({
   modelName: z
     .string()
     .min(1)
@@ -43,7 +43,7 @@ export const GEMINI_CONTENT_UNDERSTANDING_PARAMS = {
     .describe(
       "Optional. A list of safety settings to apply, overriding default model safety settings. Each setting specifies a harm category and a blocking threshold."
     ),
-};
+});
 
 // Type for parameter object using zod inference
 export type GeminiContentUnderstandingArgs = z.infer<

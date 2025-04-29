@@ -179,14 +179,17 @@ export const geminiSendMessageTool = (
       
       // Enhance error details with session ID for better debugging
       // Make a copy of the error to add session context before mapping
+      // We can't modify the error.details directly since it's read-only,
+      // but we can create a custom error object to pass to mapAnyErrorToMcpError
       let errorWithContext = error;
       if (error instanceof GeminiApiError && error.details) {
-        const geminiErrorWithContext = error as GeminiApiError;
-        geminiErrorWithContext.details = {
-          ...geminiErrorWithContext.details,
-          sessionId: args.sessionId
-        };
-        errorWithContext = geminiErrorWithContext;
+        // Create a new error object with the session context
+        errorWithContext = new GeminiApiError(
+          error.message,
+          typeof error.details === 'object' 
+            ? { ...(error.details as object), sessionId: args.sessionId }
+            : { originalDetails: error.details, sessionId: args.sessionId }
+        );
       }
       
       // Use the centralized error mapping utility to ensure consistent error handling

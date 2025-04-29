@@ -1,12 +1,13 @@
-import { McpServer } from "../server/mcp";
-import { GeminiService } from "../services/GeminiService";
-import { McpError, ToolError } from "../utils/errors";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { GeminiService } from "../services/index.js";
+import { ToolError } from "../utils/index.js";
+import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import {
   GEMINI_OBJECT_DETECTION_PARAMS,
   GeminiObjectDetectionArgs,
   TOOL_NAME_OBJECT_DETECTION,
   TOOL_DESCRIPTION_OBJECT_DETECTION,
-} from "./geminiObjectDetectionParams";
+} from "./geminiObjectDetectionParams.js";
 import { Part } from "@google/genai";
 import { TypeOf } from "zod";
 import { logger } from "../utils/index.js";
@@ -50,9 +51,10 @@ async function* streamBase64Data(
  * @param serviceInstance - Instance of the GeminiService.
  */
 export function geminiObjectDetectionTool(
-  server: McpServer,
-  serviceInstance: GeminiService
+  server: McpServer
 ) {
+  // Get the GeminiService instance
+  const serviceInstance = require("../services/index.js").GeminiService.getInstance();
   const toolName = TOOL_NAME_OBJECT_DETECTION;
   const toolDescription = TOOL_DESCRIPTION_OBJECT_DETECTION;
 
@@ -60,7 +62,7 @@ export function geminiObjectDetectionTool(
    * Handles the conversion of input parameters into proper Gemini SDK formats and calls the service.
    * @param args - Arguments for object detection.
    */
-  async function processRequest(args: GeminiObjectDetectionArgs) {
+  async function processRequest(args: GeminiObjectDetectionArgs): Promise<{content: Array<{type: 'text', text: string}>}> {
     try {
       // Validate args against schema
       try {
@@ -136,19 +138,28 @@ export function geminiObjectDetectionTool(
         args.safetySettings
       );
 
-      // If the user requested text format and we got a raw text response, return it
+      // Return in the format expected by McpServer
       if (args.outputFormat === "text" && result.rawText) {
+        // For text format
         return {
-          response: result.rawText,
-          format: "text/plain",
+          content: [
+            {
+              type: "text",
+              text: result.rawText
+            }
+          ]
+        };
+      } else {
+        // For JSON format
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result.objects, null, 2)
+            }
+          ]
         };
       }
-
-      // Otherwise return the structured result
-      return {
-        response: result,
-        format: "application/json",
-      };
     } catch (error: unknown) {
       // Handle specific errors from the service
       if (error instanceof McpError) {
@@ -192,12 +203,12 @@ export function geminiObjectDetectionTool(
   }
 
   // Register the tool with the server
-  server.tools.register({
-    name: toolName,
-    description: toolDescription,
-    parameters: GEMINI_OBJECT_DETECTION_PARAMS,
-    func: processRequest,
-  });
+  server.tool(
+    toolName,
+    toolDescription,
+    GEMINI_OBJECT_DETECTION_PARAMS.shape, // Use the shape property of the zod object
+    processRequest
+  );
 
   // Return the tool config (optional, for testing/verification)
   return {

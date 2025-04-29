@@ -20,15 +20,23 @@ import { ImageGenerationResult } from "../types/index.js";
  * @param serviceInstance - An instance of the GeminiService.
  */
 export const geminiGenerateImageTool = (
-  server: McpServer,
-  serviceInstance: GeminiService
+  server: McpServer
 ): void => {
+  // Get the GeminiService instance
+  const serviceInstance = require("../services/index.js").GeminiService.getInstance();
   /**
    * Processes the request for the gemini_generateImage tool.
    * @param args - The arguments object matching GEMINI_GENERATE_IMAGE_PARAMS.
    * @returns Base64-encoded generated images with metadata for MCP.
    */
-  const processRequest = async (args: GeminiGenerateImageArgs) => {
+  const processRequest = async (args: {
+    prompt: string;
+    modelName?: string; 
+    safetySettings?: any[];
+    resolution?: "512x512" | "1024x1024" | "1536x1536";
+    numberOfImages?: number;
+    negativePrompt?: string;
+  }) => {
     logger.debug(`Received ${TOOL_NAME_GENERATE_IMAGE} request:`, {
       model: args.modelName,
     }); // Avoid logging full prompt
@@ -61,20 +69,19 @@ export const geminiGenerateImageTool = (
 
       // Format success output for MCP - provide both JSON and direct image formats
       // This allows clients to choose the most appropriate format for their needs
+      // Convert the result to the standard MCP format
       return {
         content: [
+          // Include a text description of the generated images
           {
-            type: "json" as const,
-            json: result,
+            type: "text" as const,
+            text: `Generated ${result.images.length} ${resolution || "1024x1024"} image(s) from prompt.`,
           },
+          // Include the generated images as image content types
           ...result.images.map((img) => ({
             type: "image" as const,
-            image: {
-              data: img.base64Data,
-              mimeType: img.mimeType,
-              width: img.width,
-              height: img.height,
-            },
+            mimeType: img.mimeType,
+            data: img.base64Data,
           })),
         ],
       };
@@ -90,7 +97,7 @@ export const geminiGenerateImageTool = (
   server.tool(
     TOOL_NAME_GENERATE_IMAGE,
     TOOL_DESCRIPTION_GENERATE_IMAGE,
-    GEMINI_GENERATE_IMAGE_PARAMS,
+    GEMINI_GENERATE_IMAGE_PARAMS.shape, // Use the shape property of the zod object
     processRequest
   );
 

@@ -1,8 +1,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { GeminiService } from "../services/index.js";
-import { GeminiApiError, mapToMcpError } from "../utils/errors.js";
+import { GeminiService, CacheId } from "../services/index.js";
+import { 
+  GeminiApiError, 
+  GeminiResourceNotFoundError, 
+  GeminiInvalidParameterError,
+  mapToMcpError 
+} from "../utils/errors.js";
 import { logger } from "../utils/index.js";
 import {
   TOOL_NAME_UPDATE_CACHE,
@@ -38,9 +43,16 @@ export const geminiUpdateCacheTool = (
       if (params.ttl) updates.ttl = params.ttl;
       if (params.displayName) updates.displayName = params.displayName;
 
-      // Call the GeminiService method
+      // Make sure cacheName is in the correct format and cast it to CacheId
+      if (!params.cacheName.startsWith("cachedContents/")) {
+        throw new GeminiInvalidParameterError(
+          `Cache ID must be in the format "cachedContents/{id}", received: ${params.cacheName}`
+        );
+      }
+      
+      // Call the GeminiService method with proper type casting
       const cacheMetadata: CachedContentMetadata =
-        await geminiService.updateCache(params.cacheName, updates);
+        await geminiService.updateCache(params.cacheName as CacheId, updates);
 
       logger.info(
         `Successfully updated metadata for cache: ${cacheMetadata.name}`
@@ -61,20 +73,41 @@ export const geminiUpdateCacheTool = (
         error
       );
       
-      // Enhance error details with cache name for better debugging
-      let errorWithContext = error;
-      if (error instanceof GeminiApiError) {
-        const geminiErrorWithContext = error as GeminiApiError;
-        // Add cache name to the error details for better context
-        geminiErrorWithContext.details = {
-          ...((geminiErrorWithContext.details as any) || {}),
+      // Handle known error types
+      if (error instanceof GeminiResourceNotFoundError) {
+        // Create a new error instance with the cacheName in the details
+        const errorWithContext = new GeminiResourceNotFoundError(
+          "Cache", 
+          params.cacheName,
+          { cacheName: params.cacheName, originalError: error.details }
+        );
+        throw mapToMcpError(errorWithContext, TOOL_NAME_UPDATE_CACHE);
+      } else if (error instanceof GeminiInvalidParameterError) {
+        // Create a new error instance with the cacheName in the details
+        const errorWithContext = new GeminiInvalidParameterError(
+          `Invalid cache name format: ${params.cacheName}`,
+          { cacheName: params.cacheName, originalError: error.details }
+        );
+        throw mapToMcpError(errorWithContext, TOOL_NAME_UPDATE_CACHE);
+      } else if (error instanceof GeminiApiError) {
+        // For other API errors, add context to the details
+        const geminiErrorWithContext = error;
+        // Add cache name to the error details for better context without mutating the object
+        const enhancedDetails = {
+          ...(geminiErrorWithContext.details as object || {}),
           cacheName: params.cacheName
         };
-        errorWithContext = geminiErrorWithContext;
+        
+        // Create a new error instance with the enhanced details
+        const errorWithContext = new GeminiApiError(
+          error.message,
+          enhancedDetails
+        );
+        throw mapToMcpError(errorWithContext, TOOL_NAME_UPDATE_CACHE);
       }
       
-      // Use the centralized error mapping utility to ensure consistent error handling
-      throw mapToMcpError(errorWithContext, TOOL_NAME_UPDATE_CACHE);
+      // For other unknown errors, use the mapping utility directly
+      throw mapToMcpError(error, TOOL_NAME_UPDATE_CACHE);
     }
   };
 

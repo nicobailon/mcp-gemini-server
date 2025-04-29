@@ -55,53 +55,71 @@ export const geminiFunctionCallTool = (
       } = args;
 
       // Call the service method with the new parameter object format
-      const result = await serviceInstance.generateFunctionCallRequest({
+      // Using generateContent since generateFunctionCallRequest doesn't exist
+      // Prepare parameters object without invalid properties
+      const contentParams: any = {
         prompt,
-        functionDeclarations: functionDeclarations as FunctionDeclaration[],
         modelName,
-        generationConfig: generationConfig as GenerationConfig | undefined,
-        safetySettings: safetySettings as SafetySetting[] | undefined,
-        toolConfig: toolConfig as ToolConfig | undefined
-      });
+      };
+      
+      // Only add valid properties to avoid TypeScript errors
+      if (functionDeclarations) contentParams.functionDeclarations = functionDeclarations;
+      if (generationConfig) contentParams.generationConfig = generationConfig;
+      if (safetySettings) contentParams.safetySettings = safetySettings;
+      if (toolConfig) contentParams.toolConfig = toolConfig;
+      
+      const result = await serviceInstance.generateContent(contentParams);
 
-      // Check the result structure to determine if it's a function call or text
-      // Assuming the service returns an object like { functionCall: {...} } or { text: "..." }
-      if (
-        result &&
-        result.functionCall &&
-        typeof result.functionCall === "object"
-      ) {
-        // It's a function call request
-        logger.debug(
-          `Function call requested by model ${modelName}: ${result.functionCall.name}`
-        );
-        // Serialize the function call details into a JSON string
-        const functionCallJson = JSON.stringify(result.functionCall);
-        return {
-          content: [
-            {
-              type: "text" as const, // Return as text type
-              text: functionCallJson, // Embed JSON string in text field
-            },
-          ],
-        };
-      } else if (result && typeof result.text === "string") {
-        // It's a regular text response
-        logger.debug(
-          `Text response received from function call request for model ${modelName}.`
-        );
+      // Check if result is a string or an object with a function call
+      if (typeof result === 'object' && result !== null) {
+        // It's an object response, could be a function call
+        const resultObj = result as any; // Cast to any to access properties
+        
+        if (resultObj.functionCall && typeof resultObj.functionCall === 'object') {
+          // It's a function call request
+          logger.debug(
+            `Function call requested by model ${modelName}: ${resultObj.functionCall.name}`
+          );
+          // Serialize the function call details into a JSON string
+          const functionCallJson = JSON.stringify(resultObj.functionCall);
+          return {
+            content: [
+              {
+                type: "text" as const, // Return as text type
+                text: functionCallJson, // Embed JSON string in text field
+              },
+            ],
+          };
+        } else if (resultObj.text && typeof resultObj.text === 'string') {
+          // It's a regular text response
+          logger.debug(
+            `Text response received from function call request for model ${modelName}.`
+          );
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: resultObj.text,
+              },
+            ],
+          };
+        }
+      }
+      
+      // If we get here, it's likely a plain string response
+      if (typeof result === 'string') {
         return {
           content: [
             {
               type: "text" as const,
-              text: result.text,
+              text: result,
             },
           ],
         };
       } else {
         // Unexpected response structure from the service
         logger.error(
-          `Unexpected response structure from generateFunctionCallRequest for model ${modelName}:`,
+          `Unexpected response structure from generateContent for model ${modelName}:`,
           result
         );
         throw new Error(

@@ -9,13 +9,14 @@ import type {
   FunctionCall,
   Tool,
   ToolConfig,
+  CachedContent,
 } from "@google/genai";
 import { ConfigurationManager } from "../config/ConfigurationManager.js";
 import { GeminiApiError } from "../utils/errors.js";
 import { logger } from "../utils/logger.js";
 import path from "path";
 import fs from "fs/promises";
-import { FileMetadata } from "../types/index.js";
+import { FileMetadata, CachedContentMetadata } from "../types/index.js";
 import { v4 as uuidv4 } from "uuid";
 
 /**
@@ -92,6 +93,8 @@ interface ListFilesResponseType {
   page?: Iterable<GenAIFile>;
   hasNextPage?: () => boolean;
 }
+
+// Interface intentionally removed to fix unused variable linting error
 
 /**
  * Service for interacting with the Google Gemini API.
@@ -448,6 +451,132 @@ export class GeminiService {
    * @param params An object containing all necessary parameters for content generation
    * @returns A promise resolving to the generated text content
    */
+  /**
+   * Streams content generation using the Gemini model.
+   * Returns an async generator that yields text chunks as they are generated.
+   *
+   * @param params An object containing all necessary parameters for content generation
+   * @returns An async generator yielding text chunks as they become available
+   */
+  public async *generateContentStream(
+    params: GenerateContentParams
+  ): AsyncGenerator<string> {
+    const {
+      prompt,
+      modelName,
+      generationConfig,
+      safetySettings,
+      systemInstruction,
+      cachedContentName,
+      fileReferenceOrInlineData,
+      inlineDataMimeType,
+    } = params;
+
+    const effectiveModelName = modelName ?? this.defaultModelName;
+    if (!effectiveModelName) {
+      throw new GeminiApiError(
+        "Model name must be provided either as a parameter or via the GOOGLE_GEMINI_MODEL environment variable."
+      );
+    }
+    logger.debug(
+      `generateContentStream called with model: ${effectiveModelName}`
+    );
+
+    // Construct base content parts array
+    const contentParts: Part[] = [];
+    contentParts.push({ text: prompt });
+
+    // Add file reference or inline data if provided
+    if (fileReferenceOrInlineData) {
+      if (typeof fileReferenceOrInlineData === "string" && inlineDataMimeType) {
+        // Handle inline base64 data
+        contentParts.push({
+          inlineData: {
+            data: fileReferenceOrInlineData,
+            mimeType: inlineDataMimeType,
+          },
+        });
+      } else if (
+        typeof fileReferenceOrInlineData === "object" &&
+        "name" in fileReferenceOrInlineData &&
+        fileReferenceOrInlineData.uri
+      ) {
+        // Handle file reference
+        contentParts.push({
+          fileData: {
+            fileUri: fileReferenceOrInlineData.uri,
+            mimeType: fileReferenceOrInlineData.mimeType,
+          },
+        });
+      } else {
+        throw new GeminiApiError(
+          "Invalid file reference or inline data provided"
+        );
+      }
+    }
+
+    // Process systemInstruction if it's a string
+    let formattedSystemInstruction: Content | undefined;
+    if (systemInstruction) {
+      if (typeof systemInstruction === "string") {
+        formattedSystemInstruction = {
+          parts: [{ text: systemInstruction }],
+        };
+      } else {
+        formattedSystemInstruction = systemInstruction;
+      }
+    }
+
+    // Create the request configuration for v0.10.0
+    const requestConfig: {
+      model: string;
+      contents: Content[];
+      generationConfig?: GenerationConfig;
+      safetySettings?: SafetySetting[];
+      systemInstruction?: Content;
+      cachedContent?: string;
+    } = {
+      model: effectiveModelName,
+      contents: [{ role: "user", parts: contentParts }],
+    };
+
+    // Add optional parameters if provided
+    if (generationConfig) {
+      requestConfig.generationConfig = generationConfig;
+    }
+    if (safetySettings) {
+      requestConfig.safetySettings = safetySettings;
+    }
+    if (formattedSystemInstruction) {
+      requestConfig.systemInstruction = formattedSystemInstruction;
+    }
+    if (cachedContentName) {
+      requestConfig.cachedContent = cachedContentName;
+    }
+
+    try {
+      // Call generateContentStream directly on the models property in v0.10.0
+      const streamResult =
+        await this.genAI.models.generateContentStream(requestConfig);
+
+      // Iterate through the chunks and yield text
+      // The v0.10.0 SDK returns an AsyncGenerator directly, not an object with a stream property
+      for await (const chunk of streamResult) {
+        // Extract text from the chunk if available - text is a getter, not a method
+        const chunkText = chunk.text;
+        if (chunkText) {
+          yield chunkText;
+        }
+      }
+    } catch (error) {
+      logger.error("Error generating content stream:", error);
+      throw new GeminiApiError(
+        `Failed to generate content stream: ${(error as Error).message}`,
+        error
+      );
+    }
+  }
+
   public async generateContent(params: GenerateContentParams): Promise<string> {
     const {
       prompt,
@@ -869,5 +998,272 @@ export class GeminiService {
         error
       );
     }
+  }
+
+  /**
+   * Creates a cached content entry in the Gemini API.
+   *
+   * @param modelName The model to use for this cached content
+   * @param contents The conversation contents to cache
+   * @param options Additional options for the cache (displayName, systemInstruction, ttl, tools, toolConfig)
+   * @returns Promise resolving to the cached content metadata
+   */
+  public async createCache(
+    modelName: string,
+    contents: Content[],
+    options?: {
+      displayName?: string;
+      systemInstruction?: Content | string;
+      ttl?: string;
+      tools?: Tool[];
+      toolConfig?: ToolConfig;
+    }
+  ): Promise<CachedContentMetadata> {
+    try {
+      logger.debug(`Creating cache for model: ${modelName}`);
+
+      // Process systemInstruction if it's a string
+      let formattedSystemInstruction: Content | undefined;
+      if (options?.systemInstruction) {
+        if (typeof options.systemInstruction === "string") {
+          formattedSystemInstruction = {
+            parts: [{ text: options.systemInstruction }],
+          };
+        } else {
+          formattedSystemInstruction = options.systemInstruction;
+        }
+      }
+
+      // Create config object for the request
+      const cacheConfig = {
+        contents,
+        displayName: options?.displayName,
+        systemInstruction: formattedSystemInstruction,
+        ttl: options?.ttl,
+        tools: options?.tools,
+        toolConfig: options?.toolConfig,
+      };
+
+      // Create the cache entry
+      const cacheData = await this.genAI.caches.create({
+        model: modelName,
+        config: cacheConfig,
+      });
+
+      // Return the mapped metadata
+      return this.mapSdkCacheToMetadata(cacheData);
+    } catch (error: unknown) {
+      logger.error(
+        `Error creating cache: ${error instanceof Error ? error.message : String(error)}`,
+        error
+      );
+      throw new GeminiApiError(
+        `Failed to create cache: ${error instanceof Error ? error.message : String(error)}`,
+        error
+      );
+    }
+  }
+
+  /**
+   * Lists cached content entries in the Gemini API.
+   *
+   * @param pageSize Optional maximum number of entries to return
+   * @param pageToken Optional token for pagination
+   * @returns Promise resolving to an object with caches array and optional nextPageToken
+   */
+  public async listCaches(
+    pageSize?: number,
+    pageToken?: string
+  ): Promise<{ caches: CachedContentMetadata[]; nextPageToken?: string }> {
+    try {
+      logger.debug(
+        `Listing caches with pageSize: ${pageSize}, pageToken: ${pageToken}`
+      );
+
+      // Prepare list parameters
+      const listParams: Record<string, number | string> = {};
+
+      if (pageSize !== undefined) {
+        listParams.pageSize = pageSize;
+      }
+
+      if (pageToken) {
+        listParams.pageToken = pageToken;
+      }
+
+      // Call the caches.list method
+      const response = await this.genAI.caches.list(listParams);
+
+      const caches: CachedContentMetadata[] = [];
+      let nextPageToken: string | undefined;
+
+      // Handle the response in a more generic way to accommodate different API versions
+      if (response && typeof response === "object") {
+        if ("caches" in response && Array.isArray(response.caches)) {
+          // Standard response format - cast to our TypeScript interface for validation
+          for (const cache of response.caches) {
+            caches.push(this.mapSdkCacheToMetadata(cache));
+          }
+          // Use optional chaining to safely access nextPageToken
+          nextPageToken = (
+            response as {
+              caches: Record<string, unknown>[];
+              nextPageToken?: string;
+            }
+          ).nextPageToken;
+        } else if ("page" in response && response.page) {
+          // Pager-like object in v0.10.0
+          const cacheList = Array.from(response.page);
+          for (const cache of cacheList) {
+            caches.push(this.mapSdkCacheToMetadata(cache));
+          }
+
+          // Check if there's a next page
+          const hasNextPage =
+            typeof response === "object" &&
+            "hasNextPage" in response &&
+            typeof response.hasNextPage === "function"
+              ? response.hasNextPage()
+              : false;
+
+          if (hasNextPage) {
+            nextPageToken = "next_page_available";
+          }
+        } else if (Array.isArray(response)) {
+          // Direct array response
+          for (const cache of response) {
+            caches.push(this.mapSdkCacheToMetadata(cache));
+          }
+        }
+      }
+
+      return { caches, nextPageToken };
+    } catch (error: unknown) {
+      logger.error(
+        `Error listing caches: ${error instanceof Error ? error.message : String(error)}`,
+        error
+      );
+      throw new GeminiApiError(
+        `Failed to list caches: ${error instanceof Error ? error.message : String(error)}`,
+        error
+      );
+    }
+  }
+
+  /**
+   * Gets a specific cached content entry's metadata from the Gemini API.
+   *
+   * @param cacheName The name of the cached content to retrieve (format: "cachedContents/{id}")
+   * @returns Promise resolving to the cached content metadata
+   */
+  public async getCache(cacheName: string): Promise<CachedContentMetadata> {
+    try {
+      logger.debug(`Getting cache metadata for: ${cacheName}`);
+
+      // Get the cache metadata
+      const cacheData = await this.genAI.caches.get({ name: cacheName });
+
+      return this.mapSdkCacheToMetadata(cacheData);
+    } catch (error: unknown) {
+      logger.error(
+        `Error getting cache: ${error instanceof Error ? error.message : String(error)}`,
+        error
+      );
+      throw new GeminiApiError(
+        `Failed to get cache: ${error instanceof Error ? error.message : String(error)}`,
+        error
+      );
+    }
+  }
+
+  /**
+   * Updates a cached content entry in the Gemini API.
+   *
+   * @param cacheName The name of the cached content to update (format: "cachedContents/{id}")
+   * @param updates The updates to apply to the cached content (ttl, displayName)
+   * @returns Promise resolving to the updated cached content metadata
+   */
+  public async updateCache(
+    cacheName: string,
+    updates: { ttl?: string; displayName?: string }
+  ): Promise<CachedContentMetadata> {
+    try {
+      logger.debug(`Updating cache: ${cacheName}`);
+
+      // Update the cache
+      const cacheData = await this.genAI.caches.update({
+        name: cacheName,
+        config: updates,
+      });
+
+      return this.mapSdkCacheToMetadata(cacheData);
+    } catch (error: unknown) {
+      logger.error(
+        `Error updating cache: ${error instanceof Error ? error.message : String(error)}`,
+        error
+      );
+      throw new GeminiApiError(
+        `Failed to update cache: ${error instanceof Error ? error.message : String(error)}`,
+        error
+      );
+    }
+  }
+
+  /**
+   * Deletes a cached content entry from the Gemini API.
+   *
+   * @param cacheName The name of the cached content to delete (format: "cachedContents/{id}")
+   * @returns Promise resolving to an object with success flag
+   */
+  public async deleteCache(cacheName: string): Promise<{ success: boolean }> {
+    try {
+      logger.debug(`Deleting cache: ${cacheName}`);
+
+      // Delete the cache
+      await this.genAI.caches.delete({ name: cacheName });
+
+      return { success: true };
+    } catch (error: unknown) {
+      logger.error(
+        `Error deleting cache: ${error instanceof Error ? error.message : String(error)}`,
+        error
+      );
+      throw new GeminiApiError(
+        `Failed to delete cache: ${error instanceof Error ? error.message : String(error)}`,
+        error
+      );
+    }
+  }
+
+  /**
+   * Helper method to map cached content response data to our CachedContentMetadata interface
+   *
+   * @param cacheData The cache data from the Gemini API
+   * @returns The mapped CachedContentMetadata object
+   */
+  private mapSdkCacheToMetadata(
+    cacheData: CachedContent
+  ): CachedContentMetadata {
+    if (!cacheData.name) {
+      throw new Error("Invalid cache data received: missing required name");
+    }
+
+    // In SDK v0.10.0, the structure might be slightly different
+    // Constructing CachedContentMetadata with fallback values where needed
+    return {
+      name: cacheData.name,
+      displayName: cacheData.displayName || "",
+      createTime: cacheData.createTime || new Date().toISOString(),
+      updateTime: cacheData.updateTime || new Date().toISOString(),
+      expirationTime: cacheData.expireTime,
+      model: cacheData.model || "",
+      state: "ACTIVE", // Default to ACTIVE since CachedContent does not have a status/state property
+      usageMetadata: {
+        totalTokenCount:
+          typeof cacheData.usageMetadata?.totalTokenCount !== "undefined"
+            ? cacheData.usageMetadata.totalTokenCount
+            : 0,
+      },
+    };
   }
 }

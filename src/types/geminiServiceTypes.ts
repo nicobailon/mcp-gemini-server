@@ -41,10 +41,11 @@ export interface FileMetadata {
 export interface CachedContentMetadata {
   name: string; // e.g., "cachedContents/abc123xyz"
   displayName?: string;
-  model: string; // Model name this cache is tied to
+  model?: string; // Model name this cache is tied to
   createTime: string; // ISO 8601 format string
   updateTime: string; // ISO 8601 format string
-  expireTime?: string; // ISO 8601 format string
+  expirationTime?: string; // ISO 8601 format string (renamed from expireTime)
+  state?: string; // State of the cached content (e.g., "ACTIVE")
   usageMetadata?: {
     totalTokenCount?: number;
   };

@@ -8,14 +8,14 @@ import {
 // Tool Name
 export const GEMINI_STREAM_TOOL_NAME = "gemini_generateContentStream";
 
-// Tool Description
+// IMPORTANT: While named "generateContentStream", this tool does NOT actually stream content to the client.
+// Due to limitations in the @modelcontextprotocol/sdk (as of version 1.10.2, April 2025), 
+// this tool collects all chunks from the Gemini streaming API internally and returns the complete text at once
+// when generation is finished. The SDK does not currently support true incremental streaming in tool responses.
+// This is a workaround implementation that is functionally equivalent to gemini_generateContent, but uses
+// Gemini's streaming API behind the scenes, which may be more reliable for longer responses.
 export const GEMINI_STREAM_TOOL_DESCRIPTION = `
 Generates text content using a specified Google Gemini model.
-While named "stream", due to limitations in the @modelcontextprotocol/sdk (as of version 1.10.2, April 2025), 
-this tool actually receives the streamed response internally from Gemini but returns the complete text at once
-when generation is finished. The SDK does not currently support true incremental streaming in tool responses.
-
-It's suitable for handling long responses where you want the server to stream internally with Gemini.
 Optional parameters allow control over generation, safety settings, system instructions, and cached content.
 `;
 
@@ -55,6 +55,3 @@ export const GEMINI_STREAM_PARAMS = {
       "Optional. Identifier for cached content in format 'cachedContents/...' to use with this request."
     ),
 };
-
-// Optional: Define a Zod schema for the entire input object if needed later
-// export const geminiStreamInputSchema = z.object(GEMINI_STREAM_PARAMS);

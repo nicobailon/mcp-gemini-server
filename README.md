@@ -114,7 +114,6 @@ This server provides the following MCP tools. Parameter schemas are defined usin
 
 * **`gemini_startChat`**
   * *Description:* Initiates a new stateful chat session and returns a unique `sessionId`.
-  * *Required Params:* None
   * *Optional Params:* `modelName` (string), `history` (array), `tools` (array), `generationConfig` (object), `safetySettings` (array), `systemInstruction` (object), `cachedContentName` (string)
 * **`gemini_sendMessage`**
   * *Description:* Sends a message within an existing chat session.
@@ -208,7 +207,7 @@ This server provides the following MCP tools. Parameter schemas are defined usin
 
 ## Usage Examples
 
-Here are examples of how an MCP client (like Cline) might call these tools using the `use_mcp_tool` format:
+Here are examples of how an MCP client (like Claude) might call these tools using the `use_mcp_tool` format:
 
 
 **Example 1: Simple Content Generation (Using Default Model)**
@@ -463,17 +462,6 @@ The server aims to return structured errors using the MCP standard `McpError` ty
 * **Image Processing Errors:** Results in `InvalidParams` or `InternalError` for issues with image format, size limitations, content analysis failures, or incompatible image types.
 
 Check the `message` and `details` fields of the returned `McpError` for specific troubleshooting information.
-
-## Development
-
-This server follows the standard MCP server structure outlined in the project's `.clinerules` and internal documentation. Key patterns include:
-
-* **Service Layer (`src/services`):** Encapsulates interactions with the `@google/genai` SDK, keeping it decoupled from MCP specifics.
-* **Tool Layer (`src/tools`):** Adapts service layer functionality to MCP tools, handling parameter mapping and error translation.
-* **Zod Schemas (`src/tools/*Params.ts`):** Used extensively for defining tool parameters, providing validation, and generating detailed descriptions crucial for LLM interaction.
-* **Configuration (`src/config`):** Centralized management via `ConfigurationManager`.
-* **Types (`src/types`):** Clear TypeScript definitions.
-* **Example Tool (`src/tools/exampleTool.ts`):** A reference implementation used for development and testing purposes, not intended for production use.
 
 ## Known Issues
 

@@ -64,7 +64,8 @@ npx -y @smithery/cli install @bsmi021/mcp-gemini-server --client claude
           "args": ["/path/to/mcp-gemini-server/dist/server.js"], // Path to the compiled server entry point
           "env": {
             "GOOGLE_GEMINI_API_KEY": "YOUR_API_KEY",
-            "GOOGLE_GEMINI_MODEL": "gemini-1.5-flash" // Optional: Set a default model
+            "GOOGLE_GEMINI_MODEL": "gemini-1.5-flash", // Optional: Set a default model
+            "GEMINI_SAFE_FILE_BASE_DIR": "/path/to/allowed/files" // Optional: Restrict file operations
           },
           "disabled": false,
           "autoApprove": []
@@ -130,6 +131,7 @@ This server provides the following MCP tools. Parameter schemas are defined usin
   * *Description:* Uploads a file from a local path.
   * *Required Params:* `filePath` (string - **must be an absolute path**)
   * *Optional Params:* `displayName` (string), `mimeType` (string)
+  * *Security Note:* File paths are validated against a secure base directory (`GEMINI_SAFE_FILE_BASE_DIR` environment variable). Operations are restricted to this directory to prevent path traversal attacks. By default, this is set to the current working directory.
 * **`gemini_listFiles`**
   * *Description:* Lists previously uploaded files.
   * *Required Params:* None
@@ -198,6 +200,7 @@ This server provides the following MCP tools. Parameter schemas are defined usin
     * `prompt` (string - additional instructions for transcription)
     * `mimeType` (string - audio format, inferred from extension if not provided)
   * *Supported Audio Formats:* MP3, WAV, OGG, M4A, FLAC (audio/mpeg, audio/wav, audio/ogg, audio/mp4, audio/x-m4a, audio/flac, audio/x-flac)
+  * *Security Note:* File paths are validated against a secure base directory (`GEMINI_SAFE_FILE_BASE_DIR` environment variable). Operations are restricted to this directory to prevent path traversal attacks.
   * *Notes:*
     * Files under 20MB are processed directly with inline base64 encoding
     * Files over 20MB require a Google AI Studio API key and use the File API
@@ -426,7 +429,8 @@ Optional:
 - `GOOGLE_GEMINI_MODEL`: Default model to use (e.g., `gemini-1.5-pro-latest`, `gemini-1.5-flash-latest`)
 - `GOOGLE_GEMINI_IMAGE_RESOLUTION`: Default image resolution (512x512, 1024x1024, or 1536x1536)
 - `GOOGLE_GEMINI_MAX_IMAGE_SIZE_MB`: Maximum allowed image size in MB
-- `GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS`: Comma-separated list of supported image formats
+- `GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS`: JSON array of supported image formats (e.g., `["image/jpeg","image/png","image/webp"]`)
+- `GEMINI_SAFE_FILE_BASE_DIR`: Restricts file operations to a specific directory for security (defaults to current working directory)
 
 You can create a `.env` file in the root directory with these variables:
 
@@ -435,6 +439,8 @@ GOOGLE_GEMINI_API_KEY=your_api_key_here
 GOOGLE_GEMINI_MODEL=gemini-1.5-pro-latest
 GOOGLE_GEMINI_IMAGE_RESOLUTION=1024x1024
 GOOGLE_GEMINI_MAX_IMAGE_SIZE_MB=10
+GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS=["image/jpeg","image/png","image/webp"]
+GEMINI_SAFE_FILE_BASE_DIR=/path/to/allowed/files
 ```
 
 ## Error Handling
@@ -453,6 +459,7 @@ The server aims to return structured errors using the MCP standard `McpError` ty
 * **File/Cache Not Found:** Results in `NotFound` for missing resources.
 * **Rate Limits:** Results in `ResourceExhausted` for quota or rate limit issues.
 * **File API Unavailable:** Results in `FailedPrecondition` when attempting operations requiring the File API without a valid Google AI Studio key.
+* **Path Traversal Attempts:** Results in `InvalidParams` with a message about file validation errors when trying to access files outside the allowed directory (`GEMINI_SAFE_FILE_BASE_DIR`).
 * **Image Processing Errors:** Results in `InvalidParams` or `InternalError` for issues with image format, size limitations, content analysis failures, or incompatible image types.
 
 Check the `message` and `details` fields of the returned `McpError` for specific troubleshooting information.

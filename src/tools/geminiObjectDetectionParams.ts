@@ -14,43 +14,58 @@ Optional parameters allow customization of detection behavior and output format.
 `;
 
 // Supported image formats
-const SUPPORTED_IMAGE_FORMATS = ["image/jpeg", "image/png", "image/webp"] as const;
+const SUPPORTED_IMAGE_FORMATS = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+] as const;
 
 // Schema for image input validation
-export const ImageInputSchema = z.object({
-  type: z.enum(["base64", "url"]).describe("The type of image input (base64 or URL)"),
-  data: z.string().min(1).describe(
-    "The image data - either a base64-encoded string or a valid URL"
-  ),
-  mimeType: z.enum(SUPPORTED_IMAGE_FORMATS).optional().describe(
-    "Optional. The MIME type of the image (must be one of: 'image/jpeg', 'image/png', 'image/webp'). Required for base64 images."
-  ),
-}).refine(
-  (data) => {
-    if (data.type === "base64" && !data.mimeType) {
-      return false;
+export const ImageInputSchema = z
+  .object({
+    type: z
+      .enum(["base64", "url"])
+      .describe("The type of image input (base64 or URL)"),
+    data: z
+      .string()
+      .min(1)
+      .describe(
+        "The image data - either a base64-encoded string or a valid URL"
+      ),
+    mimeType: z
+      .enum(SUPPORTED_IMAGE_FORMATS)
+      .optional()
+      .describe(
+        "Optional. The MIME type of the image (must be one of: 'image/jpeg', 'image/png', 'image/webp'). Required for base64 images."
+      ),
+  })
+  .refine(
+    (data) => {
+      if (data.type === "base64" && !data.mimeType) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: "mimeType is required when using base64 image input",
+      path: ["mimeType"],
     }
-    return true;
-  },
-  {
-    message: "mimeType is required when using base64 image input",
-    path: ["mimeType"],
-  }
-).refine(
-  (data) => {
-    if (data.type === "base64") {
-      // Calculate base64 size in bytes (excluding header)
-      const base64Data = data.data.split(",").pop() || "";
-      const sizeInBytes = Math.round((base64Data.length * 3) / 4);
-      return sizeInBytes <= 10 * 1024 * 1024; // 10MB limit
+  )
+  .refine(
+    (data) => {
+      if (data.type === "base64") {
+        // Calculate base64 size in bytes (excluding header)
+        const base64Data = data.data.split(",").pop() || "";
+        const sizeInBytes = Math.round((base64Data.length * 3) / 4);
+        return sizeInBytes <= 10 * 1024 * 1024; // 10MB limit
+      }
+      return true; // No size validation for URLs
+    },
+    {
+      message: "Image size must not exceed 10MB",
+      path: ["data"],
     }
-    return true; // No size validation for URLs
-  },
-  {
-    message: "Image size must not exceed 10MB",
-    path: ["data"],
-  }
-);
+  );
 
 // Main parameters schema
 export const GEMINI_OBJECT_DETECTION_PARAMS = {
@@ -85,4 +100,6 @@ export const GEMINI_OBJECT_DETECTION_PARAMS = {
 };
 
 // Type for parameter object using zod inference
-export type GeminiObjectDetectionArgs = z.infer<typeof GEMINI_OBJECT_DETECTION_PARAMS>;
+export type GeminiObjectDetectionArgs = z.infer<
+  typeof GEMINI_OBJECT_DETECTION_PARAMS
+>;

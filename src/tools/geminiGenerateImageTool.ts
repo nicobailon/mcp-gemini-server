@@ -15,7 +15,7 @@ import { ImageGenerationResult } from "../types/index.js";
 
 /**
  * Registers the gemini_generateImage tool with the MCP server.
- * 
+ *
  * @param server - The McpServer instance.
  * @param serviceInstance - An instance of the GeminiService.
  */
@@ -79,10 +79,7 @@ export const geminiGenerateImageTool = (
         ],
       };
     } catch (error: unknown) {
-      logger.error(
-        `Error processing ${TOOL_NAME_GENERATE_IMAGE}:`,
-        error
-      );
+      logger.error(`Error processing ${TOOL_NAME_GENERATE_IMAGE}:`, error);
 
       // Map errors to appropriate McpError types
       if (error instanceof McpError) {

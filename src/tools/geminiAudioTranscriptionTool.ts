@@ -1,10 +1,10 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from "fs";
+import * as path from "path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { GeminiService } from "../services/index.js";
-import { GeminiApiError } from "../utils/errors.js";
-import { logger } from "../utils/index.js";
+import { GeminiApiError, ValidationError } from "../utils/errors.js";
+import { logger, validateAndResolvePath } from "../utils/index.js";
 import {
   TOOL_NAME_AUDIO_TRANSCRIPTION,
   TOOL_DESCRIPTION_AUDIO_TRANSCRIPTION,
@@ -12,7 +12,10 @@ import {
   AudioTranscriptionParams,
 } from "./geminiAudioTranscriptionParams.js";
 
-export function geminiAudioTranscriptionTool(server: McpServer, geminiService: GeminiService) {
+export function geminiAudioTranscriptionTool(
+  server: McpServer,
+  geminiService: GeminiService
+) {
   server.tool({
     name: TOOL_NAME_AUDIO_TRANSCRIPTION,
     description: TOOL_DESCRIPTION_AUDIO_TRANSCRIPTION,
@@ -21,44 +24,52 @@ export function geminiAudioTranscriptionTool(server: McpServer, geminiService: G
       let transcriptionResult;
 
       try {
-        // Verify file access
-        try {
-          fs.accessSync(params.filePath, fs.constants.R_OK);
-        } catch (error) {
-          throw new McpError(
-            ErrorCode.InvalidParams,
-            `Audio file not accessible: ${params.filePath}. Ensure the path is absolute and the file has read permissions.`
-          );
-        }
+        // Validate and resolve the file path to ensure it's secure
+        const safeFilePath = validateAndResolvePath(params.filePath, {
+          mustExist: true,
+        });
+        logger.info(`Using validated path: ${safeFilePath}`);
 
         // Determine MIME type
         let mimeType = params.mimeType;
         if (!mimeType) {
-          const ext = path.extname(params.filePath).toLowerCase();
+          const ext = path.extname(safeFilePath).toLowerCase();
           switch (ext) {
-            case '.mp3': mimeType = 'audio/mpeg'; break;
-            case '.wav': mimeType = 'audio/wav'; break;
-            case '.ogg': mimeType = 'audio/ogg'; break;
-            case '.m4a': mimeType = 'audio/mp4'; break;
-            case '.flac': mimeType = 'audio/flac'; break;
+            case ".mp3":
+              mimeType = "audio/mpeg";
+              break;
+            case ".wav":
+              mimeType = "audio/wav";
+              break;
+            case ".ogg":
+              mimeType = "audio/ogg";
+              break;
+            case ".m4a":
+              mimeType = "audio/mp4";
+              break;
+            case ".flac":
+              mimeType = "audio/flac";
+              break;
             default:
               throw new McpError(
                 ErrorCode.InvalidParams,
                 `Could not determine MIME type for extension '${ext}'. Please provide a 'mimeType' parameter or use a supported format (mp3, wav, ogg, m4a, flac).`
               );
           }
-          logger.info(`Inferred MIME type ${mimeType} from file extension ${ext}.`);
+          logger.info(
+            `Inferred MIME type ${mimeType} from file extension ${ext}.`
+          );
         }
 
         // Check file size
         let fileStats;
         try {
-          fileStats = fs.statSync(params.filePath);
+          fileStats = fs.statSync(safeFilePath);
         } catch (error) {
           throw new McpError(
             ErrorCode.InternalError,
             `Failed to read file stats: ${error.message}`,
-            { path: params.filePath }
+            { path: safeFilePath }
           );
         }
         const fileSizeBytes = fileStats.size;
@@ -66,18 +77,23 @@ export function geminiAudioTranscriptionTool(server: McpServer, geminiService: G
         const SIZE_LIMIT_MB = 20;
 
         if (fileSizeMB > SIZE_LIMIT_MB) {
-          logger.info(`Large audio file detected (${fileSizeMB.toFixed(2)}MB). Using File API for upload.`);
-          
+          logger.info(
+            `Large audio file detected (${fileSizeMB.toFixed(2)}MB). Using File API for upload.`
+          );
+
           try {
-            const uploadedFile = await geminiService.uploadFile(
-              params.filePath,
-              { mimeType }
+            const uploadedFile = await geminiService.uploadFile(safeFilePath, {
+              mimeType,
+            });
+            logger.info(
+              `File uploaded successfully. Name: ${uploadedFile.name}`
             );
-            logger.info(`File uploaded successfully. Name: ${uploadedFile.name}`);
-            
+
             const promptParts = ["Transcribe this audio file accurately"];
             if (params.includeTimestamps) {
-              promptParts.push("include timestamps for each paragraph or speaker change");
+              promptParts.push(
+                "include timestamps for each paragraph or speaker change"
+              );
             }
             if (params.language) {
               promptParts.push(`the language is ${params.language}`);
@@ -86,7 +102,7 @@ export function geminiAudioTranscriptionTool(server: McpServer, geminiService: G
               promptParts.push(params.prompt);
             }
             const prompt = promptParts.join(". ");
-            
+
             transcriptionResult = await geminiService.generateContent(
               prompt,
               params.modelName,
@@ -107,16 +123,20 @@ export function geminiAudioTranscriptionTool(server: McpServer, geminiService: G
             throw error;
           }
         } else {
-          logger.info(`Audio file size: ${fileSizeMB.toFixed(2)}MB. Processing directly with inline base64 data.`);
-          
+          logger.info(
+            `Audio file size: ${fileSizeMB.toFixed(2)}MB. Processing directly with inline base64 data.`
+          );
+
           try {
-            const audioData = fs.readFileSync(params.filePath);
+            const audioData = fs.readFileSync(safeFilePath);
             const audioBuffer = Buffer.from(audioData);
-            const audioBase64 = audioBuffer.toString('base64');
-            
+            const audioBase64 = audioBuffer.toString("base64");
+
             const promptParts = ["Transcribe this audio file accurately"];
             if (params.includeTimestamps) {
-              promptParts.push("include timestamps for each paragraph or speaker change");
+              promptParts.push(
+                "include timestamps for each paragraph or speaker change"
+              );
             }
             if (params.language) {
               promptParts.push(`the language is ${params.language}`);
@@ -125,7 +145,7 @@ export function geminiAudioTranscriptionTool(server: McpServer, geminiService: G
               promptParts.push(params.prompt);
             }
             const prompt = promptParts.join(". ");
-            
+
             transcriptionResult = await geminiService.generateContent(
               prompt,
               params.modelName,
@@ -141,7 +161,7 @@ export function geminiAudioTranscriptionTool(server: McpServer, geminiService: G
               throw new McpError(
                 ErrorCode.InvalidParams,
                 `Failed to read audio file: ${error.message}`,
-                { path: params.filePath }
+                { path: safeFilePath }
               );
             }
             throw error;
@@ -149,19 +169,34 @@ export function geminiAudioTranscriptionTool(server: McpServer, geminiService: G
         }
 
         return transcriptionResult;
-
       } catch (error: unknown) {
-        logger.error(`Error processing ${TOOL_NAME_AUDIO_TRANSCRIPTION} for file ${params.filePath}:`, error);
+        logger.error(
+          `Error processing ${TOOL_NAME_AUDIO_TRANSCRIPTION} for file ${params.filePath || "unknown path"}:`,
+          error
+        );
 
-        if (error instanceof GeminiApiError) {
-          if (error.message.includes("safety settings") || error.message.includes("blocked")) {
+        if (error instanceof ValidationError) {
+          // Handle file path validation errors
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `File validation error: ${error.message}`,
+            { cause: "path_validation_failed" }
+          );
+        } else if (error instanceof GeminiApiError) {
+          if (
+            error.message.includes("safety settings") ||
+            error.message.includes("blocked")
+          ) {
             throw new McpError(
               ErrorCode.InvalidRequest,
               `Audio content blocked by safety settings: ${error.message}`,
               error.details
             );
           }
-          if (error.message.includes("quota") || error.message.includes("rate limit")) {
+          if (
+            error.message.includes("quota") ||
+            error.message.includes("rate limit")
+          ) {
             throw new McpError(
               ErrorCode.ResourceExhausted,
               `API quota or rate limit exceeded: ${error.message}`,
@@ -190,6 +225,6 @@ export function geminiAudioTranscriptionTool(server: McpServer, geminiService: G
           );
         }
       }
-    }
+    },
   });
 }

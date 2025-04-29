@@ -46,4 +46,6 @@ export const GEMINI_CONTENT_UNDERSTANDING_PARAMS = {
 };
 
 // Type for parameter object using zod inference
-export type GeminiContentUnderstandingArgs = z.infer<typeof GEMINI_CONTENT_UNDERSTANDING_PARAMS>;
+export type GeminiContentUnderstandingArgs = z.infer<
+  typeof GEMINI_CONTENT_UNDERSTANDING_PARAMS
+>;

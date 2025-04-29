@@ -13,8 +13,8 @@ export interface GeminiServiceConfig {
   defaultModel?: string; // Optional default model name from env var
   // Image-specific settings
   defaultImageResolution?: "512x512" | "1024x1024" | "1536x1536";
-  maxImageSizeMB: number;  // Default: 10MB
-  supportedImageFormats: string[];  // Default: ["image/jpeg", "image/png", "image/webp"]
+  maxImageSizeMB: number; // Default: 10MB
+  supportedImageFormats: string[]; // Default: ["image/jpeg", "image/png", "image/webp"]
   // Safety settings are added per-request as they can vary by endpoint
 }
 
@@ -131,14 +131,14 @@ export const ContentSchema = z
  */
 export interface ImageGenerationResult {
   images: Array<{
-    base64Data: string;  // Base64-encoded image data
-    mimeType: string;    // Image MIME type (e.g., 'image/png')
-    width: number;       // Image width in pixels
-    height: number;      // Image height in pixels
+    base64Data: string; // Base64-encoded image data
+    mimeType: string; // Image MIME type (e.g., 'image/png')
+    width: number; // Image width in pixels
+    height: number; // Image height in pixels
   }>;
   promptSafetyMetadata?: {
-    blocked: boolean;    // Whether the prompt was blocked by safety filters
-    reasons?: string[];  // Reasons for blocking, if applicable
+    blocked: boolean; // Whether the prompt was blocked by safety filters
+    reasons?: string[]; // Reasons for blocking, if applicable
   };
 }
 
@@ -148,20 +148,21 @@ export interface ImageGenerationResult {
  */
 export interface ObjectDetectionResult {
   objects: Array<{
-    label: string;          // Description of the detected object
-    boundingBox: {          // Normalized coordinates (0-1000 scale)
+    label: string; // Description of the detected object
+    boundingBox: {
+      // Normalized coordinates (0-1000 scale)
       yMin: number;
       xMin: number;
       yMax: number;
       xMax: number;
     };
-    confidence?: number;    // Optional confidence score (0-1)
+    confidence?: number; // Optional confidence score (0-1)
   }>;
   promptSafetyMetadata?: {
-    blocked: boolean;       // Whether the prompt was blocked by safety filters
-    reasons?: string[];     // Reasons for blocking, if applicable
+    blocked: boolean; // Whether the prompt was blocked by safety filters
+    reasons?: string[]; // Reasons for blocking, if applicable
   };
-  rawText?: string;        // Raw model output when outputFormat is 'text'
+  rawText?: string; // Raw model output when outputFormat is 'text'
 }
 
 /**
@@ -170,14 +171,15 @@ export interface ObjectDetectionResult {
  */
 export interface ContentUnderstandingResult {
   analysis: {
-    text?: string;         // Natural language description/analysis
-    data?: {              // Structured data when available
-      [key: string]: any; // Type depends on content (could be metrics, relationships, etc.)
+    text?: string; // Natural language description/analysis
+    data?: {
+      // Structured data when available
+      [key: string]: string | number | boolean | object | null; // Type depends on content (could be metrics, relationships, etc.)
     };
   };
   promptSafetyMetadata?: {
-    blocked: boolean;      // Whether the prompt was blocked by safety filters
-    reasons?: string[];    // Reasons for blocking, if applicable
+    blocked: boolean; // Whether the prompt was blocked by safety filters
+    reasons?: string[]; // Reasons for blocking, if applicable
   };
-  rawText?: string;       // Raw model output when structured parsing fails
+  rawText?: string; // Raw model output when structured parsing fails
 }

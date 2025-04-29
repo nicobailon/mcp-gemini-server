@@ -12,29 +12,34 @@ import { TypeOf } from "zod";
 import { logger } from "../utils/index.js";
 
 // Utility function to efficiently handle large base64 strings
-async function* streamBase64Data(base64String: string, chunkSize = 1024 * 1024) {
+async function* streamBase64Data(
+  base64String: string,
+  chunkSize = 1024 * 1024
+) {
   // First validate base64 format quickly
   if (!/^data:.*?;base64,/.test(base64String)) {
     throw new Error("Invalid base64 data URL format");
   }
-  
+
   // Split data header and content
   const [header, content] = base64String.split(",");
-  
+
   // Calculate total chunks needed
   const totalChunks = Math.ceil(content.length / chunkSize);
   let processedChunks = 0;
-  
+
   // Stream the data in chunks
   for (let i = 0; i < content.length; i += chunkSize) {
     const chunk = content.slice(i, i + chunkSize);
     processedChunks++;
-    
+
     // Log progress for large files
     if (processedChunks % 10 === 0 || processedChunks === totalChunks) {
-      logger.debug(`Processing base64 data: ${processedChunks}/${totalChunks} chunks`);
+      logger.debug(
+        `Processing base64 data: ${processedChunks}/${totalChunks} chunks`
+      );
     }
-    
+
     yield chunk;
   }
 }
@@ -60,7 +65,9 @@ export function geminiContentUnderstandingTool(
       // Validate args against schema
       try {
         // Validate with the PARAMS schema configuration
-        const validArgs = (GEMINI_CONTENT_UNDERSTANDING_PARAMS as any)._parseSync(args);
+        const validArgs = (
+          GEMINI_CONTENT_UNDERSTANDING_PARAMS as any
+        )._parseSync(args);
         args = validArgs as GeminiContentUnderstandingArgs;
       } catch (validationError: any) {
         throw new ToolError("Invalid arguments", {
@@ -86,11 +93,11 @@ export function geminiContentUnderstandingTool(
           if (!args.image.mimeType) {
             throw new Error("mimeType is required for base64 image input");
           }
-          
+
           // Calculate base64 size
           const sizeInBytes = Math.round((args.image.data.length * 3) / 4);
           const isLargeFile = sizeInBytes > 5 * 1024 * 1024; // 5MB threshold
-          
+
           if (isLargeFile) {
             // Process large base64 files in chunks
             logger.debug("Processing large base64 image in chunks");

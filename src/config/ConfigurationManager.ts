@@ -1,6 +1,7 @@
 ﻿// Import config types for services as they are added
 import { ExampleServiceConfig, GeminiServiceConfig } from "../types/index.js"; // Import GeminiServiceConfig
 import { logger } from "../utils/logger.js";
+import { configureFilePathSecurity } from "../utils/filePathSecurity.js";
 // Define the structure for all configurations managed
 // Note: GeminiServiceConfig itself now has an optional defaultModel
 interface ManagedConfigs {
@@ -47,6 +48,9 @@ export class ConfigurationManager {
 
     this.validateRequiredEnvVars();
     this.loadEnvironmentOverrides();
+
+    // Configure file path security
+    configureFilePathSecurity();
   }
 
   private validateRequiredEnvVars(): void {
@@ -110,6 +114,14 @@ export class ConfigurationManager {
     return this.config.geminiService.defaultModel;
   }
 
+  /**
+   * Returns the secure file base path for file operations
+   * @returns The configured safe file base directory or undefined if not set
+   */
+  public getSecureFileBasePath(): string | undefined {
+    return process.env.GEMINI_SAFE_FILE_BASE_DIR;
+  }
+
   // Add getters for other service configs:
   // public getYourServiceConfig(): Required<YourServiceConfig> {
   //   return { ...this.config.yourService };
@@ -147,6 +159,13 @@ export class ConfigurationManager {
     if (process.env.EXAMPLE_ENABLE_LOGS) {
       this.config.exampleService.enableDetailedLogs =
         process.env.EXAMPLE_ENABLE_LOGS.toLowerCase() === "true";
+    }
+
+    // Load safe file path base directory if provided
+    if (process.env.GEMINI_SAFE_FILE_BASE_DIR) {
+      logger.info(
+        `Safe file base directory configured: ${process.env.GEMINI_SAFE_FILE_BASE_DIR}`
+      );
     }
 
     // Add logic for other services based on their environment variables

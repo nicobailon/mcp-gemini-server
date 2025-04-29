@@ -2,8 +2,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"; // Reverted
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { GeminiService } from "../services/index.js";
-import { GeminiApiError } from "../utils/errors.js";
-import { logger } from "../utils/index.js";
+import { GeminiApiError, ValidationError } from "../utils/errors.js";
+import { logger, validateAndResolvePath } from "../utils/index.js";
 import {
   TOOL_NAME_UPLOAD_FILE,
   TOOL_DESCRIPTION_UPLOAD_FILE,
@@ -31,6 +31,11 @@ export const geminiUploadFileTool = (
     logger.debug("Received params:", params);
 
     try {
+      // Validate and resolve the file path to ensure it's secure
+      const safeFilePath = validateAndResolvePath(params.filePath, {
+        mustExist: true,
+      });
+
       // Construct metadata object for the service call if needed
       const fileMetadataParams: { displayName?: string; mimeType?: string } =
         {};
@@ -41,9 +46,9 @@ export const geminiUploadFileTool = (
         fileMetadataParams.mimeType = params.mimeType;
       }
 
-      // Call the GeminiService method
+      // Call the GeminiService method with the validated path
       const fileMetadata: FileMetadata = await geminiService.uploadFile(
-        params.filePath,
+        safeFilePath,
         Object.keys(fileMetadataParams).length > 0
           ? fileMetadataParams
           : undefined
@@ -63,7 +68,14 @@ export const geminiUploadFileTool = (
     } catch (error: unknown) {
       logger.error(`Error processing ${TOOL_NAME_UPLOAD_FILE}:`, error);
 
-      if (error instanceof GeminiApiError) {
+      if (error instanceof ValidationError) {
+        // Handle file path validation errors
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `File validation error: ${error.message}`,
+          { cause: "path_validation_failed" }
+        );
+      } else if (error instanceof GeminiApiError) {
         // Handle specific API errors from the service
         // Check if it's a "File API not supported on Vertex" error
         if (error.message.includes("File API is not supported on Vertex AI")) {

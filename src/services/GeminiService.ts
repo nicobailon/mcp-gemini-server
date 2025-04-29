@@ -4,6 +4,7 @@ import type {
   SafetySetting,
   Content,
   Part,
+  File as GenAIFile,
 } from "@google/genai";
 import { ConfigurationManager } from "../config/ConfigurationManager.js";
 import { GeminiApiError } from "../utils/errors.js";
@@ -67,23 +68,195 @@ export class GeminiService {
       throw new GeminiApiError(`File not found: ${validatedPath}`, error);
     }
 
-    // Implementation would call the Gemini API to upload the file
-    // This is just a stub - actual implementation would use this.genAI.files.create
+    try {
+      logger.debug(`Uploading file from: ${validatedPath}`);
+      logger.debug(`With options: ${JSON.stringify(options)}`);
 
-    logger.debug(`Uploading file from: ${validatedPath}`);
-    logger.debug(`With options: ${JSON.stringify(options)}`);
+      // Prepare upload configuration
+      const uploadConfig: {
+        file: string;
+        config?: {
+          mimeType?: string;
+          displayName?: string;
+        };
+      } = {
+        file: validatedPath,
+      };
 
-    // Return mock file metadata for demonstration
+      if (options) {
+        uploadConfig.config = {};
+        if (options.mimeType) {
+          uploadConfig.config.mimeType = options.mimeType;
+        }
+        if (options.displayName) {
+          uploadConfig.config.displayName = options.displayName;
+        }
+      }
+
+      // Upload the file
+      const fileData = await this.genAI.files.upload(uploadConfig);
+
+      // Ensure required fields exist
+      if (!fileData.name || !fileData.uri) {
+        throw new GeminiApiError(
+          "Invalid file data received: missing required name or uri"
+        );
+      }
+
+      // Return the file metadata
+      return {
+        name: fileData.name,
+        uri: fileData.uri,
+        mimeType:
+          fileData.mimeType || options?.mimeType || "application/octet-stream",
+        displayName: fileData.displayName || options?.displayName,
+        sizeBytes: fileData.sizeBytes || "0",
+        createTime: fileData.createTime || new Date().toISOString(),
+        updateTime: fileData.updateTime || new Date().toISOString(),
+        sha256Hash: fileData.sha256Hash || "",
+        state: fileData.state || "ACTIVE",
+      };
+    } catch (error: unknown) {
+      logger.error(
+        `Error uploading file: ${error instanceof Error ? error.message : String(error)}`,
+        error
+      );
+      throw new GeminiApiError(
+        `Failed to upload file: ${error instanceof Error ? error.message : String(error)}`,
+        error
+      );
+    }
+  }
+
+  /**
+   * Lists files that have been uploaded to the Gemini API.
+   *
+   * @param pageSize Optional maximum number of files to return
+   * @param pageToken Optional token for pagination
+   * @returns Promise resolving to an object with files array and optional nextPageToken
+   */
+  public async listFiles(
+    pageSize?: number,
+    pageToken?: string
+  ): Promise<{ files: FileMetadata[]; nextPageToken?: string }> {
+    try {
+      logger.debug(
+        `Listing files with pageSize: ${pageSize}, pageToken: ${pageToken}`
+      );
+
+      // Call the files.list method
+      const pager = await this.genAI.files.list({
+        config: {
+          pageSize: pageSize,
+          pageToken: pageToken,
+        },
+      });
+
+      // Get the first page of results
+      const page = pager.page;
+      const files: FileMetadata[] = [];
+
+      // Process each file in the page
+      for (const file of page) {
+        files.push(this.mapFileResponseToMetadata(file));
+      }
+
+      // Determine if there's another page of results
+      const hasNextPage = pager.hasNextPage();
+
+      // Return the files and the nextPageToken if available
+      return {
+        files,
+        nextPageToken: hasNextPage ? "next_page_available" : undefined,
+      };
+    } catch (error: unknown) {
+      logger.error(
+        `Error listing files: ${error instanceof Error ? error.message : String(error)}`,
+        error
+      );
+      throw new GeminiApiError(
+        `Failed to list files: ${error instanceof Error ? error.message : String(error)}`,
+        error
+      );
+    }
+  }
+
+  /**
+   * Gets a specific file's metadata from the Gemini API.
+   *
+   * @param fileName The name of the file to retrieve (format: "files/{file_id}")
+   * @returns Promise resolving to the file metadata
+   */
+  public async getFile(fileName: string): Promise<FileMetadata> {
+    try {
+      logger.debug(`Getting file metadata for: ${fileName}`);
+
+      // Get the file metadata
+      const fileData = await this.genAI.files.get({ name: fileName });
+
+      return this.mapFileResponseToMetadata(fileData);
+    } catch (error: unknown) {
+      logger.error(
+        `Error getting file: ${error instanceof Error ? error.message : String(error)}`,
+        error
+      );
+      throw new GeminiApiError(
+        `Failed to get file: ${error instanceof Error ? error.message : String(error)}`,
+        error
+      );
+    }
+  }
+
+  /**
+   * Deletes a file from the Gemini API.
+   *
+   * @param fileName The name of the file to delete (format: "files/{file_id}")
+   * @returns Promise resolving to an object with success flag
+   */
+  public async deleteFile(fileName: string): Promise<{ success: boolean }> {
+    try {
+      logger.debug(`Deleting file: ${fileName}`);
+
+      // Delete the file
+      await this.genAI.files.delete({ name: fileName });
+
+      return { success: true };
+    } catch (error: unknown) {
+      logger.error(
+        `Error deleting file: ${error instanceof Error ? error.message : String(error)}`,
+        error
+      );
+      throw new GeminiApiError(
+        `Failed to delete file: ${error instanceof Error ? error.message : String(error)}`,
+        error
+      );
+    }
+  }
+
+  /**
+   * Helper method to map file response data to our FileMetadata interface
+   *
+   * @param fileData The file data from the Gemini API
+   * @returns The mapped FileMetadata object
+   */
+  private mapFileResponseToMetadata(fileData: GenAIFile): FileMetadata {
+    if (!fileData.name || !fileData.uri) {
+      throw new Error(
+        "Invalid file data received: missing required name or uri"
+      );
+    }
+
     return {
-      name: `files/${path.basename(validatedPath).replace(/\s+/g, "_")}`,
-      uri: `https://api.gemini.com/v1/files/${Date.now()}`,
-      mimeType: options?.mimeType || "application/octet-stream",
-      displayName: options?.displayName,
-      sizeBytes: "0",
-      createTime: new Date().toISOString(),
-      updateTime: new Date().toISOString(),
-      sha256Hash: "mock-sha256-hash",
-      state: "ACTIVE",
+      name: fileData.name!,
+      uri: fileData.uri!,
+      mimeType: fileData.mimeType || "application/octet-stream",
+      displayName: fileData.displayName,
+      sizeBytes: fileData.sizeBytes || "0",
+      createTime: fileData.createTime || new Date().toISOString(),
+      updateTime: fileData.updateTime || new Date().toISOString(),
+      expirationTime: fileData.expirationTime,
+      sha256Hash: fileData.sha256Hash || "",
+      state: fileData.state || "ACTIVE",
     };
   }
 
@@ -254,6 +427,4 @@ export class GeminiService {
   public getSecureBasePath(): string | undefined {
     return this.secureBasePath;
   }
-
-  // Other methods...
 }

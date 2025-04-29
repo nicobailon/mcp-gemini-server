@@ -1,4 +1,4 @@
-import { z } from "zod"; // <-- ADD THIS FUCKING IMPORT
+import { z } from "zod";
 
 /**
  * Type definitions specific to the GeminiService.
@@ -15,7 +15,6 @@ export interface GeminiServiceConfig {
   defaultImageResolution?: "512x512" | "1024x1024" | "1536x1536";
   maxImageSizeMB: number; // Default: 10MB
   supportedImageFormats: string[]; // Default: ["image/jpeg", "image/png", "image/webp"]
-  // Safety settings are added per-request as they can vary by endpoint
 }
 
 /**
@@ -23,17 +22,16 @@ export interface GeminiServiceConfig {
  * Based on the structure returned by the @google/genai SDK's File API.
  */
 export interface FileMetadata {
-  name: string; // e.g., "files/abc123xyz"
+  name: string;
   displayName?: string;
   mimeType: string;
-  sizeBytes: string; // Note: SDK seems to return this as a string
-  createTime: string; // ISO 8601 format string
-  updateTime: string; // ISO 8601 format string
-  expirationTime?: string; // ISO 8601 format string
+  sizeBytes: string;
+  createTime: string;
+  updateTime: string;
+  expirationTime?: string;
   sha256Hash: string;
-  uri: string; // The https URI to the file content
-  state: "PROCESSING" | "ACTIVE" | "FAILED" | string; // State of the file
-  // Potentially other fields depending on SDK version
+  uri: string;
+  state: "PROCESSING" | "ACTIVE" | "FAILED" | string;
 }
 
 /**
@@ -47,22 +45,15 @@ export interface CachedContentMetadata {
   createTime: string; // ISO 8601 format string
   updateTime: string; // ISO 8601 format string
   expireTime?: string; // ISO 8601 format string
-  // sizeBytes: string; // This field does not seem to exist on the SDK type
-  // Add usageMetadata fields if needed based on SDK type
   usageMetadata?: {
     totalTokenCount?: number;
-    // Potentially other usage fields
   };
 }
 
-// --- Zod Schemas for SDK Content/Part Types ---
-// Based on @google/genai types
-
-// Define individual Part schemas first
 const BlobSchema = z
   .object({
     mimeType: z.string(),
-    data: z.string(), // Base64 encoded data
+    data: z.string(),
   })
   .strict();
 
@@ -73,20 +64,19 @@ const FileDataSchema = z
   })
   .strict();
 
-// Note: FunctionCall args/response can be any JSON object structure
 const FunctionCallSchema = z
   .object({
     name: z.string(),
-    args: z.record(z.unknown()), // Allows any JSON structure for args
-    id: z.string().optional(), // Added based on SDK type inspection
+    args: z.record(z.unknown()),
+    id: z.string().optional(),
   })
   .strict();
 
 const FunctionResponseSchema = z
   .object({
     name: z.string(),
-    response: z.record(z.unknown()), // Allows any JSON structure for response
-    id: z.string().optional(), // Added based on SDK type inspection
+    response: z.record(z.unknown()),
+    id: z.string().optional(),
   })
   .strict();
 
@@ -131,14 +121,14 @@ export const ContentSchema = z
  */
 export interface ImageGenerationResult {
   images: Array<{
-    base64Data: string; // Base64-encoded image data
-    mimeType: string; // Image MIME type (e.g., 'image/png')
-    width: number; // Image width in pixels
-    height: number; // Image height in pixels
+    base64Data: string;
+    mimeType: string;
+    width: number;
+    height: number;
   }>;
   promptSafetyMetadata?: {
-    blocked: boolean; // Whether the prompt was blocked by safety filters
-    reasons?: string[]; // Reasons for blocking, if applicable
+    blocked: boolean;
+    reasons?: string[];
   };
 }
 
@@ -148,21 +138,20 @@ export interface ImageGenerationResult {
  */
 export interface ObjectDetectionResult {
   objects: Array<{
-    label: string; // Description of the detected object
+    label: string;
     boundingBox: {
-      // Normalized coordinates (0-1000 scale)
       yMin: number;
       xMin: number;
       yMax: number;
       xMax: number;
     };
-    confidence?: number; // Optional confidence score (0-1)
+    confidence?: number;
   }>;
   promptSafetyMetadata?: {
-    blocked: boolean; // Whether the prompt was blocked by safety filters
-    reasons?: string[]; // Reasons for blocking, if applicable
+    blocked: boolean;
+    reasons?: string[];
   };
-  rawText?: string; // Raw model output when outputFormat is 'text'
+  rawText?: string;
 }
 
 /**
@@ -171,15 +160,14 @@ export interface ObjectDetectionResult {
  */
 export interface ContentUnderstandingResult {
   analysis: {
-    text?: string; // Natural language description/analysis
+    text?: string;
     data?: {
-      // Structured data when available
-      [key: string]: string | number | boolean | object | null; // Type depends on content (could be metrics, relationships, etc.)
+      [key: string]: string | number | boolean | object | null;
     };
   };
   promptSafetyMetadata?: {
-    blocked: boolean; // Whether the prompt was blocked by safety filters
-    reasons?: string[]; // Reasons for blocking, if applicable
+    blocked: boolean;
+    reasons?: string[];
   };
-  rawText?: string; // Raw model output when structured parsing fails
+  rawText?: string;
 }

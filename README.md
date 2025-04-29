@@ -6,20 +6,20 @@
 
 This project provides a dedicated MCP (Model Context Protocol) server that wraps the `@google/genai` SDK (v0.10.0). It exposes Google's Gemini model capabilities as standard MCP tools, allowing other LLMs (like Claude) or MCP-compatible systems to leverage Gemini's features as a backend workhorse.
 
-This server aims to simplify integration with Gemini models by providing a consistent, tool-based interface managed via the MCP standard. It supports the latest Gemini models including `gemini-1.5-pro-latest` and `gemini-1.5-flash-latest`.
+This server aims to simplify integration with Gemini models by providing a consistent, tool-based interface managed via the MCP standard. It supports the latest Gemini models including `gemini-1.5-pro-latest`, `gemini-1.5-flash-latest`, and `gemini-2.5-pro` models.
 
 
 ## Features
 
-* **Core Generation:** Standard (`gemini_generateContent`) and streaming (`gemini_generateContentStream`) text generation.
+* **Core Generation:** Standard (`gemini_generateContent`) and streaming (`gemini_generateContentStream`) text generation with support for system instructions and cached content.
 * **Function Calling:** Enables Gemini models to request the execution of client-defined functions (`gemini_functionCall`).
-* **Stateful Chat:** Manages conversational context across multiple turns (`gemini_startChat`, `gemini_sendMessage`, `gemini_sendFunctionResult`).
-* **File Handling:** Upload, list, retrieve, and delete files using the Gemini API.
-* **Caching:** Create, list, retrieve, update, and delete cached content to optimize prompts.
-* **Image Generation:** Generate images from text prompts using Gemini 2.5 Flash (`gemini_generateImage`).
-* **Object Detection:** Detect objects in images and return bounding box coordinates (`gemini_objectDetection`).
-* **Visual Content Understanding:** Extract information from charts, diagrams, and other visual content (`gemini_contentUnderstanding`).
-* **Audio Transcription:** Transcribe audio files with optional timestamps and multilingual support (`gemini_audioTranscription`).
+* **Stateful Chat:** Manages conversational context across multiple turns (`gemini_startChat`, `gemini_sendMessage`, `gemini_sendFunctionResult`) with support for system instructions, tools, and cached content.
+* **File Handling:** Upload, list, retrieve, and delete files using the Gemini API with enhanced path security.
+* **Caching:** Create, list, retrieve, update, and delete cached content to optimize prompts with support for tools and tool configurations.
+* **Image Generation:** Generate images from text prompts using Gemini 2.0 Flash Experimental (`gemini_generateImage`) with control over resolution, number of images, and negative prompts. Also supports Imagen 3 models for high-quality dedicated image generation. Note that Gemini 2.5 models (Flash and Pro) do not currently support image generation.
+* **Object Detection:** Detect objects in images and return bounding box coordinates (`gemini_objectDetection`) with custom prompt additions and output format options.
+* **Visual Content Understanding:** Extract information from charts, diagrams, and other visual content (`gemini_contentUnderstanding`) with structured output options.
+* **Audio Transcription:** Transcribe audio files with optional timestamps and multilingual support (`gemini_audioTranscription`) for both small and large files.
 
 
 ## Prerequisites
@@ -97,32 +97,59 @@ This server provides the following MCP tools. Parameter schemas are defined usin
 * **`gemini_generateContent`**
   * *Description:* Generates non-streaming text content from a prompt.
   * *Required Params:* `prompt` (string)
-  * *Optional Params:* `modelName` (string), `generationConfig` (object), `safetySettings` (array), `systemInstruction` (object), `cachedContentName` (string)
+  * *Optional Params:* 
+    * `modelName` (string) - Name of the model to use
+    * `generationConfig` (object) - Controls generation parameters like temperature, topP, etc.
+    * `safetySettings` (array) - Controls content filtering by harm category
+    * `systemInstruction` (string or object) - System instruction to guide model behavior
+    * `cachedContentName` (string) - Identifier for cached content to use with this request
+  * *Note:* Can handle both multimodal inputs and cached content for improved efficiency
 * **`gemini_generateContentStream`**
   * *Description:* Generates text content via streaming. (Note: Current implementation uses a workaround and collects all chunks before returning the full text).
   * *Required Params:* `prompt` (string)
-  * *Optional Params:* `modelName` (string), `generationConfig` (object), `safetySettings` (array), `systemInstruction` (object), `cachedContentName` (string)
+  * *Optional Params:* 
+    * `modelName` (string) - Name of the model to use
+    * `generationConfig` (object) - Controls generation parameters like temperature, topP, etc.
+    * `safetySettings` (array) - Controls content filtering by harm category
+    * `systemInstruction` (string or object) - System instruction to guide model behavior
+    * `cachedContentName` (string) - Identifier for cached content to use with this request
 
 ### Function Calling
 
 * **`gemini_functionCall`**
   * *Description:* Sends a prompt and function declarations to the model, returning either a text response or a requested function call object (as a JSON string).
   * *Required Params:* `prompt` (string), `functionDeclarations` (array)
-  * *Optional Params:* `modelName` (string), `generationConfig` (object), `safetySettings` (array), `toolConfig` (object)
+  * *Optional Params:* 
+    * `modelName` (string) - Name of the model to use
+    * `generationConfig` (object) - Controls generation parameters
+    * `safetySettings` (array) - Controls content filtering
+    * `toolConfig` (object) - Configures tool behavior like temperature and confidence thresholds
 
 ### Stateful Chat
 
 * **`gemini_startChat`**
   * *Description:* Initiates a new stateful chat session and returns a unique `sessionId`.
-  * *Optional Params:* `modelName` (string), `history` (array), `tools` (array), `generationConfig` (object), `safetySettings` (array), `systemInstruction` (object), `cachedContentName` (string)
+  * *Optional Params:* 
+    * `modelName` (string) - Name of the model to use
+    * `history` (array) - Initial conversation history
+    * `tools` (array) - Tool definitions including function declarations
+    * `generationConfig` (object) - Controls generation parameters
+    * `safetySettings` (array) - Controls content filtering
+    * `systemInstruction` (string or object) - System instruction to guide model behavior
+    * `cachedContentName` (string) - Identifier for cached content to use with this session
 * **`gemini_sendMessage`**
   * *Description:* Sends a message within an existing chat session.
   * *Required Params:* `sessionId` (string), `message` (string)
-  * *Optional Params:* `generationConfig` (object), `safetySettings` (array), `tools` (array), `toolConfig` (object), `cachedContentName` (string)
+  * *Optional Params:* 
+    * `generationConfig` (object) - Controls generation parameters
+    * `safetySettings` (array) - Controls content filtering
+    * `tools` (array) - Tool definitions including function declarations
+    * `toolConfig` (object) - Configures tool behavior
+    * `cachedContentName` (string) - Identifier for cached content to use with this message
 * **`gemini_sendFunctionResult`**
   * *Description:* Sends the result of a function execution back to a chat session.
-  * *Required Params:* `sessionId` (string), `functionResponses` (array)
-  * *Optional Params:* `generationConfig` (object), `safetySettings` (array)
+  * *Required Params:* `sessionId` (string), `functionResponse` (string) - The result of the function execution
+  * *Optional Params:* `functionCall` (object) - Reference to the original function call
 
 ### File Handling (Google AI Studio Key Required)
 
@@ -130,7 +157,7 @@ This server provides the following MCP tools. Parameter schemas are defined usin
   * *Description:* Uploads a file from a local path.
   * *Required Params:* `filePath` (string - **must be an absolute path**)
   * *Optional Params:* `displayName` (string), `mimeType` (string)
-  * *Security Note:* File paths are validated against a secure base directory (`GEMINI_SAFE_FILE_BASE_DIR` environment variable). Operations are restricted to this directory to prevent path traversal attacks. By default, this is set to the current working directory.
+  * *Security Note:* File paths are strictly validated against the secure base directory specified in the `GEMINI_SAFE_FILE_BASE_DIR` environment variable. All file operations are restricted to this directory to prevent path traversal attacks. If this environment variable is not set, the current working directory is used as the default secure base path.
 * **`gemini_listFiles`**
   * *Description:* Lists previously uploaded files.
   * *Required Params:* None
@@ -146,8 +173,13 @@ This server provides the following MCP tools. Parameter schemas are defined usin
 
 * **`gemini_createCache`**
   * *Description:* Creates cached content for compatible models (e.g., `gemini-1.5-flash`).
-  * *Required Params:* `contents` (array)
-  * *Optional Params:* `modelName` (string), `displayName` (string), `systemInstruction` (object), `ttl` (string - e.g., '3600s'), `tools` (array), `toolConfig` (object)
+  * *Required Params:* `contents` (array), `model` (string)
+  * *Optional Params:* 
+    * `displayName` (string) - Human-readable name for the cached content
+    * `systemInstruction` (string or object) - System instruction to apply to the cached content
+    * `ttl` (string - e.g., '3600s') - Time-to-live for the cached content
+    * `tools` (array) - Tool definitions for use with the cached content
+    * `toolConfig` (object) - Configuration for the tools
 * **`gemini_listCaches`**
   * *Description:* Lists existing cached content.
   * *Required Params:* None
@@ -156,9 +188,14 @@ This server provides the following MCP tools. Parameter schemas are defined usin
   * *Description:* Retrieves metadata for specific cached content.
   * *Required Params:* `cacheName` (string - e.g., `cachedContents/abc123xyz`)
 * **`gemini_updateCache`**
-  * *Description:* Updates metadata (TTL, displayName) for cached content.
-  * *Required Params:* `cacheName` (string)
-  * *Optional Params:* `ttl` (string), `displayName` (string)
+  * *Description:* Updates metadata and contents for cached content.
+  * *Required Params:* `cacheName` (string), `contents` (array)
+  * *Optional Params:* 
+    * `displayName` (string) - Updated display name
+    * `systemInstruction` (string or object) - Updated system instruction
+    * `ttl` (string) - Updated time-to-live
+    * `tools` (array) - Updated tool definitions
+    * `toolConfig` (object) - Updated tool configuration
 * **`gemini_deleteCache`**
   * *Description:* Deletes cached content.
   * *Required Params:* `cacheName` (string - e.g., `cachedContents/abc123xyz`)
@@ -166,26 +203,43 @@ This server provides the following MCP tools. Parameter schemas are defined usin
 ### Image Generation
 
 * **`gemini_generateImage`**
-  * *Description:* Generates images from text prompts using Gemini 2.5 Flash.
+  * *Description:* Generates images from text prompts using available image generation models.
   * *Required Params:* `prompt` (string - descriptive text prompt for image generation)
-  * *Optional Params:* `modelName` (string - defaults to "gemini-2.5-flash"), `resolution` (string enum: "512x512", "1024x1024", "1536x1536"), `numberOfImages` (number - 1-4, default: 1), `safetySettings` (array), `negativePrompt` (string - features to avoid in the generated image)
+  * *Optional Params:* 
+    * `modelName` (string - defaults to "gemini-2.0-flash-exp-image-generation" for Gemini models, or use "imagen-3.0-generate-002" for higher quality dedicated image generation)
+    * `resolution` (string enum: "512x512", "1024x1024", "1536x1536")
+    * `numberOfImages` (number - 1-4, default: 1)
+    * `safetySettings` (array) - Controls content filtering for generated images
+    * `negativePrompt` (string - features to avoid in the generated image)
   * *Response:* Returns an array of base64-encoded images with metadata including dimensions and MIME type.
+  * *Notes:* Image generation uses significant resources, especially at higher resolutions. Consider using smaller resolutions for faster responses and less resource usage.
 
 ### Object Detection
 
 * **`gemini_objectDetection`**
   * *Description:* Detects objects in images and returns their positions with bounding box coordinates.
   * *Required Params:* `image` (object with `type` ["url" | "base64"], `data` [URL string or base64 data], and `mimeType`)
-  * *Optional Params:* `modelName` (string - defaults to server's default model), `promptAddition` (string - custom instructions for detection), `outputFormat` (string enum: "json" | "text", default: "json"), `safetySettings` (array)
+  * *Optional Params:* 
+    * `modelName` (string - defaults to server's default model)
+    * `promptAddition` (string - custom instructions for detection)
+    * `outputFormat` (string enum: "json" | "text", default: "json")
+    * `safetySettings` (array) - Controls content filtering
   * *Response:* JSON array of detected objects with labels, normalized bounding box coordinates (0-1000 scale), and confidence scores. When `outputFormat` is "text", returns natural language description.
+  * *Notes:* This tool is optimized for common object detection in photographs, diagrams, and scenes.
 
 ### Visual Content Understanding
 
 * **`gemini_contentUnderstanding`**
-  * *Description:* Analyzes and extracts information from visual content like charts, diagrams, and documents.
-  * *Required Params:* `image` (object with `type` ["url" | "base64"], `data` [URL string or base64 data], and `mimeType`), `prompt` (string - instructions for analyzing the content)
-  * *Optional Params:* `modelName` (string - defaults to server's default model), `structuredOutput` (boolean - whether to return JSON structure), `safetySettings` (array)
+  * *Description:* Analyzes and extracts information from visual content like charts, diagrams, documents, and complex visuals.
+  * *Required Params:* 
+    * `image` (object with `type` ["url" | "base64"], `data` [URL string or base64 data], and `mimeType`)
+    * `prompt` (string - instructions for analyzing the content)
+  * *Optional Params:* 
+    * `modelName` (string - defaults to server's default model)
+    * `structuredOutput` (boolean - whether to return JSON structure)
+    * `safetySettings` (array) - Controls content filtering
   * *Response:* When `structuredOutput` is true, returns JSON-structured data extracted from the visual content. Otherwise, returns natural language analysis.
+  * *Notes:* Particularly effective for extracting data from charts, tables, diagrams, receipts, documents, and other structured visual information.
 
 ### Audio Transcription
 
@@ -199,11 +253,12 @@ This server provides the following MCP tools. Parameter schemas are defined usin
     * `prompt` (string - additional instructions for transcription)
     * `mimeType` (string - audio format, inferred from extension if not provided)
   * *Supported Audio Formats:* MP3, WAV, OGG, M4A, FLAC (audio/mpeg, audio/wav, audio/ogg, audio/mp4, audio/x-m4a, audio/flac, audio/x-flac)
-  * *Security Note:* File paths are validated against a secure base directory (`GEMINI_SAFE_FILE_BASE_DIR` environment variable). Operations are restricted to this directory to prevent path traversal attacks.
+  * *Security Note:* File paths are strictly validated against the secure base directory (`GEMINI_SAFE_FILE_BASE_DIR` environment variable). Operations are restricted to this directory to prevent path traversal attacks.
   * *Notes:*
     * Files under 20MB are processed directly with inline base64 encoding
     * Files over 20MB require a Google AI Studio API key and use the File API
     * The actual upper file size limit when using File API is determined by the Gemini API itself
+    * Transcription quality may vary based on audio quality, background noise, and number of speakers
 
 ## Usage Examples
 
@@ -274,7 +329,7 @@ Here are examples of how an MCP client (like Claude) might call these tools usin
 </use_mcp_tool>
 ```
 
-**Example 4: Content Generation with System Instructions**
+**Example 4: Content Generation with System Instructions (Simplified Format)**
 
 ```xml
 <use_mcp_tool>
@@ -283,6 +338,22 @@ Here are examples of how an MCP client (like Claude) might call these tools usin
   <arguments>
     {
       "modelName": "gemini-2.5-pro-exp",
+      "prompt": "What should I do with my day off?",
+      "systemInstruction": "You are a helpful assistant that provides friendly and detailed advice. You should focus on outdoor activities and wellness."
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 5: Content Generation with System Instructions (Object Format)**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateContent</tool_name>
+  <arguments>
+    {
+      "modelName": "gemini-1.5-pro-latest",
       "prompt": "What should I do with my day off?",
       "systemInstruction": {
         "parts": [
@@ -296,7 +367,7 @@ Here are examples of how an MCP client (like Claude) might call these tools usin
 </use_mcp_tool>
 ```
 
-**Example 5: Using Cached Content**
+**Example 6: Using Cached Content with System Instruction**
 
 ```xml
 <use_mcp_tool>
@@ -306,7 +377,8 @@ Here are examples of how an MCP client (like Claude) might call these tools usin
     {
       "modelName": "gemini-2.5-pro-exp",
       "prompt": "Explain how these concepts relate to my product?",
-      "cachedContentName": "cachedContents/abc123xyz"
+      "cachedContentName": "cachedContents/abc123xyz",
+      "systemInstruction": "You are a product expert who explains technical concepts in simple terms."
     }
   </arguments>
 </use_mcp_tool>
@@ -337,8 +409,27 @@ Here are examples of how an MCP client (like Claude) might call these tools usin
   <arguments>
     {
       "prompt": "A futuristic cityscape with flying cars and neon lights",
+      "modelName": "gemini-2.0-flash-exp-image-generation",
       "resolution": "1024x1024",
       "numberOfImages": 1,
+      "negativePrompt": "dystopian, ruins, dark, gloomy"
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 7b: Generating a High-Quality Image with Imagen 3**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateImage</tool_name>
+  <arguments>
+    {
+      "prompt": "A futuristic cityscape with flying cars and neon lights",
+      "modelName": "imagen-3.0-generate-002",
+      "resolution": "1024x1024",
+      "numberOfImages": 4,
       "negativePrompt": "dystopian, ruins, dark, gloomy"
     }
   </arguments>
@@ -444,31 +535,48 @@ GEMINI_SAFE_FILE_BASE_DIR=/path/to/allowed/files
 
 ## Error Handling
 
-The server aims to return structured errors using the MCP standard `McpError` type when tool execution fails. This object typically contains:
+The server provides enhanced error handling using the MCP standard `McpError` type when tool execution fails. This object contains:
 
-* `code`: An `ErrorCode` enum value indicating the type of error (e.g., `InvalidParams`, `InternalError`, `PermissionDenied`, `NotFound`, `FailedPrecondition`, `ResourceExhausted`).
-* `message`: A human-readable description of the error.
-* `details`: (Optional) An object potentially containing more specific information from the underlying Gemini SDK error (like safety block reasons or API error messages) for troubleshooting.
+* `code`: An `ErrorCode` enum value indicating the type of error:
+  * `InvalidParams`: Parameter validation errors (wrong type, missing required field, etc.)
+  * `InvalidRequest`: General request errors, including safety blocks and not found resources 
+  * `PermissionDenied`: Authentication or authorization failures
+  * `ResourceExhausted`: Rate limits, quotas, or resource capacity issues
+  * `FailedPrecondition`: Operations that require conditions that aren't met
+  * `InternalError`: Unexpected server or API errors
+* `message`: A human-readable description of the error with specific details.
+* `details`: (Optional) An object with more specific information from the Gemini SDK error.
 
 **Common Error Scenarios:**
 
-* **Invalid API Key:** Results in `InternalError` with details indicating an authentication failure.
-* **Invalid Parameters:** Results in `InvalidParams` (e.g., missing required field, wrong data type).
-* **Safety Blocks:** Results in `InternalError` with details indicating `SAFETY` as the block reason or finish reason.
-* **File/Cache Not Found:** Results in `NotFound` for missing resources.
-* **Rate Limits:** Results in `ResourceExhausted` for quota or rate limit issues.
-* **File API Unavailable:** Results in `FailedPrecondition` when attempting operations requiring the File API without a valid Google AI Studio key.
-* **Path Traversal Attempts:** Results in `InvalidParams` with a message about file validation errors when trying to access files outside the allowed directory (`GEMINI_SAFE_FILE_BASE_DIR`).
-* **Image Processing Errors:** Results in `InvalidParams` or `InternalError` for issues with image format, size limitations, content analysis failures, or incompatible image types.
+* **Authentication Failures:** `PermissionDenied` - Invalid API key, expired credentials, or unauthorized access.
+* **Parameter Validation:** `InvalidParams` - Missing required fields, wrong data types, invalid values.
+* **Safety Blocks:** `InvalidRequest` - Content blocked by safety filters with details indicating `SAFETY` as the block reason.
+* **File/Cache Not Found:** `InvalidRequest` - Resource not found, with details about the missing resource.
+* **Rate Limits:** `ResourceExhausted` - API quota exceeded or rate limits hit, with details about limits.
+* **File API Unavailable:** `FailedPrecondition` - When attempting File API operations without a valid Google AI Studio key.
+* **Path Traversal Security:** `InvalidParams` - Attempts to access files outside the allowed directory with details about the security validation failure.
+* **Image/Audio Processing Errors:** 
+  * `InvalidParams` - For format issues, size limitations, or invalid inputs
+  * `InternalError` - For processing failures during analysis
+  * `ResourceExhausted` - For resource-intensive operations exceeding limits
+
+The server includes additional context in error messages to help with troubleshooting, including session IDs for chat-related errors and specific validation details for parameter errors.
 
 Check the `message` and `details` fields of the returned `McpError` for specific troubleshooting information.
 
 ## Known Issues
 
-* `gemini_generateContentStream` uses a workaround, collecting all chunks before returning the full text. True streaming to the MCP client is not yet implemented due to current MCP SDK limitations.
-* `gemini_listFiles` and `gemini_listCaches` may not reliably return `nextPageToken` due to limitations in iterating the SDK's Pager object. A workaround is implemented but has limited reliability.
-* `gemini_uploadFile` requires absolute file paths when run from the server environment.
-* File Handling & Caching APIs are **not supported on Vertex AI**, only Google AI Studio API keys.
-* This server is primarily tested and optimized for the latest Gemini 1.5 models. While other models should work, these models are the primary focus for testing and feature compatibility.
-* Image processing requires significant resource usage, especially for large resolution images. Consider using smaller resolutions when possible.
-* Base64-encoded images are streamed in chunks to handle large file sizes efficiently.
+* **Streaming Limitations:** `gemini_generateContentStream` uses a workaround, collecting all chunks before returning the full text. True streaming to the MCP client is not yet implemented due to current MCP SDK limitations.
+* **Pagination Issues:** `gemini_listFiles` and `gemini_listCaches` may not reliably return `nextPageToken` due to limitations in iterating the SDK's Pager object. A workaround is implemented but has limited reliability.
+* **Path Requirements:** All file operations require absolute paths when run from the server environment. Relative paths are not supported.
+* **API Compatibility:** File Handling & Caching APIs are **not supported with Vertex AI credentials**, only Google AI Studio API keys.
+* **Model Support:** This server is primarily tested and optimized for the latest Gemini 1.5 and 2.5 models. While other models should work, these models are the primary focus for testing and feature compatibility.
+* **Resource Usage:** 
+  * Image processing requires significant resource usage, especially for large resolution images. Consider using smaller resolutions (512x512) for faster responses.
+  * Generating multiple images simultaneously increases resource usage proportionally.
+  * Audio transcription of large files may take significant time and resources.
+* **Content Handling:** 
+  * Base64-encoded images are streamed in chunks to handle large file sizes efficiently.
+  * Visual content understanding may perform differently across various types of visual content (charts vs. diagrams vs. documents).
+  * Audio transcription accuracy depends on audio quality, number of speakers, and background noise.

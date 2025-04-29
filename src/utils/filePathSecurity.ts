@@ -24,16 +24,15 @@ const DEFAULT_SAFE_BASE_DIR =
 export function validateAndResolvePath(
   filePath: string,
   options: {
-    baseDir?: string;
     mustExist?: boolean;
   } = {}
 ): string {
-  const { baseDir = DEFAULT_SAFE_BASE_DIR, mustExist = true } = options;
+  const { mustExist = true } = options;
 
-  // Ensure baseDir is absolute
-  const safeBaseDir = path.isAbsolute(baseDir)
-    ? baseDir
-    : path.resolve(process.cwd(), baseDir);
+  // Get the safe base directory from environment variable
+  const safeBaseDir = process.env.GEMINI_SAFE_FILE_BASE_DIR 
+    ? path.normalize(process.env.GEMINI_SAFE_FILE_BASE_DIR)
+    : path.resolve(process.cwd());
 
   logger.debug(`Validating file path: ${filePath}`);
   logger.debug(`Safe base directory: ${safeBaseDir}`);

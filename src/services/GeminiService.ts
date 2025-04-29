@@ -7,7 +7,6 @@ import type {
   File as GenAIFile,
   GenerateContentResponse,
   FunctionCall,
-  FunctionDeclaration,
   Tool,
   ToolConfig,
 } from "@google/genai";
@@ -16,9 +15,83 @@ import { GeminiApiError } from "../utils/errors.js";
 import { logger } from "../utils/logger.js";
 import path from "path";
 import fs from "fs/promises";
-import { FileMetadata, CachedContentMetadata } from "../types/index.js";
-import { ChatSession } from "../types/googleGenAITypes.js";
+import { FileMetadata } from "../types/index.js";
 import { v4 as uuidv4 } from "uuid";
+
+/**
+ * Interface for the parameters of the generateContent method
+ */
+interface GenerateContentParams {
+  prompt: string;
+  modelName?: string;
+  generationConfig?: GenerationConfig;
+  safetySettings?: SafetySetting[];
+  systemInstruction?: Content | string;
+  cachedContentName?: string;
+  fileReferenceOrInlineData?: FileMetadata | string;
+  inlineDataMimeType?: string;
+}
+
+/**
+ * Interface for the parameters of the startChatSession method
+ */
+interface StartChatParams {
+  modelName?: string;
+  history?: Content[];
+  generationConfig?: GenerationConfig;
+  safetySettings?: SafetySetting[];
+  tools?: Tool[];
+  systemInstruction?: Content | string;
+  cachedContentName?: string;
+}
+
+/**
+ * Interface for the parameters of the sendMessageToSession method
+ */
+interface SendMessageParams {
+  sessionId: string;
+  message: string;
+  generationConfig?: GenerationConfig;
+  safetySettings?: SafetySetting[];
+  tools?: Tool[];
+  toolConfig?: ToolConfig;
+  cachedContentName?: string;
+}
+
+/**
+ * Interface for the parameters of the sendFunctionResultToSession method
+ */
+interface SendFunctionResultParams {
+  sessionId: string;
+  functionResponse: string;
+  functionCall?: FunctionCall;
+}
+
+/**
+ * Interface for the chat session data structure
+ */
+interface ChatSession {
+  model: string;
+  config: {
+    history?: Content[];
+    generationConfig?: GenerationConfig;
+    safetySettings?: SafetySetting[];
+    tools?: Tool[];
+    systemInstruction?: Content;
+    cachedContent?: string;
+  };
+  history: Content[];
+}
+
+/**
+ * Interface for the Gemini API list files response
+ */
+interface ListFilesResponseType {
+  files?: GenAIFile[];
+  nextPageToken?: string;
+  page?: Iterable<GenAIFile>;
+  hasNextPage?: () => boolean;
+}
 
 /**
  * Service for interacting with the Google Gemini API.
@@ -37,6 +110,7 @@ export class GeminiService {
       throw new Error("Gemini API key is required");
     }
 
+    // Initialize with the apiKey property in an object as required in v0.10.0
     this.genAI = new GoogleGenAI({ apiKey: config.apiKey });
     this.defaultModelName = config.defaultModel;
 
@@ -80,50 +154,48 @@ export class GeminiService {
       logger.debug(`Uploading file from: ${validatedPath}`);
       logger.debug(`With options: ${JSON.stringify(options)}`);
 
-      // Prepare upload configuration
-      const uploadConfig: {
-        file: string;
-        config?: {
-          mimeType?: string;
-          displayName?: string;
-        };
-      } = {
-        file: validatedPath,
-      };
+      // Read the file data
+      const fileBuffer = await fs.readFile(validatedPath);
 
-      if (options) {
-        uploadConfig.config = {};
-        if (options.mimeType) {
-          uploadConfig.config.mimeType = options.mimeType;
-        }
-        if (options.displayName) {
-          uploadConfig.config.displayName = options.displayName;
-        }
+      // Determine MIME type if not provided
+      let mimeType = options?.mimeType;
+      if (!mimeType) {
+        // If mimeType is not provided, try to determine from file extension
+        const ext = path.extname(validatedPath).toLowerCase();
+        const mimeMap: Record<string, string> = {
+          ".jpg": "image/jpeg",
+          ".jpeg": "image/jpeg",
+          ".png": "image/png",
+          ".gif": "image/gif",
+          ".webp": "image/webp",
+          ".pdf": "application/pdf",
+          ".txt": "text/plain",
+        };
+        mimeType = mimeMap[ext] || "application/octet-stream";
       }
 
-      // Upload the file
-      const fileData = await this.genAI.files.upload(uploadConfig);
+      // Convert Buffer to Blob for v0.10.0 compatibility
+      const blob = new Blob([fileBuffer], { type: mimeType });
+
+      // Use the correct parameters for v0.10.0
+      const uploadParams = {
+        file: blob, // Use Blob instead of Buffer
+        mimeType: mimeType,
+        displayName: options?.displayName || path.basename(validatedPath),
+      };
+
+      // Upload the file using the files API
+      const fileData = await this.genAI.files.upload(uploadParams);
 
       // Ensure required fields exist
-      if (!fileData.name || !fileData.uri) {
+      if (!fileData.name) {
         throw new GeminiApiError(
-          "Invalid file data received: missing required name or uri"
+          "Invalid file data received: missing required name"
         );
       }
 
       // Return the file metadata
-      return {
-        name: fileData.name,
-        uri: fileData.uri,
-        mimeType:
-          fileData.mimeType || options?.mimeType || "application/octet-stream",
-        displayName: fileData.displayName || options?.displayName,
-        sizeBytes: fileData.sizeBytes || "0",
-        createTime: fileData.createTime || new Date().toISOString(),
-        updateTime: fileData.updateTime || new Date().toISOString(),
-        sha256Hash: fileData.sha256Hash || "",
-        state: fileData.state || "ACTIVE",
-      };
+      return this.mapFileResponseToMetadata(fileData);
     } catch (error: unknown) {
       logger.error(
         `Error uploading file: ${error instanceof Error ? error.message : String(error)}`,
@@ -152,31 +224,59 @@ export class GeminiService {
         `Listing files with pageSize: ${pageSize}, pageToken: ${pageToken}`
       );
 
-      // Call the files.list method
-      const pager = await this.genAI.files.list({
-        config: {
-          pageSize: pageSize,
-          pageToken: pageToken,
-        },
-      });
+      // Prepare list parameters for v0.10.0
+      const listParams: Record<string, number | string> = {};
 
-      // Get the first page of results
-      const page = pager.page;
-      const files: FileMetadata[] = [];
-
-      // Process each file in the page
-      for (const file of page) {
-        files.push(this.mapFileResponseToMetadata(file));
+      if (pageSize !== undefined) {
+        listParams.pageSize = pageSize;
       }
 
-      // Determine if there's another page of results
-      const hasNextPage = pager.hasNextPage();
+      if (pageToken) {
+        listParams.pageToken = pageToken;
+      }
 
-      // Return the files and the nextPageToken if available
-      return {
-        files,
-        nextPageToken: hasNextPage ? "next_page_available" : undefined,
-      };
+      // Call the files.list method in v0.10.0
+      const response = await this.genAI.files.list(listParams);
+
+      const files: FileMetadata[] = [];
+      let nextPageToken: string | undefined;
+
+      // Handle the response in a more generic way to accommodate different API versions
+      if (response && typeof response === "object") {
+        if ("files" in response && Array.isArray(response.files)) {
+          // Standard response format
+          for (const file of response.files) {
+            files.push(this.mapFileResponseToMetadata(file));
+          }
+          // Use optional chaining to safely access nextPageToken
+          nextPageToken = (response as ListFilesResponseType).nextPageToken;
+        } else if ("page" in response && response.page) {
+          // Pager-like object
+          const fileList = Array.from(response.page);
+          for (const file of fileList) {
+            files.push(this.mapFileResponseToMetadata(file as GenAIFile));
+          }
+
+          // Check if there's a next page
+          const hasNextPage =
+            typeof response === "object" &&
+            "hasNextPage" in response &&
+            typeof response.hasNextPage === "function"
+              ? response.hasNextPage()
+              : false;
+
+          if (hasNextPage) {
+            nextPageToken = "next_page_available";
+          }
+        } else if (Array.isArray(response)) {
+          // Direct array response
+          for (const file of response) {
+            files.push(this.mapFileResponseToMetadata(file as GenAIFile));
+          }
+        }
+      }
+
+      return { files, nextPageToken };
     } catch (error: unknown) {
       logger.error(
         `Error listing files: ${error instanceof Error ? error.message : String(error)}`,
@@ -248,15 +348,18 @@ export class GeminiService {
    * @returns The mapped FileMetadata object
    */
   private mapFileResponseToMetadata(fileData: GenAIFile): FileMetadata {
-    if (!fileData.name || !fileData.uri) {
-      throw new Error(
-        "Invalid file data received: missing required name or uri"
-      );
+    if (!fileData.name) {
+      throw new Error("Invalid file data received: missing required name");
     }
 
+    // In SDK v0.10.0, the structure might be slightly different
+    // Constructing FileMetadata with fallback values where needed
     return {
-      name: fileData.name!,
-      uri: fileData.uri!,
+      name: fileData.name,
+      // Provide a fallback URI from name if not present (format may vary in v0.10.0)
+      uri:
+        fileData.uri ||
+        `https://generativelanguage.googleapis.com/v1beta/${fileData.name}`,
       mimeType: fileData.mimeType || "application/octet-stream",
       displayName: fileData.displayName,
       sizeBytes: fileData.sizeBytes || "0",
@@ -266,103 +369,6 @@ export class GeminiService {
       sha256Hash: fileData.sha256Hash || "",
       state: fileData.state || "ACTIVE",
     };
-  }
-
-  public async generateContent(
-    prompt: string,
-    modelName?: string,
-    generationConfig?: GenerationConfig,
-    safetySettings?: SafetySetting[],
-    systemInstruction?: Content,
-    cachedContentName?: string,
-    fileReferenceOrInlineData?: FileMetadata | string,
-    inlineDataMimeType?: string
-  ): Promise<string> {
-    const effectiveModelName = modelName ?? this.defaultModelName;
-    if (!effectiveModelName) {
-      throw new GeminiApiError(
-        "Model name must be provided either as a parameter or via the GOOGLE_GEMINI_MODEL environment variable."
-      );
-    }
-    logger.debug(`generateContent called with model: ${effectiveModelName}`);
-
-    // Construct base content parts array
-    const contentParts: Part[] = [];
-    contentParts.push({ text: prompt });
-
-    // Add file reference or inline data if provided
-    if (fileReferenceOrInlineData) {
-      if (typeof fileReferenceOrInlineData === "string" && inlineDataMimeType) {
-        // Handle inline base64 data
-        contentParts.push({
-          inlineData: {
-            data: fileReferenceOrInlineData,
-            mimeType: inlineDataMimeType,
-          },
-        });
-      } else if (
-        typeof fileReferenceOrInlineData === "object" &&
-        "name" in fileReferenceOrInlineData &&
-        fileReferenceOrInlineData.uri
-      ) {
-        // Handle file reference
-        contentParts.push({
-          fileData: {
-            fileUri: fileReferenceOrInlineData.uri,
-            mimeType: fileReferenceOrInlineData.mimeType,
-          },
-        });
-      } else {
-        throw new GeminiApiError(
-          "Invalid file reference or inline data provided"
-        );
-      }
-    }
-
-    // Construct the config object
-    const callConfig: Record<string, unknown> = {};
-    if (generationConfig) {
-      Object.assign(callConfig, { generationConfig });
-    }
-    if (safetySettings) {
-      callConfig.safetySettings = safetySettings;
-    }
-    if (systemInstruction) {
-      callConfig.systemInstruction = systemInstruction;
-    }
-    if (cachedContentName) {
-      callConfig.cachedContent = cachedContentName;
-    }
-
-    // Create generate content parameters
-    const params = {
-      model: effectiveModelName,
-      contents: [{ role: "user", parts: contentParts }],
-      ...callConfig,
-    };
-
-    try {
-      // Call generateContent with enhanced parameters
-      const result = await this.genAI.models.generateContent(params);
-
-      // In the new SDK, text is a property not a method
-      if (result?.text) {
-        return result.text;
-      } else {
-        // Fallback for unexpected structures
-        logger.warn(
-          "Unexpected result structure from generateContent:",
-          result
-        );
-        return JSON.stringify(result);
-      }
-    } catch (error) {
-      logger.error("Error generating content:", error);
-      throw new GeminiApiError(
-        `Failed to generate content: ${(error as Error).message}`,
-        error
-      );
-    }
   }
 
   /**
@@ -437,6 +443,123 @@ export class GeminiService {
   }
 
   /**
+   * Generates content using the Gemini model.
+   *
+   * @param params An object containing all necessary parameters for content generation
+   * @returns A promise resolving to the generated text content
+   */
+  public async generateContent(params: GenerateContentParams): Promise<string> {
+    const {
+      prompt,
+      modelName,
+      generationConfig,
+      safetySettings,
+      systemInstruction,
+      cachedContentName,
+      fileReferenceOrInlineData,
+      inlineDataMimeType,
+    } = params;
+
+    const effectiveModelName = modelName ?? this.defaultModelName;
+    if (!effectiveModelName) {
+      throw new GeminiApiError(
+        "Model name must be provided either as a parameter or via the GOOGLE_GEMINI_MODEL environment variable."
+      );
+    }
+    logger.debug(`generateContent called with model: ${effectiveModelName}`);
+
+    // Construct base content parts array
+    const contentParts: Part[] = [];
+    contentParts.push({ text: prompt });
+
+    // Add file reference or inline data if provided
+    if (fileReferenceOrInlineData) {
+      if (typeof fileReferenceOrInlineData === "string" && inlineDataMimeType) {
+        // Handle inline base64 data
+        contentParts.push({
+          inlineData: {
+            data: fileReferenceOrInlineData,
+            mimeType: inlineDataMimeType,
+          },
+        });
+      } else if (
+        typeof fileReferenceOrInlineData === "object" &&
+        "name" in fileReferenceOrInlineData &&
+        fileReferenceOrInlineData.uri
+      ) {
+        // Handle file reference
+        contentParts.push({
+          fileData: {
+            fileUri: fileReferenceOrInlineData.uri,
+            mimeType: fileReferenceOrInlineData.mimeType,
+          },
+        });
+      } else {
+        throw new GeminiApiError(
+          "Invalid file reference or inline data provided"
+        );
+      }
+    }
+
+    // Process systemInstruction if it's a string
+    let formattedSystemInstruction: Content | undefined;
+    if (systemInstruction) {
+      if (typeof systemInstruction === "string") {
+        formattedSystemInstruction = {
+          parts: [{ text: systemInstruction }],
+        };
+      } else {
+        formattedSystemInstruction = systemInstruction;
+      }
+    }
+
+    // Create the request configuration for v0.10.0
+    const requestConfig: {
+      model: string;
+      contents: Content[];
+      generationConfig?: GenerationConfig;
+      safetySettings?: SafetySetting[];
+      systemInstruction?: Content;
+      cachedContent?: string;
+    } = {
+      model: effectiveModelName,
+      contents: [{ role: "user", parts: contentParts }],
+    };
+
+    // Add optional parameters if provided
+    if (generationConfig) {
+      requestConfig.generationConfig = generationConfig;
+    }
+    if (safetySettings) {
+      requestConfig.safetySettings = safetySettings;
+    }
+    if (formattedSystemInstruction) {
+      requestConfig.systemInstruction = formattedSystemInstruction;
+    }
+    if (cachedContentName) {
+      requestConfig.cachedContent = cachedContentName;
+    }
+
+    try {
+      // Call generateContent directly on the models property in v0.10.0
+      const result = await this.genAI.models.generateContent(requestConfig);
+
+      // Handle potentially undefined text property
+      if (!result.text) {
+        throw new GeminiApiError("No text was generated in the response");
+      }
+
+      return result.text;
+    } catch (error) {
+      logger.error("Error generating content:", error);
+      throw new GeminiApiError(
+        `Failed to generate content: ${(error as Error).message}`,
+        error
+      );
+    }
+  }
+
+  /**
    * Starts a new stateful chat session with the Gemini model.
    *
    * @param modelName The model to use for this chat session (or uses default model if not specified)
@@ -448,15 +571,17 @@ export class GeminiService {
    * @param cachedContentName Optional name of cached content to use
    * @returns A unique session ID to identify this chat session
    */
-  public startChatSession(
-    modelName?: string,
-    history?: Content[],
-    generationConfig?: GenerationConfig,
-    safetySettings?: SafetySetting[],
-    tools?: Tool[],
-    systemInstruction?: Content,
-    cachedContentName?: string
-  ): string {
+  public startChatSession(params: StartChatParams = {}): string {
+    const {
+      modelName,
+      history,
+      generationConfig,
+      safetySettings,
+      tools,
+      systemInstruction,
+      cachedContentName,
+    } = params;
+
     const effectiveModelName = modelName ?? this.defaultModelName;
     if (!effectiveModelName) {
       throw new GeminiApiError(
@@ -464,49 +589,64 @@ export class GeminiService {
       );
     }
 
-    // Prepare chat parameters
-    const chatParams: {
-      model: string;
-      history?: Content[];
-      generationConfig?: GenerationConfig;
-      safetySettings?: SafetySetting[];
-      tools?: Tool[];
-      systemInstruction?: Content;
-      cachedContent?: string;
-    } = {
-      model: effectiveModelName,
-    };
-
-    // Add optional parameters if provided
-    if (history && Array.isArray(history)) {
-      chatParams.history = history;
-    }
-    if (generationConfig) {
-      chatParams.generationConfig = generationConfig;
-    }
-    if (safetySettings && Array.isArray(safetySettings)) {
-      chatParams.safetySettings = safetySettings;
-    }
-    if (tools && Array.isArray(tools)) {
-      chatParams.tools = tools;
-    }
+    // Process systemInstruction if it's a string
+    let formattedSystemInstruction: Content | undefined;
     if (systemInstruction) {
-      chatParams.systemInstruction = systemInstruction;
-    }
-    if (cachedContentName) {
-      chatParams.cachedContent = cachedContentName;
+      if (typeof systemInstruction === "string") {
+        formattedSystemInstruction = {
+          parts: [{ text: systemInstruction }],
+        };
+      } else {
+        formattedSystemInstruction = systemInstruction;
+      }
     }
 
     try {
-      // Create the chat session
+      // Create the chat session using the models API
       logger.debug(`Creating chat session with model: ${effectiveModelName}`);
-      const chat = this.genAI.models.startChat(chatParams);
+
+      // Create chat configuration for v0.10.0
+      const chatConfig: {
+        history?: Content[];
+        generationConfig?: GenerationConfig;
+        safetySettings?: SafetySetting[];
+        tools?: Tool[];
+        systemInstruction?: Content;
+        cachedContent?: string;
+      } = {};
+
+      // Add optional parameters if provided
+      if (history && Array.isArray(history)) {
+        chatConfig.history = history;
+      }
+      if (generationConfig) {
+        chatConfig.generationConfig = generationConfig;
+      }
+      if (safetySettings && Array.isArray(safetySettings)) {
+        chatConfig.safetySettings = safetySettings;
+      }
+      if (tools && Array.isArray(tools)) {
+        chatConfig.tools = tools;
+      }
+      if (formattedSystemInstruction) {
+        chatConfig.systemInstruction = formattedSystemInstruction;
+      }
+      if (cachedContentName) {
+        chatConfig.cachedContent = cachedContentName;
+      }
 
       // Generate a unique session ID
       const sessionId = uuidv4();
 
-      // Store the chat session
-      this.chatSessions.set(sessionId, chat);
+      // Create a mock chat session for storing configuration
+      // In v0.10.0, we don't have direct chat session objects,
+      // but we'll store the configuration to use for future messages
+      this.chatSessions.set(sessionId, {
+        model: effectiveModelName,
+        config: chatConfig,
+        history: history || [],
+      });
+
       logger.info(
         `Chat session created: ${sessionId} using model ${effectiveModelName}`
       );
@@ -523,106 +663,201 @@ export class GeminiService {
 
   /**
    * Sends a message to an existing chat session.
+   * Uses the generated content API directly since we're managing chat state ourselves.
    *
-   * @param sessionId The ID of the chat session to send the message to
-   * @param message The text message to send
-   * @param generationConfig Optional configuration for text generation parameters
-   * @param safetySettings Optional array of safety settings to control content filtering
-   * @param tools Optional array of tools that can be used in this message
-   * @param toolConfig Optional configuration for tool usage
-   * @param cachedContentName Optional name of cached content to use
-   * @returns The model's response
-   * @throws GeminiApiError if the session doesn't exist or there's an API error
+   * @param params Parameters for sending a message
+   * @returns Promise resolving to the chat response
    */
   public async sendMessageToSession(
-    sessionId: string,
-    message: string,
-    generationConfig?: GenerationConfig,
-    safetySettings?: SafetySetting[],
-    tools?: Tool[],
-    toolConfig?: ToolConfig,
-    cachedContentName?: string
+    params: SendMessageParams
   ): Promise<GenerateContentResponse> {
-    const chatSession = this.chatSessions.get(sessionId);
-    if (!chatSession) {
-      logger.error(`Chat session not found: ${sessionId}`);
+    const {
+      sessionId,
+      message,
+      generationConfig,
+      safetySettings,
+      tools,
+      toolConfig,
+      cachedContentName,
+    } = params;
+
+    // Get the chat session
+    const session = this.chatSessions.get(sessionId);
+    if (!session) {
       throw new GeminiApiError(`Chat session not found: ${sessionId}`);
     }
 
+    // Create user content from the message
+    const userContent: Content = {
+      role: "user",
+      parts: [{ text: message }],
+    };
+
+    // Add the user message to the session history
+    session.history.push(userContent);
+
     try {
-      logger.debug(`Sending message to session ${sessionId}`);
-      // Create message object with the text message
-      const messageParams: { message: string } & Record<string, unknown> = {
-        message: message,
+      // Prepare the request configuration
+      const requestConfig: {
+        model: string;
+        contents: Content[];
+        generationConfig?: GenerationConfig;
+        safetySettings?: SafetySetting[];
+        tools?: Tool[];
+        toolConfig?: ToolConfig;
+        systemInstruction?: Content;
+        cachedContent?: string;
+      } = {
+        model: session.model,
+        contents: session.history,
       };
-      // Add optional parameters if provided
-      if (generationConfig) {
-        messageParams.generationConfig = generationConfig;
-      }
-      if (safetySettings && Array.isArray(safetySettings)) {
-        messageParams.safetySettings = safetySettings;
-      }
-      if (tools && Array.isArray(tools)) {
-        messageParams.tools = tools;
-      }
-      if (toolConfig) {
-        messageParams.toolConfig = toolConfig;
-      }
-      if (cachedContentName) {
-        messageParams.cachedContent = cachedContentName;
+
+      // Add configuration from the original session configuration
+      if (session.config.systemInstruction) {
+        requestConfig.systemInstruction = session.config.systemInstruction;
       }
 
-      // Send the message to the chat session
-      const response = await chatSession.sendMessage(messageParams);
-      logger.debug(`Got response for session ${sessionId}`);
+      // Override with any per-message configuration options
+      if (generationConfig) {
+        requestConfig.generationConfig = generationConfig;
+      } else if (session.config.generationConfig) {
+        requestConfig.generationConfig = session.config.generationConfig;
+      }
+
+      if (safetySettings) {
+        requestConfig.safetySettings = safetySettings;
+      } else if (session.config.safetySettings) {
+        requestConfig.safetySettings = session.config.safetySettings;
+      }
+
+      if (tools) {
+        requestConfig.tools = tools;
+      } else if (session.config.tools) {
+        requestConfig.tools = session.config.tools;
+      }
+
+      if (toolConfig) {
+        requestConfig.toolConfig = toolConfig;
+      }
+
+      if (cachedContentName) {
+        requestConfig.cachedContent = cachedContentName;
+      } else if (session.config.cachedContent) {
+        requestConfig.cachedContent = session.config.cachedContent;
+      }
+
+      logger.debug(
+        `Sending message to session ${sessionId} using model ${session.model}`
+      );
+
+      // Call the generateContent API
+      const response = await this.genAI.models.generateContent(requestConfig);
+
+      // Process the response
+      if (response.candidates && response.candidates.length > 0) {
+        const assistantMessage = response.candidates[0].content;
+        if (assistantMessage) {
+          // Add the assistant response to the session history
+          session.history.push(assistantMessage);
+        }
+      }
+
       return response;
     } catch (error) {
       logger.error(`Error sending message to session ${sessionId}:`, error);
       throw new GeminiApiError(
-        `Failed to send message to chat session: ${(error as Error).message}`,
+        `Failed to send message to session ${sessionId}: ${(error as Error).message}`,
         error
       );
     }
   }
 
   /**
-   * Sends a function result to an existing chat session.
+   * Sends the result of a function call back to the chat session.
    *
-   * @param sessionId The ID of the chat session to send the function result to
-   * @param functionResponse The function response to send
-   * @param functionCall Optional function call object referencing the original function call
-   * @returns The model's response
-   * @throws GeminiApiError if the session doesn't exist or there's an API error
+   * @param params Parameters for sending a function result
+   * @returns Promise resolving to the chat response
    */
   public async sendFunctionResultToSession(
-    sessionId: string,
-    functionResponse: string,
-    functionCall?: FunctionCall
+    params: SendFunctionResultParams
   ): Promise<GenerateContentResponse> {
-    const chatSession = this.chatSessions.get(sessionId);
-    if (!chatSession) {
-      logger.error(`Chat session not found: ${sessionId}`);
+    const { sessionId, functionResponse, functionCall } = params;
+
+    // Get the chat session
+    const session = this.chatSessions.get(sessionId);
+    if (!session) {
       throw new GeminiApiError(`Chat session not found: ${sessionId}`);
     }
 
-    try {
-      logger.debug(`Sending function result to session ${sessionId}`);
-      // Format the function response properly as a message parameter
-      const messageParams = {
-        message: {
+    // Create function response message
+    const responseContent: Content = {
+      role: "function",
+      parts: [
+        {
           functionResponse: {
-            name: functionCall?.name || "unnamed_function",
-            response: {
-              name: functionCall?.name || "unnamed_function",
-              content: functionResponse,
-            },
+            name: functionCall?.name || "function",
+            response: { content: functionResponse },
           },
         },
-      };
-      // Send the function response to the chat session
-      const response = await chatSession.sendMessage(messageParams);
+      ],
+    };
 
-      logger.debug(`Got response for function result in session ${sessionId}`);
+    // Add the function response to the session history
+    session.history.push(responseContent);
+
+    try {
+      // Prepare the request configuration
+      const requestConfig: {
+        model: string;
+        contents: Content[];
+        generationConfig?: GenerationConfig;
+        safetySettings?: SafetySetting[];
+        tools?: Tool[];
+        toolConfig?: ToolConfig;
+        systemInstruction?: Content;
+        cachedContent?: string;
+      } = {
+        model: session.model,
+        contents: session.history,
+      };
+
+      // Add configuration from the session
+      if (session.config.systemInstruction) {
+        requestConfig.systemInstruction = session.config.systemInstruction;
+      }
+
+      if (session.config.generationConfig) {
+        requestConfig.generationConfig = session.config.generationConfig;
+      }
+
+      if (session.config.safetySettings) {
+        requestConfig.safetySettings = session.config.safetySettings;
+      }
+
+      if (session.config.tools) {
+        requestConfig.tools = session.config.tools;
+      }
+
+      if (session.config.cachedContent) {
+        requestConfig.cachedContent = session.config.cachedContent;
+      }
+
+      logger.debug(
+        `Sending function result to session ${sessionId} using model ${session.model}`
+      );
+
+      // Call the generateContent API directly
+      const response = await this.genAI.models.generateContent(requestConfig);
+
+      // Process the response
+      if (response.candidates && response.candidates.length > 0) {
+        const assistantMessage = response.candidates[0].content;
+        if (assistantMessage) {
+          // Add the assistant response to the session history
+          session.history.push(assistantMessage);
+        }
+      }
+
       return response;
     } catch (error) {
       logger.error(
@@ -630,484 +865,7 @@ export class GeminiService {
         error
       );
       throw new GeminiApiError(
-        `Failed to send function result to chat session: ${(error as Error).message}`,
-        error
-      );
-    }
-  }
-
-  /**
-   * Creates a function call request to a Gemini model.
-   *
-   * @param prompt The text prompt to send to the model
-   * @param functionDeclarations Array of function declarations that the model can call
-   * @param modelName Optional model name to use (defaults to service default)
-   * @param generationConfig Optional generation config parameters
-   * @param safetySettings Optional safety settings
-   * @param toolConfig Optional tool configuration parameters
-   * @returns Object containing either the function call details or a text response
-   */
-  public async generateFunctionCallRequest(
-    prompt: string,
-    functionDeclarations: FunctionDeclaration[],
-    modelName?: string,
-    generationConfig?: GenerationConfig,
-    safetySettings?: SafetySetting[],
-    toolConfig?: ToolConfig
-  ): Promise<{ functionCall?: FunctionCall; text?: string }> {
-    const effectiveModelName = modelName ?? this.defaultModelName;
-    if (!effectiveModelName) {
-      throw new GeminiApiError(
-        "Model name must be provided either as a parameter or via the GOOGLE_GEMINI_MODEL environment variable."
-      );
-    }
-
-    logger.debug(`Generating function call with model: ${effectiveModelName}`);
-
-    // Create tools configuration from function declarations
-    const tools: Tool[] = [
-      {
-        functionDeclarations: functionDeclarations,
-      },
-    ];
-
-    // Prepare request parameters
-    const requestParams: {
-      model: string;
-      contents: Content[];
-      tools: Tool[];
-      generationConfig?: GenerationConfig;
-      safetySettings?: SafetySetting[];
-      toolConfig?: ToolConfig;
-    } = {
-      model: effectiveModelName,
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: prompt }],
-        },
-      ],
-      tools: tools,
-    };
-
-    // Add optional parameters if provided
-    if (generationConfig) {
-      requestParams.generationConfig = generationConfig;
-    }
-    if (safetySettings && Array.isArray(safetySettings)) {
-      requestParams.safetySettings = safetySettings;
-    }
-    if (toolConfig) {
-      requestParams.toolConfig = toolConfig;
-    }
-
-    try {
-      // Call the Gemini API
-      const result = await this.genAI.models.generateContent(requestParams);
-
-      // Process the response
-      const functionCalls = result.candidates?.[0]?.content?.parts
-        ?.map((part) => part.functionCall)
-        .filter(Boolean);
-
-      // Check if we got a function call
-      if (functionCalls && functionCalls.length > 0 && functionCalls[0]) {
-        logger.debug(
-          `Function call generated: ${functionCalls[0].name || "unnamed"}`
-        );
-        return { functionCall: functionCalls[0] };
-      } else {
-        // Return text response if no function call
-        const textParts = result.candidates?.[0]?.content?.parts
-          ?.filter((part) => typeof part.text === "string")
-          ?.map((part) => part.text);
-
-        const responseText = textParts?.join("") || "";
-        logger.debug("Text response received instead of function call");
-        return { text: responseText };
-      }
-    } catch (error) {
-      logger.error("Error generating function call:", error);
-      throw new GeminiApiError(
-        `Failed to generate function call: ${(error as Error).message}`,
-        error
-      );
-    }
-  }
-
-  /**
-   * Generates content from the model in a streaming manner.
-   * Returns an async generator that yields chunks of text as they arrive.
-   *
-   * @param prompt The text prompt to send to the model
-   * @param modelName Optional model name to use (defaults to service default)
-   * @param generationConfig Optional generation config parameters
-   * @param safetySettings Optional safety settings
-   * @param systemInstruction Optional system instruction
-   * @param cachedContentName Optional name of cached content to use
-   * @returns Async generator yielding chunks of generated text
-   */
-  public async *generateContentStream(
-    prompt: string,
-    modelName?: string,
-    generationConfig?: GenerationConfig,
-    safetySettings?: SafetySetting[],
-    systemInstruction?: Content,
-    cachedContentName?: string
-  ): AsyncGenerator<string, void, unknown> {
-    const effectiveModelName = modelName ?? this.defaultModelName;
-    if (!effectiveModelName) {
-      throw new GeminiApiError(
-        "Model name must be provided either as a parameter or via the GOOGLE_GEMINI_MODEL environment variable."
-      );
-    }
-
-    logger.debug(`Generating content stream with model: ${effectiveModelName}`);
-
-    // Prepare request parameters
-    const requestParams: {
-      model: string;
-      contents: Content[];
-      generationConfig?: GenerationConfig;
-      safetySettings?: SafetySetting[];
-      systemInstruction?: Content;
-      cachedContent?: string;
-    } = {
-      model: effectiveModelName,
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: prompt }],
-        },
-      ],
-    };
-
-    // Add optional parameters if provided
-    if (generationConfig) {
-      requestParams.generationConfig = generationConfig;
-    }
-    if (safetySettings && Array.isArray(safetySettings)) {
-      requestParams.safetySettings = safetySettings;
-    }
-    if (systemInstruction) {
-      requestParams.systemInstruction = systemInstruction;
-    }
-    if (cachedContentName) {
-      requestParams.cachedContent = cachedContentName;
-    }
-
-    try {
-      // Call the Gemini API streaming endpoint
-      const streamingResponse =
-        await this.genAI.models.generateContentStream(requestParams);
-
-      // Process the stream chunks - the streamingResponse is itself an async generator
-      for await (const chunk of streamingResponse) {
-        // Only yield if there is text content
-        if (chunk.text) {
-          yield chunk.text;
-        }
-      }
-
-      logger.debug("Content stream completed successfully");
-    } catch (error) {
-      logger.error("Error generating content stream:", error);
-      throw new GeminiApiError(
-        `Failed to generate content stream: ${(error as Error).message}`,
-        error
-      );
-    }
-  }
-
-  /**
-   * Creates a new cache entry with the Gemini API.
-   *
-   * @param contents Array of content messages to cache
-   * @param model Model to use for the cache
-   * @param options Optional configuration including displayName, systemInstruction, TTL, tools and toolConfig
-   * @returns Metadata for the created cache entry
-   */
-  public async createCache(
-    contents: Content[],
-    model: string,
-    options?: {
-      displayName?: string;
-      systemInstruction?: Content;
-      ttl?: string;
-      tools?: Tool[];
-      toolConfig?: ToolConfig;
-    }
-  ): Promise<CachedContentMetadata> {
-    logger.debug(`Creating cache with model: ${model}`);
-
-    try {
-      // Prepare cache parameters
-      const cacheParams: {
-        model: string;
-        contents: Content[];
-        displayName?: string;
-        systemInstruction?: Content;
-        ttl?: string;
-        tools?: Tool[];
-        toolConfig?: ToolConfig;
-      } = {
-        model: model,
-        contents: contents,
-      };
-
-      // Add optional parameters if provided
-      if (options) {
-        if (options.displayName) {
-          cacheParams.displayName = options.displayName;
-        }
-        if (options.systemInstruction) {
-          cacheParams.systemInstruction = options.systemInstruction;
-        }
-        if (options.ttl) {
-          cacheParams.ttl = options.ttl;
-        }
-        if (options.tools) {
-          cacheParams.tools = options.tools;
-        }
-        if (options.toolConfig) {
-          cacheParams.toolConfig = options.toolConfig;
-        }
-      }
-
-      // Create the cache
-      const cachedContent =
-        await this.genAI.models.createCachedContent(cacheParams);
-
-      if (!cachedContent || !cachedContent.name) {
-        throw new Error(
-          "Invalid cache response: missing required name property"
-        );
-      }
-
-      // Map the response to our metadata type
-      const metadata: CachedContentMetadata = {
-        name: cachedContent.name,
-        displayName: cachedContent.displayName || "",
-        createTime: cachedContent.createTime || new Date().toISOString(),
-        updateTime: cachedContent.updateTime || new Date().toISOString(),
-        expirationTime: cachedContent.expirationTime,
-        state: cachedContent.state || "ACTIVE",
-      };
-
-      logger.info(`Cache created successfully: ${metadata.name}`);
-      return metadata;
-    } catch (error) {
-      logger.error("Error creating cache:", error);
-      throw new GeminiApiError(
-        `Failed to create cache: ${(error as Error).message}`,
-        error
-      );
-    }
-  }
-
-  /**
-   * Updates an existing cache entry.
-   *
-   * @param cacheName The name of the cache to update (format: "cachedContents/{cache_id}")
-   * @param contents New content messages to update in the cache
-   * @param options Optional configuration including displayName, systemInstruction, and TTL
-   * @returns Updated metadata for the cache entry
-   */
-  public async updateCache(
-    cacheName: string,
-    contents: Content[],
-    options?: {
-      displayName?: string;
-      systemInstruction?: Content;
-      ttl?: string;
-      tools?: Tool[];
-      toolConfig?: ToolConfig;
-    }
-  ): Promise<CachedContentMetadata> {
-    logger.debug(`Updating cache: ${cacheName}`);
-
-    try {
-      // Prepare update parameters
-      const updateParams: {
-        name: string;
-        contents: Content[];
-        displayName?: string;
-        systemInstruction?: Content;
-        ttl?: string;
-        tools?: Tool[];
-        toolConfig?: ToolConfig;
-      } = {
-        name: cacheName,
-        contents: contents,
-      };
-
-      // Add optional parameters if provided
-      if (options) {
-        if (options.displayName) {
-          updateParams.displayName = options.displayName;
-        }
-        if (options.systemInstruction) {
-          updateParams.systemInstruction = options.systemInstruction;
-        }
-        if (options.ttl) {
-          updateParams.ttl = options.ttl;
-        }
-        if (options.tools) {
-          updateParams.tools = options.tools;
-        }
-        if (options.toolConfig) {
-          updateParams.toolConfig = options.toolConfig;
-        }
-      }
-
-      // Update the cache
-      const updatedCache =
-        await this.genAI.models.updateCachedContent(updateParams);
-
-      if (!updatedCache || !updatedCache.name) {
-        throw new Error(
-          "Invalid cache response: missing required name property"
-        );
-      }
-
-      // Map the response to our metadata type
-      const metadata: CachedContentMetadata = {
-        name: updatedCache.name,
-        displayName: updatedCache.displayName || "",
-        createTime: updatedCache.createTime || new Date().toISOString(),
-        updateTime: updatedCache.updateTime || new Date().toISOString(),
-        expirationTime: updatedCache.expirationTime,
-        state: updatedCache.state || "ACTIVE",
-      };
-
-      logger.info(`Cache updated successfully: ${metadata.name}`);
-      return metadata;
-    } catch (error) {
-      logger.error(`Error updating cache ${cacheName}:`, error);
-      throw new GeminiApiError(
-        `Failed to update cache: ${(error as Error).message}`,
-        error
-      );
-    }
-  }
-
-  /**
-   * Gets metadata for a specific cache entry.
-   *
-   * @param cacheName The name of the cache to retrieve (format: "cachedContents/{cache_id}")
-   * @returns Metadata for the cache entry
-   */
-  public async getCache(cacheName: string): Promise<CachedContentMetadata> {
-    logger.debug(`Getting cache metadata for: ${cacheName}`);
-
-    try {
-      // Get the cache metadata
-      const cacheData = await this.genAI.models.getCachedContent({
-        name: cacheName,
-      });
-      if (!cacheData || !cacheData.name) {
-        throw new Error(
-          "Invalid cache response: missing required name property"
-        );
-      }
-
-      // Map the response to our metadata type
-      const metadata: CachedContentMetadata = {
-        name: cacheData.name,
-        displayName: cacheData.displayName || "",
-        createTime: cacheData.createTime || new Date().toISOString(),
-        updateTime: cacheData.updateTime || new Date().toISOString(),
-        expirationTime: cacheData.expirationTime,
-        state: cacheData.state || "ACTIVE",
-      };
-
-      return metadata;
-    } catch (error) {
-      logger.error(`Error getting cache ${cacheName}:`, error);
-      throw new GeminiApiError(
-        `Failed to get cache: ${(error as Error).message}`,
-        error
-      );
-    }
-  }
-
-  /**
-   * Lists all cache entries.
-   *
-   * @param pageSize Optional maximum number of cache entries to return
-   * @param pageToken Optional token for pagination
-   * @returns Object with array of cache metadata and next page token if available
-   */
-  public async listCaches(
-    pageSize?: number,
-    pageToken?: string
-  ): Promise<{ caches: CachedContentMetadata[]; nextPageToken?: string }> {
-    logger.debug(
-      `Listing caches with pageSize: ${pageSize}, pageToken: ${pageToken}`
-    );
-
-    try {
-      // List caches with pagination
-      const response = await this.genAI.models.listCachedContents({
-        pageSize: pageSize,
-        pageToken: pageToken,
-      });
-
-      // Process the response into our metadata format
-      const caches: CachedContentMetadata[] = [];
-
-      // Check if there are cached contents in the response
-      if (
-        response &&
-        response.cachedContents &&
-        Array.isArray(response.cachedContents)
-      ) {
-        for (const cache of response.cachedContents) {
-          if (cache && cache.name) {
-            caches.push({
-              name: cache.name,
-              displayName: cache.displayName || "",
-              createTime: cache.createTime || new Date().toISOString(),
-              updateTime: cache.updateTime || new Date().toISOString(),
-              expirationTime: cache.expirationTime,
-              state: cache.state || "ACTIVE",
-            });
-          }
-        }
-      }
-
-      return {
-        caches,
-        nextPageToken: response.nextPageToken,
-      };
-    } catch (error) {
-      logger.error("Error listing caches:", error);
-      throw new GeminiApiError(
-        `Failed to list caches: ${(error as Error).message}`,
-        error
-      );
-    }
-  }
-
-  /**
-   * Deletes a specific cache entry.
-   *
-   * @param cacheName The name of the cache to delete (format: "cachedContents/{cache_id}")
-   * @returns Object with success flag
-   */
-  public async deleteCache(cacheName: string): Promise<{ success: boolean }> {
-    logger.debug(`Deleting cache: ${cacheName}`);
-
-    try {
-      // Delete the cache
-      await this.genAI.models.deleteCachedContent({ name: cacheName });
-
-      logger.info(`Cache deleted successfully: ${cacheName}`);
-      return { success: true };
-    } catch (error) {
-      logger.error(`Error deleting cache ${cacheName}:`, error);
-      throw new GeminiApiError(
-        `Failed to delete cache: ${(error as Error).message}`,
+        `Failed to send function result to session ${sessionId}: ${(error as Error).message}`,
         error
       );
     }

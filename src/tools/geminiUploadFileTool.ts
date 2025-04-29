@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"; // Reverted
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { GeminiService } from "../services/index.js";
-import { GeminiApiError, ValidationError, mapToMcpError } from "../utils/errors.js";
+import { GeminiApiError, ValidationError, mapAnyErrorToMcpError } from "../utils/errors.js";
 import { logger, validateAndResolvePath } from "../utils/index.js";
 import {
   TOOL_NAME_UPLOAD_FILE,
@@ -32,6 +32,7 @@ export const geminiUploadFileTool = (
 
     try {
       // Validate and resolve the file path to ensure it's secure
+      // Note: validateAndResolvePath no longer takes a baseDir parameter
       const safeFilePath = validateAndResolvePath(params.filePath, {
         mustExist: true,
       });
@@ -69,7 +70,7 @@ export const geminiUploadFileTool = (
       logger.error(`Error processing ${TOOL_NAME_UPLOAD_FILE}:`, error);
       
       // Use the centralized error mapping utility to ensure consistent error mapping
-      throw mapToMcpError(error, TOOL_NAME_UPLOAD_FILE);
+      throw mapAnyErrorToMcpError(error, TOOL_NAME_UPLOAD_FILE);
     }
   };
 

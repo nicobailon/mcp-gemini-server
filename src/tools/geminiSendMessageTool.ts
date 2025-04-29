@@ -12,7 +12,7 @@ import {
 import { GeminiService } from "../services/index.js";
 import { GeminiServiceConfig } from "../types/index.js";
 import { logger } from "../utils/index.js";
-import { GeminiApiError, mapToMcpError } from "../utils/errors.js";
+import { GeminiApiError, mapAnyErrorToMcpError } from "../utils/errors.js";
 // Import SDK types used in parameters/response handling
 // Separate type-only imports from value imports
 import { BlockedReason, FinishReason } from "@google/genai"; // Import enums as values
@@ -60,17 +60,17 @@ export const geminiSendMessageTool = (
         cachedContentName,
       } = args;
 
-      // Call the service to send the message
+      // Call the service to send the message with the new parameter object format
       const response: GenerateContentResponse =
-        await serviceInstance.sendMessageToSession(
+        await serviceInstance.sendMessageToSession({
           sessionId,
-          message, // Pass the text message
-          generationConfig as GenerationConfig | undefined,
-          safetySettings as SafetySetting[] | undefined,
-          tools as Tool[] | undefined, // Pass tools if provided
-          toolConfig as ToolConfig | undefined, // Pass toolConfig if provided
-          cachedContentName // Pass cached content name
-        );
+          message,
+          generationConfig: generationConfig as GenerationConfig | undefined,
+          safetySettings: safetySettings as SafetySetting[] | undefined,
+          tools: tools as Tool[] | undefined,
+          toolConfig: toolConfig as ToolConfig | undefined,
+          cachedContentName
+        });
 
       // --- Process the SDK Response into MCP Format ---
 
@@ -190,7 +190,7 @@ export const geminiSendMessageTool = (
       }
       
       // Use the centralized error mapping utility to ensure consistent error handling
-      throw mapToMcpError(errorWithContext, GEMINI_SEND_MESSAGE_TOOL_NAME);
+      throw mapAnyErrorToMcpError(errorWithContext, GEMINI_SEND_MESSAGE_TOOL_NAME);
     }
   };
 

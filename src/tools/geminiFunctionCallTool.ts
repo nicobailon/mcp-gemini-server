@@ -9,7 +9,7 @@ import {
 import { GeminiService } from "../services/index.js";
 import { GeminiServiceConfig } from "../types/index.js";
 import { logger } from "../utils/index.js";
-import { GeminiApiError, mapToMcpError } from "../utils/errors.js"; // Import mapToMcpError
+import { GeminiApiError, mapAnyErrorToMcpError } from "../utils/errors.js"; // Import mapAnyErrorToMcpError
 // Import SDK types used in parameters/service calls for type safety
 import type {
   FunctionDeclaration,
@@ -54,15 +54,15 @@ export const geminiFunctionCallTool = (
         toolConfig, // Extract toolConfig
       } = args;
 
-      // Call the service method - Cast Zod inferred types to SDK types if necessary
-      const result = await serviceInstance.generateFunctionCallRequest(
-        prompt, // Correct order: prompt first
-        functionDeclarations as FunctionDeclaration[], // Cast Zod array to SDK type array
-        modelName, // modelName third (optional)
-        generationConfig as GenerationConfig | undefined,
-        safetySettings as SafetySetting[] | undefined,
-        toolConfig as ToolConfig | undefined // Cast Zod object to SDK type
-      );
+      // Call the service method with the new parameter object format
+      const result = await serviceInstance.generateFunctionCallRequest({
+        prompt,
+        functionDeclarations: functionDeclarations as FunctionDeclaration[],
+        modelName,
+        generationConfig: generationConfig as GenerationConfig | undefined,
+        safetySettings: safetySettings as SafetySetting[] | undefined,
+        toolConfig: toolConfig as ToolConfig | undefined
+      });
 
       // Check the result structure to determine if it's a function call or text
       // Assuming the service returns an object like { functionCall: {...} } or { text: "..." }
@@ -115,7 +115,7 @@ export const geminiFunctionCallTool = (
       );
       
       // Use the centralized error mapping utility to ensure consistent error handling
-      throw mapToMcpError(error, GEMINI_FUNCTION_CALL_TOOL_NAME);
+      throw mapAnyErrorToMcpError(error, GEMINI_FUNCTION_CALL_TOOL_NAME);
     }
   };
 

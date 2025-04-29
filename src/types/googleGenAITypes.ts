@@ -7,9 +7,20 @@ import {
   GenerateContentResponse,
 } from "@google/genai";
 
-// Proper type for chat session and cached content parameters
+// Import types directly from the SDK
+import type {
+  GenerateContentResponse,
+  GenerationConfig,
+  SafetySetting,
+  Content,
+  Tool,
+  ToolConfig,
+  FunctionCall,
+  FunctionDeclaration
+} from "@google/genai";
+
+// Types for params that match the SDK v0.10.0 structure
 interface ChatSessionParams {
-  model: string;
   history?: Content[];
   generationConfig?: GenerationConfig;
   safetySettings?: SafetySetting[];
@@ -19,7 +30,6 @@ interface ChatSessionParams {
 }
 
 interface CachedContentParams {
-  model: string;
   contents: Content[];
   displayName?: string;
   systemInstruction?: Content;
@@ -28,6 +38,7 @@ interface CachedContentParams {
   toolConfig?: ToolConfig;
 }
 
+// Metadata returned by cached content operations
 interface CachedContentMetadata {
   name: string;
   displayName?: string;
@@ -41,7 +52,7 @@ interface CachedContentMetadata {
   };
 }
 
-// Enums for response types
+// Enums for response types - matching SDK v0.10.0
 enum FinishReason {
   FINISH_REASON_UNSPECIFIED = "FINISH_REASON_UNSPECIFIED",
   STOP = "STOP",
@@ -84,29 +95,55 @@ interface Candidate {
   index?: number;
 }
 
-// Augment the Models interface from @google/genai
-declare module "@google/genai" {
-  interface Models {
-    startChat(params: ChatSessionParams): ChatSession;
-    createCachedContent(
-      params: CachedContentParams
-    ): Promise<CachedContentMetadata>;
-    updateCachedContent(
-      params: { name: string } & Partial<CachedContentParams>
-    ): Promise<CachedContentMetadata>;
-    getCachedContent(params: { name: string }): Promise<CachedContentMetadata>;
-    listCachedContents(params: {
-      pageSize?: number;
-      pageToken?: string;
-    }): Promise<{
-      cachedContents: CachedContentMetadata[];
-      nextPageToken?: string;
-    }>;
-    deleteCachedContent(params: { name: string }): Promise<void>;
-  }
+// Interface for the chat session with our updated implementation
+interface ChatSession {
+  model: string;
+  config: {
+    history?: Content[];
+    generationConfig?: GenerationConfig;
+    safetySettings?: SafetySetting[];
+    tools?: Tool[];
+    systemInstruction?: Content;
+    cachedContent?: string;
+  };
+  history: Content[];
 }
 
-// Re-export needed types for use in other files
+// Type definitions for response handling
+interface PromptFeedback {
+  blockReason?: BlockedReason;
+  safetyRatings?: Array<{
+    category: string;
+    probability: string;
+    blocked: boolean;
+  }>;
+}
+
+interface Candidate {
+  content?: Content;
+  finishReason?: FinishReason;
+  safetyRatings?: Array<{
+    category: string;
+    probability: string;
+    blocked: boolean;
+  }>;
+  index?: number;
+}
+
+interface GenerateContentResult {
+  response: {
+    text(): string;
+    promptFeedback?: PromptFeedback;
+    candidates?: Candidate[];
+  };
+}
+
+interface GenerateContentResponseChunk {
+  text(): string;
+  candidates?: Candidate[];
+}
+
+// Re-export all types for use in other files
 export type {
   ChatSessionParams,
   CachedContentParams,
@@ -117,29 +154,6 @@ export type {
   Candidate,
   FunctionCall,
   ChatSession,
+  GenerateContentResponse
 };
 export { FinishReason, BlockedReason };
-
-// Include the ChatSession type for completeness
-interface ChatSession {
-  sendMessage(
-    params:
-      | ({ message: string } & Record<string, unknown>)
-      | { message: { functionResponse: { name: string; response: unknown } } }
-  ): Promise<GenerateContentResponse>;
-  getHistory(): Content[];
-}
-
-interface GenerateContentResult {
-  text?: string;
-  response: {
-    text(): string;
-    promptFeedback?: PromptFeedback;
-    candidates?: Candidate[];
-  };
-}
-
-interface GenerateContentResponseChunk {
-  text?: string;
-  candidates?: Candidate[];
-}

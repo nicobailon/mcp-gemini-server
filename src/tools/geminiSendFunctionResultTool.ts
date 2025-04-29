@@ -12,7 +12,7 @@ import {
 import { GeminiService } from "../services/index.js";
 import { GeminiServiceConfig } from "../types/index.js";
 import { logger } from "../utils/index.js";
-import { GeminiApiError, mapToMcpError } from "../utils/errors.js";
+import { GeminiApiError, mapAnyErrorToMcpError } from "../utils/errors.js";
 // Import SDK types used in parameters/response handling
 import { BlockedReason, FinishReason } from "@google/genai"; // Import enums as values
 import type {
@@ -49,14 +49,13 @@ export const geminiSendFunctionResultTool = (
       const { sessionId, functionResponses, generationConfig, safetySettings } =
         args;
 
-      // Call the service to send the function results
+      // Call the service to send the function results with the new parameter object format
       const response: GenerateContentResponse =
-        await serviceInstance.sendFunctionResultToSession(
+        await serviceInstance.sendFunctionResultToSession({
           sessionId,
-          functionResponses, // Pass the array of results
-          generationConfig as GenerationConfig | undefined,
-          safetySettings as SafetySetting[] | undefined
-        );
+          functionResponse: functionResponses,
+          functionCall: undefined // In future, may support passing the original function call for reference
+        });
 
       // --- Process the SDK Response into MCP Format (Similar to sendMessageTool) ---
 
@@ -171,7 +170,7 @@ export const geminiSendFunctionResultTool = (
       }
       
       // Use the centralized error mapping utility to ensure consistent error handling
-      throw mapToMcpError(errorWithContext, GEMINI_SEND_FUNCTION_RESULT_TOOL_NAME);
+      throw mapAnyErrorToMcpError(errorWithContext, GEMINI_SEND_FUNCTION_RESULT_TOOL_NAME);
     }
   };
 

@@ -141,7 +141,7 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
     );
   }
 
-  // GeminiApiError mapping with pattern detection
+  // GeminiApiError mapping with enhanced pattern detection
   if (error instanceof GeminiApiError) {
     // Convert message to lowercase for case-insensitive pattern matching
     const lowerCaseMessage = errorMessage.toLowerCase();
@@ -152,7 +152,8 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
       lowerCaseMessage.includes("rate limit") ||
       lowerCaseMessage.includes("resource has been exhausted") ||
       lowerCaseMessage.includes("resource exhausted") ||
-      lowerCaseMessage.includes("429")
+      lowerCaseMessage.includes("429") ||
+      lowerCaseMessage.includes("too many requests")
     ) {
       return new McpError(
         ErrorCode.ResourceExhausted,
@@ -167,7 +168,8 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
       lowerCaseMessage.includes("not authorized") ||
       lowerCaseMessage.includes("unauthorized") ||
       lowerCaseMessage.includes("forbidden") ||
-      lowerCaseMessage.includes("403")
+      lowerCaseMessage.includes("403") ||
+      lowerCaseMessage.includes("access denied")
     ) {
       return new McpError(
         ErrorCode.PermissionDenied,
@@ -180,10 +182,12 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
     if (
       lowerCaseMessage.includes("not found") ||
       lowerCaseMessage.includes("does not exist") ||
-      lowerCaseMessage.includes("404")
+      lowerCaseMessage.includes("404") ||
+      lowerCaseMessage.includes("could not find") ||
+      lowerCaseMessage.includes("no such file")
     ) {
       return new McpError(
-        ErrorCode.InvalidRequest,
+        ErrorCode.InvalidRequest, // MCP SDK lacks NotFound, mapping to InvalidRequest
         `Resource not found: ${errorMessage}`,
         errorDetails
       );
@@ -195,7 +199,9 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
       lowerCaseMessage.includes("invalid parameter") ||
       lowerCaseMessage.includes("invalid request") ||
       lowerCaseMessage.includes("failed precondition") ||
-      lowerCaseMessage.includes("400")
+      lowerCaseMessage.includes("400") ||
+      lowerCaseMessage.includes("bad request") ||
+      lowerCaseMessage.includes("malformed")
     ) {
       return new McpError(
         ErrorCode.InvalidParams,
@@ -209,7 +215,9 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
       lowerCaseMessage.includes("safety") ||
       lowerCaseMessage.includes("blocked") ||
       lowerCaseMessage.includes("content policy") ||
-      lowerCaseMessage.includes("harmful")
+      lowerCaseMessage.includes("harmful") ||
+      lowerCaseMessage.includes("inappropriate") ||
+      lowerCaseMessage.includes("offensive")
     ) {
       return new McpError(
         ErrorCode.InvalidRequest,
@@ -218,8 +226,13 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
       );
     }
     
-    // Handle File API not supported errors
-    if (lowerCaseMessage.includes("file api is not supported")) {
+    // Handle File API and other unsupported feature errors
+    if (
+      lowerCaseMessage.includes("file api is not supported") ||
+      lowerCaseMessage.includes("not supported") ||
+      lowerCaseMessage.includes("unsupported") ||
+      lowerCaseMessage.includes("not implemented")
+    ) {
       return new McpError(
         ErrorCode.FailedPrecondition,
         `Operation not supported: ${errorMessage}`,

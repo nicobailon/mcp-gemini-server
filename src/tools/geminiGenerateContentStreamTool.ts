@@ -9,7 +9,7 @@ import {
 import { GeminiService } from "../services/index.js";
 import { GeminiServiceConfig } from "../types/index.js";
 import { logger } from "../utils/index.js";
-import { GeminiApiError, mapToMcpError } from "../utils/errors.js"; // Import mapToMcpError
+import { GeminiApiError, mapAnyErrorToMcpError } from "../utils/errors.js"; // Import mapAnyErrorToMcpError
 // Import SDK types used in parameters for type safety if needed
 import type { GenerationConfig, SafetySetting, Content } from "@google/genai";
 
@@ -58,20 +58,15 @@ export const geminiGenerateContentStreamTool = (
         cachedContentName,
       } = args;
 
-      // Call the service's streaming method
-      const sdkStream = serviceInstance.generateContentStream(
-        prompt, // Correct order: prompt first
-        modelName, // modelName second (optional)
-        generationConfig as GenerationConfig | undefined,
-        safetySettings as SafetySetting[] | undefined,
-        // Convert systemInstruction to proper Content type if it's a string
-        systemInstruction
-          ? typeof systemInstruction === "string"
-            ? ({ parts: [{ text: systemInstruction }] } as Content)
-            : (systemInstruction as Content)
-          : undefined,
-        cachedContentName // Pass cached content name
-      );
+      // Call the service's streaming method with the new parameter object format
+      const sdkStream = serviceInstance.generateContentStream({
+        prompt,
+        modelName,
+        generationConfig: generationConfig as GenerationConfig | undefined,
+        safetySettings: safetySettings as SafetySetting[] | undefined,
+        systemInstruction, // The method will handle string conversion internally
+        cachedContentName
+      });
 
       // Iterate over the async generator from the service and collect chunks
       // Note: If true streaming were supported, we'd replace this with direct yielding of chunks
@@ -96,7 +91,7 @@ export const geminiGenerateContentStreamTool = (
       logger.error(`Error processing ${GEMINI_STREAM_TOOL_NAME}:`, error);
       
       // Use the centralized error mapping utility to ensure consistent error handling
-      throw mapToMcpError(error, GEMINI_STREAM_TOOL_NAME);
+      throw mapAnyErrorToMcpError(error, GEMINI_STREAM_TOOL_NAME);
     }
   };
 

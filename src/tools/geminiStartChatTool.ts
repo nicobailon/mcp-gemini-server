@@ -9,7 +9,7 @@ import {
 import { GeminiService } from "../services/index.js";
 import { GeminiServiceConfig } from "../types/index.js";
 import { logger } from "../utils/index.js";
-import { GeminiApiError, mapToMcpError } from "../utils/errors.js";
+import { GeminiApiError, mapAnyErrorToMcpError } from "../utils/errors.js";
 // Import SDK types used in parameters for type safety if needed
 import type {
   Content,
@@ -51,17 +51,16 @@ export const geminiStartChatTool = (
         cachedContentName,
       } = args;
 
-      // Call the service to start the chat session
-      // Need to cast history and tools if the Zod schemas don't perfectly match SDK types
-      const sessionId = serviceInstance.startChatSession(
+      // Call the service to start the chat session with the new parameter object format
+      const sessionId = serviceInstance.startChatSession({
         modelName,
-        history as Content[] | undefined,
-        generationConfig as GenerationConfig | undefined,
-        safetySettings as SafetySetting[] | undefined,
-        tools as Tool[] | undefined, // Pass tools to the service method
-        systemInstruction, // Pass system instruction
-        cachedContentName // Pass cached content name
-      );
+        history: history as Content[] | undefined,
+        generationConfig: generationConfig as GenerationConfig | undefined,
+        safetySettings: safetySettings as SafetySetting[] | undefined,
+        tools: tools as Tool[] | undefined,
+        systemInstruction, // The method will handle string conversion internally
+        cachedContentName
+      });
 
       logger.info(
         `Successfully started chat session ${sessionId} for model ${modelName}`
@@ -80,7 +79,7 @@ export const geminiStartChatTool = (
       logger.error(`Error processing ${GEMINI_START_CHAT_TOOL_NAME}:`, error);
       
       // Use the centralized error mapping utility to ensure consistent error handling
-      throw mapToMcpError(error, GEMINI_START_CHAT_TOOL_NAME);
+      throw mapAnyErrorToMcpError(error, GEMINI_START_CHAT_TOOL_NAME);
     }
   };
 

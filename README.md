@@ -1,7 +1,5 @@
 # MCP Gemini Server
 
-[![smithery badge](https://smithery.ai/badge/@bsmi021/mcp-gemini-server)](https://smithery.ai/server/@bsmi021/mcp-gemini-server)
-
 ## Overview
 
 This project provides a dedicated MCP (Model Context Protocol) server that wraps the `@google/genai` SDK (v0.10.0). It exposes Google's Gemini model capabilities as standard MCP tools, allowing other LLMs (like Claude) or MCP-compatible systems to leverage Gemini's features as a backend workhorse.
@@ -29,14 +27,6 @@ This server aims to simplify integration with Gemini models by providing a consi
   * **Important:** The File Handling and Caching APIs are **only compatible with Google AI Studio API keys** and are **not supported** when using Vertex AI credentials. This server does not currently support Vertex AI authentication.
 
 ## Installation & Setup
-
-### Installing via Smithery
-
-To install Gemini Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@bsmi021/mcp-gemini-server):
-
-```bash
-npx -y @smithery/cli install @bsmi021/mcp-gemini-server --client claude
-```
 
 ### Installing Manually
 

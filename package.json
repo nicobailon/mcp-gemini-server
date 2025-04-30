@@ -13,7 +13,10 @@
     "dev": "nodemon --watch src --ext ts --exec \"node --loader ts-node/esm src/server.ts\"",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test --loader ts-node/esm tests/**/*.test.ts",
+    "test:unit": "node --test --loader ts-node/esm tests/unit/**/*.test.ts",
+    "test:integration": "node --test --loader ts-node/esm tests/integration/**/*.test.ts",
+    "test:e2e": "node --test --loader ts-node/esm tests/e2e/**/*.test.ts",
     "prepare": "husky install || true"
   },
   "keywords": [
@@ -35,6 +38,7 @@
     "@types/node": "^20.14.2",
     "@typescript-eslint/eslint-plugin": "^7.13.0",
     "@typescript-eslint/parser": "^7.13.0",
+    "dotenv": "^16.5.0",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.1.3",

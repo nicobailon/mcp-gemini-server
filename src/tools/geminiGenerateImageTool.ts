@@ -36,10 +36,15 @@ export const geminiGenerateImageTool = (
     resolution?: "512x512" | "1024x1024" | "1536x1536";
     numberOfImages?: number;
     negativePrompt?: string;
+    stylePreset?: string;
+    seed?: number;
+    styleStrength?: number;
   }) => {
     logger.debug(`Received ${TOOL_NAME_GENERATE_IMAGE} request:`, {
       model: args.modelName,
-    }); // Avoid logging full prompt
+      resolution: args.resolution,
+      stylePreset: args.stylePreset
+    }); // Avoid logging full prompt for privacy/security
 
     try {
       // Extract arguments - Zod parsing happens automatically via server.tool
@@ -50,16 +55,22 @@ export const geminiGenerateImageTool = (
         numberOfImages,
         safetySettings,
         negativePrompt,
+        stylePreset,
+        seed,
+        styleStrength
       } = args;
 
-      // Call the service method
+      // Call the service method with all parameters
       const result: ImageGenerationResult = await serviceInstance.generateImage(
         prompt,
         modelName,
         resolution,
         numberOfImages,
         safetySettings as SafetySetting[] | undefined,
-        negativePrompt
+        negativePrompt,
+        stylePreset,
+        seed,
+        styleStrength
       );
 
       // Check if images were generated

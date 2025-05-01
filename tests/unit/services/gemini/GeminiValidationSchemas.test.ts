@@ -130,6 +130,40 @@ describe("GeminiValidationSchemas", () => {
       assert.strictEqual(result.thinkingBudget, undefined);
     });
     
+    it("should validate valid reasoningEffort values", () => {
+      const validValues = ["none", "low", "medium", "high"];
+      
+      for (const value of validValues) {
+        // Should not throw
+        const result = ThinkingConfigSchema.parse({ reasoningEffort: value });
+        assert.strictEqual(result.reasoningEffort, value);
+      }
+    });
+    
+    it("should throw on invalid reasoningEffort values", () => {
+      assert.throws(
+        () => ThinkingConfigSchema.parse({ reasoningEffort: "invalid" }),
+        (err: unknown) => {
+          assert(err instanceof ZodError);
+          const zodError = err as ZodError;
+          assert.strictEqual(zodError.errors[0].path[0], "reasoningEffort");
+          return true;
+        }
+      );
+    });
+    
+    it("should validate both thinkingBudget and reasoningEffort in same object", () => {
+      const config = {
+        thinkingBudget: 5000,
+        reasoningEffort: "medium"
+      };
+      
+      // Should not throw
+      const result = ThinkingConfigSchema.parse(config);
+      assert.strictEqual(result.thinkingBudget, 5000);
+      assert.strictEqual(result.reasoningEffort, "medium");
+    });
+    
     it("should validate thinking budget at boundaries", () => {
       // Min value (0)
       assert.doesNotThrow(() => 
@@ -189,6 +223,20 @@ describe("GeminiValidationSchemas", () => {
       const result = GenerationConfigSchema.parse(validGenerationConfig);
       assert.strictEqual(result.temperature, 0.7);
       assert.strictEqual(result.thinkingConfig?.thinkingBudget, 5000);
+    });
+    
+    it("should validate reasoningEffort within generation config", () => {
+      const validGenerationConfig = {
+        temperature: 0.7,
+        thinkingConfig: {
+          reasoningEffort: "high"
+        }
+      };
+      
+      // Should not throw
+      const result = GenerationConfigSchema.parse(validGenerationConfig);
+      assert.strictEqual(result.temperature, 0.7);
+      assert.strictEqual(result.thinkingConfig?.reasoningEffort, "high");
     });
     
     it("should throw on invalid thinking budget in generation config", () => {

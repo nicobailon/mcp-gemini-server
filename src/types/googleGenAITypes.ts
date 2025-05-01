@@ -13,6 +13,7 @@ import type {
 // Define ThinkingConfig interface for controlling model reasoning
 interface ThinkingConfig {
   thinkingBudget?: number;
+  reasoningEffort?: "none" | "low" | "medium" | "high";
 }
 
 // Types for params that match the SDK v0.10.0 structure

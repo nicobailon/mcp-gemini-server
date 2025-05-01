@@ -73,6 +73,7 @@ export const DEFAULT_SAFETY_SETTINGS = [
 export const ThinkingConfigSchema = z
   .object({
     thinkingBudget: z.number().int().min(0).max(24576).optional(),
+    reasoningEffort: z.enum(["none", "low", "medium", "high"]).optional(),
   })
   .optional();
 

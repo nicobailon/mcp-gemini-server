@@ -249,6 +249,19 @@ export class GeminiContentService {
       }
     }
     
+    // Map reasoningEffort to thinkingBudget if provided
+    if (requestConfig.thinkingConfig?.reasoningEffort) {
+      const effortMap: Record<string, number> = {
+        "none": 0,
+        "low": 1024, // 1K tokens
+        "medium": 8192, // 8K tokens
+        "high": 24576 // 24K tokens
+      };
+      
+      requestConfig.thinkingConfig.thinkingBudget = effortMap[requestConfig.thinkingConfig.reasoningEffort];
+      logger.debug(`Mapped reasoning effort '${requestConfig.thinkingConfig.reasoningEffort}' to thinking budget: ${requestConfig.thinkingConfig.thinkingBudget} tokens`);
+    }
+    
     // Apply default thinking budget if available and not specified in request
     if (this.defaultThinkingBudget !== undefined && !requestConfig.thinkingConfig) {
       requestConfig.thinkingConfig = {

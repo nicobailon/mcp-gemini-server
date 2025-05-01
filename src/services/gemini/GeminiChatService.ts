@@ -20,6 +20,35 @@ import { validateRouteMessageParams } from "./GeminiValidationSchemas.js";
 import { ZodError } from "zod";
 
 /**
+ * Maps reasoningEffort string values to token budgets
+ */
+const REASONING_EFFORT_MAP: Record<string, number> = {
+  "none": 0,
+  "low": 1024,   // 1K tokens
+  "medium": 8192, // 8K tokens
+  "high": 24576   // 24K tokens
+};
+
+/**
+ * Helper function to process thinkingConfig, mapping reasoningEffort to thinkingBudget if needed
+ * @param thinkingConfig The thinking configuration object to process
+ * @returns Processed thinking configuration
+ */
+function processThinkingConfig(thinkingConfig?: ThinkingConfig): ThinkingConfig | undefined {
+  if (!thinkingConfig) return undefined;
+  
+  const processedConfig = { ...thinkingConfig };
+  
+  // Map reasoningEffort to thinkingBudget if provided
+  if (processedConfig.reasoningEffort && REASONING_EFFORT_MAP[processedConfig.reasoningEffort] !== undefined) {
+    processedConfig.thinkingBudget = REASONING_EFFORT_MAP[processedConfig.reasoningEffort];
+    logger.debug(`Mapped reasoning effort '${processedConfig.reasoningEffort}' to thinking budget: ${processedConfig.thinkingBudget} tokens`);
+  }
+  
+  return processedConfig;
+}
+
+/**
  * Interface for the parameters of the startChatSession method
  */
 export interface StartChatParams {
@@ -133,7 +162,7 @@ export class GeminiChatService {
         
         // Extract thinking config if it exists within generation config
         if (generationConfig.thinkingConfig) {
-          chatConfig.thinkingConfig = generationConfig.thinkingConfig;
+          chatConfig.thinkingConfig = processThinkingConfig(generationConfig.thinkingConfig);
         }
       }
       if (safetySettings && Array.isArray(safetySettings)) {
@@ -238,14 +267,14 @@ export class GeminiChatService {
         
         // Extract thinking config if it exists within generation config
         if (generationConfig.thinkingConfig) {
-          requestConfig.thinkingConfig = generationConfig.thinkingConfig;
+          requestConfig.thinkingConfig = processThinkingConfig(generationConfig.thinkingConfig);
         }
       } else if (session.config.generationConfig) {
         requestConfig.generationConfig = session.config.generationConfig;
         
         // Use thinking config from session if available
         if (session.config.thinkingConfig) {
-          requestConfig.thinkingConfig = session.config.thinkingConfig;
+          requestConfig.thinkingConfig = processThinkingConfig(session.config.thinkingConfig);
         }
       }
 
@@ -357,7 +386,7 @@ export class GeminiChatService {
         
         // Use thinking config from session if available
         if (session.config.thinkingConfig) {
-          requestConfig.thinkingConfig = session.config.thinkingConfig;
+          requestConfig.thinkingConfig = processThinkingConfig(session.config.thinkingConfig);
         }
       }
 
@@ -537,7 +566,7 @@ export class GeminiChatService {
       
       // Extract thinking config if it exists within generation config
       if (generationConfig?.thinkingConfig) {
-        requestConfig.thinkingConfig = generationConfig.thinkingConfig;
+        requestConfig.thinkingConfig = processThinkingConfig(generationConfig.thinkingConfig);
       }
 
       // If system instruction is provided, add it to the final request

@@ -96,6 +96,7 @@ This server provides the following MCP tools. Parameter schemas are defined usin
     * `generationConfig` (object) - Controls generation parameters like temperature, topP, etc.
       * `thinkingConfig` (object) - Controls model reasoning process
         * `thinkingBudget` (number) - Maximum tokens for reasoning (0-24576)
+        * `reasoningEffort` (string) - Simplified control: "none" (0 tokens), "low" (1K), "medium" (8K), "high" (24K)
     * `safetySettings` (array) - Controls content filtering by harm category
     * `systemInstruction` (string or object) - System instruction to guide model behavior
     * `cachedContentName` (string) - Identifier for cached content to use with this request
@@ -109,6 +110,7 @@ This server provides the following MCP tools. Parameter schemas are defined usin
     * `generationConfig` (object) - Controls generation parameters like temperature, topP, etc.
       * `thinkingConfig` (object) - Controls model reasoning process
         * `thinkingBudget` (number) - Maximum tokens for reasoning (0-24576)
+        * `reasoningEffort` (string) - Simplified control: "none" (0 tokens), "low" (1K), "medium" (8K), "high" (24K)
     * `safetySettings` (array) - Controls content filtering by harm category
     * `systemInstruction` (string or object) - System instruction to guide model behavior
     * `cachedContentName` (string) - Identifier for cached content to use with this request
@@ -135,6 +137,7 @@ This server provides the following MCP tools. Parameter schemas are defined usin
     * `generationConfig` (object) - Controls generation parameters
       * `thinkingConfig` (object) - Controls model reasoning process
         * `thinkingBudget` (number) - Maximum tokens for reasoning (0-24576)
+        * `reasoningEffort` (string) - Simplified control: "none" (0 tokens), "low" (1K), "medium" (8K), "high" (24K)
     * `safetySettings` (array) - Controls content filtering
     * `systemInstruction` (string or object) - System instruction to guide model behavior
     * `cachedContentName` (string) - Identifier for cached content to use with this session
@@ -145,6 +148,7 @@ This server provides the following MCP tools. Parameter schemas are defined usin
     * `generationConfig` (object) - Controls generation parameters
       * `thinkingConfig` (object) - Controls model reasoning process
         * `thinkingBudget` (number) - Maximum tokens for reasoning (0-24576)
+        * `reasoningEffort` (string) - Simplified control: "none" (0 tokens), "low" (1K), "medium" (8K), "high" (24K)
     * `safetySettings` (array) - Controls content filtering
     * `tools` (array) - Tool definitions including function declarations
     * `toolConfig` (object) - Configures tool behavior
@@ -164,6 +168,7 @@ This server provides the following MCP tools. Parameter schemas are defined usin
     * `generationConfig` (object) - Generation configuration settings to apply to the selected model's response.
       * `thinkingConfig` (object) - Controls model reasoning process
         * `thinkingBudget` (number) - Maximum tokens for reasoning (0-24576)
+        * `reasoningEffort` (string) - Simplified control: "none" (0 tokens), "low" (1K), "medium" (8K), "high" (24K)
     * `safetySettings` (array) - Safety settings to apply to both routing and final response.
     * `systemInstruction` (string or object) - A system instruction to guide the model's behavior after routing.
 
@@ -332,6 +337,28 @@ Here are examples of how an MCP client (like Claude) might call these tools usin
         "maxOutputTokens": 1000,
         "thinkingConfig": {
           "thinkingBudget": 8192
+        }
+      }
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 2c: Content Generation with Simplified Reasoning Effort**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateContent</tool_name>
+  <arguments>
+    {
+      "modelName": "gemini-1.5-pro",
+      "prompt": "Solve this complex math problem: Find all values of x where 2sin(x) = x^2-x+1 in the range [0, 2π].",
+      "generationConfig": {
+        "temperature": 0.2,
+        "maxOutputTokens": 1000,
+        "thinkingConfig": {
+          "reasoningEffort": "high"
         }
       }
     }

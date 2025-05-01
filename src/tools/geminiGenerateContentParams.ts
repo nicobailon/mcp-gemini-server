@@ -23,6 +23,12 @@ export const thinkingConfigSchema = z
       .describe(
         "Controls the amount of reasoning the model performs. Range: 0-24576. Lower values provide faster responses, higher values improve complex reasoning."
       ),
+    reasoningEffort: z
+      .enum(["none", "low", "medium", "high"])
+      .optional()
+      .describe(
+        "Simplified control over model reasoning. Options: none (0 tokens), low (1K tokens), medium (8K tokens), high (24K tokens)."
+      ),
   })
   .optional()
   .describe("Optional configuration for controlling model reasoning.");

@@ -55,6 +55,47 @@ describe("Thinking Budget Feature", () => {
         "Should pass the thinking budget"
       );
     });
+    
+    it("should map reasoningEffort to thinkingBudget values", async () => {
+      // Arrange
+      const service = new GeminiContentService(
+        mockGenAI as any,
+        "gemini-1.5-pro",
+        new GeminiSecurityService()
+      );
+      
+      // Test different reasoning effort values
+      const testCases = [
+        { reasoningEffort: "none", expectedBudget: 0 },
+        { reasoningEffort: "low", expectedBudget: 1024 },
+        { reasoningEffort: "medium", expectedBudget: 8192 },
+        { reasoningEffort: "high", expectedBudget: 24576 }
+      ];
+      
+      for (const testCase of testCases) {
+        mockGenerateContentMethod.mock.resetCalls();
+        
+        // Act
+        await service.generateContent({
+          prompt: "Test prompt",
+          generationConfig: {
+            thinkingConfig: {
+              reasoningEffort: testCase.reasoningEffort as any,
+            },
+          },
+        });
+        
+        // Assert
+        assert.strictEqual(mockGenerateContentMethod.mock.calls.length, 1);
+        const requestConfig = mockGenerateContentMethod.mock.calls[0].arguments[0];
+        assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");
+        assert.strictEqual(
+          requestConfig.thinkingConfig.thinkingBudget,
+          testCase.expectedBudget,
+          `Should map reasoningEffort '${testCase.reasoningEffort}' to thinkingBudget ${testCase.expectedBudget}`
+        );
+      }
+    });
 
     it("should apply default thinking budget when provided", async () => {
       // Arrange
@@ -171,6 +212,47 @@ describe("Thinking Budget Feature", () => {
         6000,
         "Should pass the thinking budget from chat session"
       );
+    });
+    
+    it("should map reasoningEffort to thinkingBudget in chat session", async () => {
+      // Arrange
+      const chatService = new GeminiChatService(mockChatGenAI as any, "gemini-1.5-pro");
+      
+      // Test different reasoning effort values
+      const testCases = [
+        { reasoningEffort: "none", expectedBudget: 0 },
+        { reasoningEffort: "low", expectedBudget: 1024 },
+        { reasoningEffort: "medium", expectedBudget: 8192 },
+        { reasoningEffort: "high", expectedBudget: 24576 }
+      ];
+      
+      for (const testCase of testCases) {
+        mockChatGenerateContentMethod.mock.resetCalls();
+        
+        // Act
+        const sessionId = chatService.startChatSession({
+          generationConfig: {
+            thinkingConfig: {
+              reasoningEffort: testCase.reasoningEffort as any,
+            },
+          },
+        });
+        
+        await chatService.sendMessageToSession({
+          sessionId,
+          message: "Hello",
+        });
+        
+        // Assert
+        assert.strictEqual(mockChatGenerateContentMethod.mock.calls.length, 1);
+        const requestConfig = mockChatGenerateContentMethod.mock.calls[0].arguments[0];
+        assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");
+        assert.strictEqual(
+          requestConfig.thinkingConfig.thinkingBudget,
+          testCase.expectedBudget,
+          `Should map reasoningEffort '${testCase.reasoningEffort}' to thinkingBudget ${testCase.expectedBudget}`
+        );
+      }
     });
 
     it("should override session thinking budget with message thinking budget", async () => {

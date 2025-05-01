@@ -8,7 +8,10 @@ import type {
   FunctionCall,
 } from "@google/genai";
 
-// Re-export types from Google GenAI SDK that we use
+// Import ThinkingConfig and ExtendedGenerationConfig from our types
+import type { ThinkingConfig, ExtendedGenerationConfig } from "../../types/googleGenAITypes.js";
+
+// Re-export types from Google GenAI SDK and our custom types
 export type {
   GenerationConfig,
   SafetySetting,
@@ -17,6 +20,8 @@ export type {
   Tool,
   ToolConfig,
   FunctionCall,
+  ThinkingConfig,
+  ExtendedGenerationConfig,
 };
 
 // Type-safe resource IDs

@@ -13,6 +13,7 @@ import {
   ToolConfig,
   FunctionCall,
   ChatSession,
+  ThinkingConfig,
 } from "./GeminiTypes.js";
 import { RouteMessageParams } from "../GeminiService.js";
 import { validateRouteMessageParams } from "./GeminiValidationSchemas.js";
@@ -120,6 +121,7 @@ export class GeminiChatService {
         tools?: Tool[];
         systemInstruction?: Content;
         cachedContent?: string;
+        thinkingConfig?: ThinkingConfig;
       } = {};
 
       // Add optional parameters if provided
@@ -128,6 +130,11 @@ export class GeminiChatService {
       }
       if (generationConfig) {
         chatConfig.generationConfig = generationConfig;
+        
+        // Extract thinking config if it exists within generation config
+        if (generationConfig.thinkingConfig) {
+          chatConfig.thinkingConfig = generationConfig.thinkingConfig;
+        }
       }
       if (safetySettings && Array.isArray(safetySettings)) {
         chatConfig.safetySettings = safetySettings;
@@ -214,6 +221,7 @@ export class GeminiChatService {
         toolConfig?: ToolConfig;
         systemInstruction?: Content;
         cachedContent?: string;
+        thinkingConfig?: ThinkingConfig;
       } = {
         model: session.model,
         contents: session.history,
@@ -227,8 +235,18 @@ export class GeminiChatService {
       // Override with any per-message configuration options
       if (generationConfig) {
         requestConfig.generationConfig = generationConfig;
+        
+        // Extract thinking config if it exists within generation config
+        if (generationConfig.thinkingConfig) {
+          requestConfig.thinkingConfig = generationConfig.thinkingConfig;
+        }
       } else if (session.config.generationConfig) {
         requestConfig.generationConfig = session.config.generationConfig;
+        
+        // Use thinking config from session if available
+        if (session.config.thinkingConfig) {
+          requestConfig.thinkingConfig = session.config.thinkingConfig;
+        }
       }
 
       if (safetySettings) {
@@ -323,6 +341,7 @@ export class GeminiChatService {
         toolConfig?: ToolConfig;
         systemInstruction?: Content;
         cachedContent?: string;
+        thinkingConfig?: ThinkingConfig;
       } = {
         model: session.model,
         contents: session.history,
@@ -335,6 +354,11 @@ export class GeminiChatService {
 
       if (session.config.generationConfig) {
         requestConfig.generationConfig = session.config.generationConfig;
+        
+        // Use thinking config from session if available
+        if (session.config.thinkingConfig) {
+          requestConfig.thinkingConfig = session.config.thinkingConfig;
+        }
       }
 
       if (session.config.safetySettings) {
@@ -493,7 +517,13 @@ export class GeminiChatService {
       );
 
       // Step 2: Send the original message to the chosen model
-      const requestConfig = {
+      const requestConfig: {
+        model: string;
+        contents: Content[];
+        generationConfig?: GenerationConfig;
+        safetySettings?: SafetySetting[];
+        thinkingConfig?: ThinkingConfig;
+      } = {
         model: chosenModel,
         contents: [
           {
@@ -504,6 +534,11 @@ export class GeminiChatService {
         generationConfig: generationConfig,
         safetySettings: safetySettings,
       };
+      
+      // Extract thinking config if it exists within generation config
+      if (generationConfig?.thinkingConfig) {
+        requestConfig.thinkingConfig = generationConfig.thinkingConfig;
+      }
 
       // If system instruction is provided, add it to the final request
       if (systemInstruction) {

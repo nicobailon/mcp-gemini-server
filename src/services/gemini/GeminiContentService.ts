@@ -12,6 +12,7 @@ import {
   GenerationConfig,
   SafetySetting,
   Part,
+  ThinkingConfig,
 } from "./GeminiTypes.js";
 import { ZodError } from "zod";
 import {
@@ -28,6 +29,7 @@ interface RequestConfig {
   safetySettings?: SafetySetting[];
   systemInstruction?: Content;
   cachedContent?: string;
+  thinkingConfig?: ThinkingConfig;
 }
 
 /**
@@ -68,6 +70,7 @@ const DEFAULT_RETRY_OPTIONS = {
 export class GeminiContentService {
   private genAI: GoogleGenAI;
   private defaultModelName?: string;
+  private defaultThinkingBudget?: number;
   private securityService: GeminiSecurityService;
   private retryService: RetryService;
 
@@ -80,10 +83,12 @@ export class GeminiContentService {
   constructor(
     genAI: GoogleGenAI,
     defaultModelName?: string,
-    securityService?: GeminiSecurityService
+    securityService?: GeminiSecurityService,
+    defaultThinkingBudget?: number
   ) {
     this.genAI = genAI;
     this.defaultModelName = defaultModelName;
+    this.defaultThinkingBudget = defaultThinkingBudget;
     this.securityService = securityService || new GeminiSecurityService();
     this.retryService = new RetryService(DEFAULT_RETRY_OPTIONS);
   }
@@ -237,6 +242,19 @@ export class GeminiContentService {
     // Add optional parameters if provided
     if (generationConfig) {
       requestConfig.generationConfig = generationConfig;
+      
+      // Extract thinking config if it exists within generation config
+      if (generationConfig.thinkingConfig) {
+        requestConfig.thinkingConfig = generationConfig.thinkingConfig;
+      }
+    }
+    
+    // Apply default thinking budget if available and not specified in request
+    if (this.defaultThinkingBudget !== undefined && !requestConfig.thinkingConfig) {
+      requestConfig.thinkingConfig = {
+        thinkingBudget: this.defaultThinkingBudget
+      };
+      logger.debug(`Applied default thinking budget: ${this.defaultThinkingBudget} tokens`);
     }
     if (safetySettings) {
       requestConfig.safetySettings = safetySettings;

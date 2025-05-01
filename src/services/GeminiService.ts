@@ -85,7 +85,8 @@ export class GeminiService {
     this.contentService = new GeminiContentService(
       this.genAI,
       this.defaultModelName,
-      this.securityService
+      this.securityService,
+      config.defaultThinkingBudget
     );
     this.chatService = new GeminiChatService(this.genAI, this.defaultModelName);
     this.cacheService = new GeminiCacheService(this.genAI);

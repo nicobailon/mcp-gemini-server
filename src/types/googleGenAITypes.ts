@@ -10,6 +10,11 @@ import type {
   FunctionDeclaration,
 } from "@google/genai";
 
+// Define ThinkingConfig interface for controlling model reasoning
+interface ThinkingConfig {
+  thinkingBudget?: number;
+}
+
 // Types for params that match the SDK v0.10.0 structure
 interface ChatSessionParams {
   history?: Content[];
@@ -116,6 +121,11 @@ interface GenerateContentResponseChunk {
   candidates?: Candidate[];
 }
 
+// Extended GenerationConfig that includes thinking configuration
+export interface ExtendedGenerationConfig extends GenerationConfig {
+  thinkingConfig?: ThinkingConfig;
+}
+
 // Re-export all types for use in other files
 export type {
   ChatSessionParams,
@@ -128,5 +138,6 @@ export type {
   LocalFunctionCall as FunctionCall, // Export our local interface as FunctionCall for backward compatibility
   ChatSession,
   GenerateContentResponse,
+  ThinkingConfig, // Export ThinkingConfig
 };
 export { FinishReason, BlockedReason };

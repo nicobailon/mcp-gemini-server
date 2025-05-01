@@ -15,6 +15,8 @@ export interface GeminiServiceConfig {
   defaultImageResolution?: "512x512" | "1024x1024" | "1536x1536";
   maxImageSizeMB: number; // Default: 10MB
   supportedImageFormats: string[]; // Default: ["image/jpeg", "image/png", "image/webp"]
+  // Reasoning control settings
+  defaultThinkingBudget?: number; // Optional default thinking budget in tokens (0-24576)
 }
 
 /**

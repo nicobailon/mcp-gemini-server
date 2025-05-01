@@ -11,6 +11,22 @@ It's suitable for single-turn generation tasks where the full response is needed
 Optional parameters allow control over generation (temperature, max tokens, etc.) and safety settings.
 `;
 
+// Zod Schema for thinking configuration
+export const thinkingConfigSchema = z
+  .object({
+    thinkingBudget: z
+      .number()
+      .int()
+      .min(0)
+      .max(24576)
+      .optional()
+      .describe(
+        "Controls the amount of reasoning the model performs. Range: 0-24576. Lower values provide faster responses, higher values improve complex reasoning."
+      ),
+  })
+  .optional()
+  .describe("Optional configuration for controlling model reasoning.");
+
 // Zod Schema for Parameters
 // Optional parameters based on Google's GenerationConfig and SafetySetting interfaces
 export const generationConfigSchema = z
@@ -50,6 +66,7 @@ export const generationConfigSchema = z
       .array(z.string())
       .optional()
       .describe("Sequences where the API will stop generating further tokens."),
+    thinkingConfig: thinkingConfigSchema,
   })
   .optional()
   .describe("Optional configuration for controlling the generation process.");

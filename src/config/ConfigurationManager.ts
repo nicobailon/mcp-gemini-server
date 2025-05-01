@@ -38,6 +38,8 @@ export class ConfigurationManager {
         defaultImageResolution: "1024x1024",
         maxImageSizeMB: 10,
         supportedImageFormats: ["image/jpeg", "image/png", "image/webp"],
+        // Reasoning control settings
+        defaultThinkingBudget: undefined,
       },
       // Initialize other service configs with defaults:
       // yourService: {
@@ -249,6 +251,21 @@ export class ConfigurationManager {
       } catch (error) {
         logger.warn(
           `[ConfigurationManager] Invalid image formats specified in GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS. Using default.`
+        );
+      }
+    }
+
+    // Load default thinking budget if provided
+    if (process.env.GOOGLE_GEMINI_DEFAULT_THINKING_BUDGET) {
+      const budget = parseInt(process.env.GOOGLE_GEMINI_DEFAULT_THINKING_BUDGET, 10);
+      if (!isNaN(budget) && budget >= 0 && budget <= 24576) {
+        this.config.geminiService.defaultThinkingBudget = budget;
+        logger.info(
+          `[ConfigurationManager] Default thinking budget set to: ${budget} tokens`
+        );
+      } else {
+        logger.warn(
+          `[ConfigurationManager] Invalid thinking budget '${process.env.GOOGLE_GEMINI_DEFAULT_THINKING_BUDGET}' specified. Must be between 0 and 24576. Not using default thinking budget.`
         );
       }
     }

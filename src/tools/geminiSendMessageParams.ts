@@ -31,6 +31,22 @@ const SafetySettingSchema = z
     "Setting for controlling content safety for a specific harm category."
   );
 
+// Schema for thinking configuration
+const ThinkingConfigSchema = z
+  .object({
+    thinkingBudget: z
+      .number()
+      .int()
+      .min(0)
+      .max(24576)
+      .optional()
+      .describe(
+        "Controls the amount of reasoning the model performs. Range: 0-24576. Lower values provide faster responses, higher values improve complex reasoning."
+      ),
+  })
+  .optional()
+  .describe("Optional configuration for controlling model reasoning.");
+
 // Based on src/tools/geminiGenerateContentParams.ts
 const GenerationConfigSchema = z
   .object({
@@ -68,6 +84,7 @@ const GenerationConfigSchema = z
       .array(z.string())
       .optional()
       .describe("Sequences where the API will stop generating further tokens."),
+    thinkingConfig: ThinkingConfigSchema,
   })
   .describe("Optional configuration for controlling the generation process.");
 

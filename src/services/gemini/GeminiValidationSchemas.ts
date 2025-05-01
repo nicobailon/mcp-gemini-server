@@ -4,6 +4,7 @@ import {
   GenerationConfig,
   Content,
   Part,
+  ThinkingConfig,
 } from "./GeminiTypes.js";
 import { FileMetadata } from "../../types/index.js";
 
@@ -67,6 +68,15 @@ export const DEFAULT_SAFETY_SETTINGS = [
 ] as SafetySetting[];
 
 /**
+ * Schema for thinking configuration to control model reasoning
+ */
+export const ThinkingConfigSchema = z
+  .object({
+    thinkingBudget: z.number().int().min(0).max(24576).optional(),
+  })
+  .optional();
+
+/**
  * Generation configuration schema for text generation
  */
 export const GenerationConfigSchema = z
@@ -76,6 +86,7 @@ export const GenerationConfigSchema = z
     topK: z.number().int().min(1).optional(),
     maxOutputTokens: z.number().int().min(1).optional(),
     stopSequences: z.array(z.string()).optional(),
+    thinkingConfig: ThinkingConfigSchema,
   })
   .optional();
 

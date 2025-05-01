@@ -94,16 +94,21 @@ This server provides the following MCP tools. Parameter schemas are defined usin
   * *Optional Params:* 
     * `modelName` (string) - Name of the model to use
     * `generationConfig` (object) - Controls generation parameters like temperature, topP, etc.
+      * `thinkingConfig` (object) - Controls model reasoning process
+        * `thinkingBudget` (number) - Maximum tokens for reasoning (0-24576)
     * `safetySettings` (array) - Controls content filtering by harm category
     * `systemInstruction` (string or object) - System instruction to guide model behavior
     * `cachedContentName` (string) - Identifier for cached content to use with this request
   * *Note:* Can handle both multimodal inputs and cached content for improved efficiency
+  * *Thinking Budget:* Controls the token budget for model reasoning. Lower values provide faster responses, higher values improve complex reasoning.
 * **`gemini_generateContentStream`**
   * *Description:* Generates text content via streaming. (Note: Current implementation uses a workaround and collects all chunks before returning the full text).
   * *Required Params:* `prompt` (string)
   * *Optional Params:* 
     * `modelName` (string) - Name of the model to use
     * `generationConfig` (object) - Controls generation parameters like temperature, topP, etc.
+      * `thinkingConfig` (object) - Controls model reasoning process
+        * `thinkingBudget` (number) - Maximum tokens for reasoning (0-24576)
     * `safetySettings` (array) - Controls content filtering by harm category
     * `systemInstruction` (string or object) - System instruction to guide model behavior
     * `cachedContentName` (string) - Identifier for cached content to use with this request
@@ -128,6 +133,8 @@ This server provides the following MCP tools. Parameter schemas are defined usin
     * `history` (array) - Initial conversation history
     * `tools` (array) - Tool definitions including function declarations
     * `generationConfig` (object) - Controls generation parameters
+      * `thinkingConfig` (object) - Controls model reasoning process
+        * `thinkingBudget` (number) - Maximum tokens for reasoning (0-24576)
     * `safetySettings` (array) - Controls content filtering
     * `systemInstruction` (string or object) - System instruction to guide model behavior
     * `cachedContentName` (string) - Identifier for cached content to use with this session
@@ -136,6 +143,8 @@ This server provides the following MCP tools. Parameter schemas are defined usin
   * *Required Params:* `sessionId` (string), `message` (string)
   * *Optional Params:* 
     * `generationConfig` (object) - Controls generation parameters
+      * `thinkingConfig` (object) - Controls model reasoning process
+        * `thinkingBudget` (number) - Maximum tokens for reasoning (0-24576)
     * `safetySettings` (array) - Controls content filtering
     * `tools` (array) - Tool definitions including function declarations
     * `toolConfig` (object) - Configures tool behavior
@@ -153,6 +162,8 @@ This server provides the following MCP tools. Parameter schemas are defined usin
     * `routingPrompt` (string) - Custom prompt to use for routing decisions. If not provided, a default routing prompt will be used.
     * `defaultModel` (string) - Model to fall back to if routing fails. If not provided and routing fails, an error will be thrown.
     * `generationConfig` (object) - Generation configuration settings to apply to the selected model's response.
+      * `thinkingConfig` (object) - Controls model reasoning process
+        * `thinkingBudget` (number) - Maximum tokens for reasoning (0-24576)
     * `safetySettings` (array) - Safety settings to apply to both routing and final response.
     * `systemInstruction` (string or object) - A system instruction to guide the model's behavior after routing.
 
@@ -300,6 +311,28 @@ Here are examples of how an MCP client (like Claude) might call these tools usin
       "generationConfig": {
         "temperature": 0.7,
         "maxOutputTokens": 500
+      }
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 2b: Content Generation with Thinking Budget Control**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateContent</tool_name>
+  <arguments>
+    {
+      "modelName": "gemini-1.5-pro",
+      "prompt": "Solve this complex math problem: Find all values of x where 2sin(x) = x^2-x+1 in the range [0, 2π].",
+      "generationConfig": {
+        "temperature": 0.2,
+        "maxOutputTokens": 1000,
+        "thinkingConfig": {
+          "thinkingBudget": 8192
+        }
       }
     }
   </arguments>
@@ -575,6 +608,7 @@ Required:
 
 Optional:
 - `GOOGLE_GEMINI_MODEL`: Default model to use (e.g., `gemini-1.5-pro-latest`, `gemini-1.5-flash-latest`)
+- `GOOGLE_GEMINI_DEFAULT_THINKING_BUDGET`: Default thinking budget in tokens (0-24576) for controlling model reasoning
 - `GOOGLE_GEMINI_IMAGE_RESOLUTION`: Default image resolution (512x512, 1024x1024, or 1536x1536)
 - `GOOGLE_GEMINI_MAX_IMAGE_SIZE_MB`: Maximum allowed image size in MB
 - `GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS`: JSON array of supported image formats (e.g., `["image/jpeg","image/png","image/webp"]`)
@@ -585,6 +619,7 @@ You can create a `.env` file in the root directory with these variables:
 ```env
 GOOGLE_GEMINI_API_KEY=your_api_key_here
 GOOGLE_GEMINI_MODEL=gemini-1.5-pro-latest
+GOOGLE_GEMINI_DEFAULT_THINKING_BUDGET=4096
 GOOGLE_GEMINI_IMAGE_RESOLUTION=1024x1024
 GOOGLE_GEMINI_MAX_IMAGE_SIZE_MB=10
 GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS=["image/jpeg","image/png","image/webp"]

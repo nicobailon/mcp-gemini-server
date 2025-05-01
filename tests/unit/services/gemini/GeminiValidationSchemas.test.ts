@@ -7,7 +7,9 @@ import {
   validateRouteMessageParams,
   ImageGenerationParamsSchema,
   GenerateContentParamsSchema,
-  RouteMessageParamsSchema
+  RouteMessageParamsSchema,
+  ThinkingConfigSchema,
+  GenerationConfigSchema
 } from "../../../../src/services/gemini/GeminiValidationSchemas.js";
 
 describe("GeminiValidationSchemas", () => {
@@ -109,6 +111,105 @@ describe("GeminiValidationSchemas", () => {
     });
   });
   
+  describe("Thinking Budget Validation", () => {
+    it("should validate valid thinking budget", () => {
+      const validThinkingConfig = {
+        thinkingBudget: 5000
+      };
+      
+      // Should not throw
+      const result = ThinkingConfigSchema.parse(validThinkingConfig);
+      assert.strictEqual(result.thinkingBudget, 5000);
+    });
+    
+    it("should validate empty thinking budget object", () => {
+      const emptyThinkingConfig = {};
+      
+      // Should not throw
+      const result = ThinkingConfigSchema.parse(emptyThinkingConfig);
+      assert.strictEqual(result.thinkingBudget, undefined);
+    });
+    
+    it("should validate thinking budget at boundaries", () => {
+      // Min value (0)
+      assert.doesNotThrow(() => 
+        ThinkingConfigSchema.parse({ thinkingBudget: 0 })
+      );
+      
+      // Max value (24576)
+      assert.doesNotThrow(() => 
+        ThinkingConfigSchema.parse({ thinkingBudget: 24576 })
+      );
+    });
+    
+    it("should throw on invalid thinking budget values", () => {
+      // Below min value
+      assert.throws(
+        () => ThinkingConfigSchema.parse({ thinkingBudget: -1 }),
+        (err: unknown) => {
+          assert(err instanceof ZodError);
+          const zodError = err as ZodError;
+          assert.strictEqual(zodError.errors[0].path[0], "thinkingBudget");
+          return true;
+        }
+      );
+      
+      // Above max value
+      assert.throws(
+        () => ThinkingConfigSchema.parse({ thinkingBudget: 30000 }),
+        (err: unknown) => {
+          assert(err instanceof ZodError);
+          const zodError = err as ZodError;
+          assert.strictEqual(zodError.errors[0].path[0], "thinkingBudget");
+          return true;
+        }
+      );
+      
+      // Non-integer value
+      assert.throws(
+        () => ThinkingConfigSchema.parse({ thinkingBudget: 100.5 }),
+        (err: unknown) => {
+          assert(err instanceof ZodError);
+          const zodError = err as ZodError;
+          assert.strictEqual(zodError.errors[0].path[0], "thinkingBudget");
+          return true;
+        }
+      );
+    });
+    
+    it("should validate thinking config within generation config", () => {
+      const validGenerationConfig = {
+        temperature: 0.7,
+        thinkingConfig: {
+          thinkingBudget: 5000
+        }
+      };
+      
+      // Should not throw
+      const result = GenerationConfigSchema.parse(validGenerationConfig);
+      assert.strictEqual(result.temperature, 0.7);
+      assert.strictEqual(result.thinkingConfig?.thinkingBudget, 5000);
+    });
+    
+    it("should throw on invalid thinking budget in generation config", () => {
+      assert.throws(
+        () => GenerationConfigSchema.parse({
+          temperature: 0.7,
+          thinkingConfig: {
+            thinkingBudget: 30000 // Above max
+          }
+        }),
+        (err: unknown) => {
+          assert(err instanceof ZodError);
+          const zodError = err as ZodError;
+          assert.strictEqual(zodError.errors[0].path[0], "thinkingConfig");
+          assert.strictEqual(zodError.errors[0].path[1], "thinkingBudget");
+          return true;
+        }
+      );
+    });
+  });
+
   describe("Content Generation Validation", () => {
     it("should validate valid content generation parameters", () => {
       const validParams = {
@@ -117,7 +218,10 @@ describe("GeminiValidationSchemas", () => {
         generationConfig: {
           temperature: 0.7,
           topP: 0.9,
-          maxOutputTokens: 1000
+          maxOutputTokens: 1000,
+          thinkingConfig: {
+            thinkingBudget: 4096
+          }
         },
         safetySettings: [
           {

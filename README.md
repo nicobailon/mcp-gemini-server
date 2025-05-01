@@ -14,7 +14,7 @@ This server aims to simplify integration with Gemini models by providing a consi
 * **Stateful Chat:** Manages conversational context across multiple turns (`gemini_startChat`, `gemini_sendMessage`, `gemini_sendFunctionResult`) with support for system instructions, tools, and cached content.
 * **File Handling:** Upload, list, retrieve, and delete files using the Gemini API with enhanced path security.
 * **Caching:** Create, list, retrieve, update, and delete cached content to optimize prompts with support for tools and tool configurations.
-* **Image Generation:** Generate images from text prompts using Gemini 2.0 Flash Experimental (`gemini_generateImage`) with control over resolution, number of images, and negative prompts. Also supports Imagen 3 models for high-quality dedicated image generation. Note that Gemini 2.5 models (Flash and Pro) do not currently support image generation.
+* **Image Generation:** Generate images from text prompts using Gemini 2.0 Flash Experimental (`gemini_generateImage`) with control over resolution, number of images, and negative prompts. Also supports the latest Imagen 3.1 model for high-quality dedicated image generation with advanced style controls. Note that Gemini 2.5 models (Flash and Pro) do not currently support image generation.
 * **Object Detection:** Detect objects in images and return bounding box coordinates (`gemini_objectDetection`) with custom prompt additions and output format options.
 * **Visual Content Understanding:** Extract information from charts, diagrams, and other visual content (`gemini_contentUnderstanding`) with structured output options.
 * **Audio Transcription:** Transcribe audio files with optional timestamps and multilingual support (`gemini_audioTranscription`) for both small and large files.
@@ -196,11 +196,14 @@ This server provides the following MCP tools. Parameter schemas are defined usin
   * *Description:* Generates images from text prompts using available image generation models.
   * *Required Params:* `prompt` (string - descriptive text prompt for image generation)
   * *Optional Params:* 
-    * `modelName` (string - defaults to "gemini-2.0-flash-exp-image-generation" for Gemini models, or use "imagen-3.0-generate-002" for higher quality dedicated image generation)
+    * `modelName` (string - defaults to "imagen-3.1-generate-003" for high-quality dedicated image generation or use "gemini-2.0-flash-exp-image-generation" for Gemini models)
     * `resolution` (string enum: "512x512", "1024x1024", "1536x1536")
-    * `numberOfImages` (number - 1-4, default: 1)
+    * `numberOfImages` (number - 1-8, default: 1)
     * `safetySettings` (array) - Controls content filtering for generated images
     * `negativePrompt` (string - features to avoid in the generated image)
+    * `stylePreset` (string enum: "photographic", "digital-art", "cinematic", "anime", "3d-render", "oil-painting", "watercolor", "pixel-art", "sketch", "comic-book", "neon", "fantasy")
+    * `seed` (number - integer value for reproducible generation)
+    * `styleStrength` (number - strength of style preset, 0.0-1.0)
   * *Response:* Returns an array of base64-encoded images with metadata including dimensions and MIME type.
   * *Notes:* Image generation uses significant resources, especially at higher resolutions. Consider using smaller resolutions for faster responses and less resource usage.
 
@@ -408,7 +411,7 @@ Here are examples of how an MCP client (like Claude) might call these tools usin
 </use_mcp_tool>
 ```
 
-**Example 7b: Generating a High-Quality Image with Imagen 3**
+**Example 7b: Generating a High-Quality Image with Imagen 3.1**
 
 ```xml
 <use_mcp_tool>
@@ -417,10 +420,30 @@ Here are examples of how an MCP client (like Claude) might call these tools usin
   <arguments>
     {
       "prompt": "A futuristic cityscape with flying cars and neon lights",
-      "modelName": "imagen-3.0-generate-002",
+      "modelName": "imagen-3.1-generate-003",
       "resolution": "1024x1024",
       "numberOfImages": 4,
       "negativePrompt": "dystopian, ruins, dark, gloomy"
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 7c: Using Advanced Style Options**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateImage</tool_name>
+  <arguments>
+    {
+      "prompt": "A futuristic cityscape with flying cars and neon lights",
+      "modelName": "imagen-3.1-generate-003",
+      "resolution": "1024x1024",
+      "numberOfImages": 2,
+      "stylePreset": "anime",
+      "styleStrength": 0.8,
+      "seed": 12345
     }
   </arguments>
 </use_mcp_tool>

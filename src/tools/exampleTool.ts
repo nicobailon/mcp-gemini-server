@@ -31,10 +31,12 @@ export const exampleTool = (
 ): void => {
   // Instantiate the service this tool depends on
   // Create a new service instance, potentially using config if it's the right type
-  const config = typeof _serviceOrConfig === 'object' && 
-                 !(_serviceOrConfig instanceof GeminiService) ? 
-                 _serviceOrConfig : undefined;
-  
+  const config =
+    typeof _serviceOrConfig === "object" &&
+    !(_serviceOrConfig instanceof GeminiService)
+      ? _serviceOrConfig
+      : undefined;
+
   const serviceInstance = new ExampleService(config);
 
   // Define the async function that handles the tool execution

@@ -2,7 +2,11 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { GeminiService, FileId } from "../services/index.js";
-import { GeminiApiError, GeminiResourceNotFoundError, GeminiInvalidParameterError } from "../utils/errors.js";
+import {
+  GeminiApiError,
+  GeminiResourceNotFoundError,
+  GeminiInvalidParameterError,
+} from "../utils/errors.js";
 import { logger } from "../utils/index.js";
 import {
   TOOL_NAME_GET_FILE,
@@ -39,7 +43,7 @@ export const geminiGetFileTool = (
           `File ID must be in the format "files/{file_id}", received: ${params.fileName}`
         );
       }
-      
+
       // Call the GeminiService method with proper type casting
       const fileMetadata: FileMetadata = await geminiService.getFile(
         params.fileName as FileId

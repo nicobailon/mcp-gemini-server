@@ -2,7 +2,11 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"; // Reverted
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { GeminiService } from "../services/index.js";
-import { GeminiApiError, ValidationError, mapAnyErrorToMcpError } from "../utils/errors.js";
+import {
+  GeminiApiError,
+  ValidationError,
+  mapAnyErrorToMcpError,
+} from "../utils/errors.js";
 import { logger, validateAndResolvePath } from "../utils/index.js";
 import {
   TOOL_NAME_UPLOAD_FILE,
@@ -68,7 +72,7 @@ export const geminiUploadFileTool = (
       };
     } catch (error: unknown) {
       logger.error(`Error processing ${TOOL_NAME_UPLOAD_FILE}:`, error);
-      
+
       // Use the centralized error mapping utility to ensure consistent error mapping
       throw mapAnyErrorToMcpError(error, TOOL_NAME_UPLOAD_FILE);
     }

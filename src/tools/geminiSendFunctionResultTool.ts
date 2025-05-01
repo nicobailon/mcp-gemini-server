@@ -1,8 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import {
-  McpError,
-  CallToolResult,
-} from "@modelcontextprotocol/sdk/types.js";
+import { McpError, CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import {
   GEMINI_SEND_FUNCTION_RESULT_TOOL_NAME,
   GEMINI_SEND_FUNCTION_RESULT_TOOL_DESCRIPTION,
@@ -53,8 +50,10 @@ export const geminiSendFunctionResultTool = (
       const response: GenerateContentResponse =
         await serviceInstance.sendFunctionResultToSession({
           sessionId,
-          functionResponse: functionResponses ? JSON.stringify(functionResponses) : "{}",
-          functionCall: undefined // In future, may support passing the original function call for reference
+          functionResponse: functionResponses
+            ? JSON.stringify(functionResponses)
+            : "{}",
+          functionCall: undefined, // In future, may support passing the original function call for reference
         });
 
       // --- Process the SDK Response into MCP Format (Similar to sendMessageTool) ---
@@ -156,7 +155,7 @@ export const geminiSendFunctionResultTool = (
         `Error processing ${GEMINI_SEND_FUNCTION_RESULT_TOOL_NAME} for session ${args.sessionId}:`,
         error
       );
-      
+
       // Enhance error details with session ID for better debugging
       // Make a copy of the error to add session context before mapping
       // We can't modify the error.details directly since it's read-only,
@@ -166,14 +165,17 @@ export const geminiSendFunctionResultTool = (
         // Create a new error object with the session context
         errorWithContext = new GeminiApiError(
           error.message,
-          typeof error.details === 'object' 
+          typeof error.details === "object"
             ? { ...(error.details as object), sessionId: args.sessionId }
             : { originalDetails: error.details, sessionId: args.sessionId }
         );
       }
-      
+
       // Use the centralized error mapping utility to ensure consistent error handling
-      throw mapAnyErrorToMcpError(errorWithContext, GEMINI_SEND_FUNCTION_RESULT_TOOL_NAME);
+      throw mapAnyErrorToMcpError(
+        errorWithContext,
+        GEMINI_SEND_FUNCTION_RESULT_TOOL_NAME
+      );
     }
   };
 

@@ -65,7 +65,7 @@ export const geminiGenerateContentStreamTool = (
         generationConfig: generationConfig as GenerationConfig | undefined,
         safetySettings: safetySettings as SafetySetting[] | undefined,
         systemInstruction, // The method will handle string conversion internally
-        cachedContentName
+        cachedContentName,
       });
 
       // Iterate over the async generator from the service and collect chunks
@@ -89,7 +89,7 @@ export const geminiGenerateContentStreamTool = (
       };
     } catch (error: unknown) {
       logger.error(`Error processing ${GEMINI_STREAM_TOOL_NAME}:`, error);
-      
+
       // Use the centralized error mapping utility to ensure consistent error handling
       throw mapAnyErrorToMcpError(error, GEMINI_STREAM_TOOL_NAME);
     }

@@ -57,7 +57,7 @@ export const geminiGenerateContentTool = (
         generationConfig: generationConfig as GenerationConfig | undefined,
         safetySettings: safetySettings as SafetySetting[] | undefined,
         systemInstruction, // The method will handle string conversion internally
-        cachedContentName
+        cachedContentName,
       });
 
       // Format the successful output for MCP

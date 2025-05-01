@@ -61,21 +61,25 @@ export const geminiFunctionCallTool = (
         prompt,
         modelName,
       };
-      
+
       // Only add valid properties to avoid TypeScript errors
-      if (functionDeclarations) contentParams.functionDeclarations = functionDeclarations;
+      if (functionDeclarations)
+        contentParams.functionDeclarations = functionDeclarations;
       if (generationConfig) contentParams.generationConfig = generationConfig;
       if (safetySettings) contentParams.safetySettings = safetySettings;
       if (toolConfig) contentParams.toolConfig = toolConfig;
-      
+
       const result = await serviceInstance.generateContent(contentParams);
 
       // Check if result is a string or an object with a function call
-      if (typeof result === 'object' && result !== null) {
+      if (typeof result === "object" && result !== null) {
         // It's an object response, could be a function call
         const resultObj = result as any; // Cast to any to access properties
-        
-        if (resultObj.functionCall && typeof resultObj.functionCall === 'object') {
+
+        if (
+          resultObj.functionCall &&
+          typeof resultObj.functionCall === "object"
+        ) {
           // It's a function call request
           logger.debug(
             `Function call requested by model ${modelName}: ${resultObj.functionCall.name}`
@@ -90,7 +94,7 @@ export const geminiFunctionCallTool = (
               },
             ],
           };
-        } else if (resultObj.text && typeof resultObj.text === 'string') {
+        } else if (resultObj.text && typeof resultObj.text === "string") {
           // It's a regular text response
           logger.debug(
             `Text response received from function call request for model ${modelName}.`
@@ -105,9 +109,9 @@ export const geminiFunctionCallTool = (
           };
         }
       }
-      
+
       // If we get here, it's likely a plain string response
-      if (typeof result === 'string') {
+      if (typeof result === "string") {
         return {
           content: [
             {
@@ -131,7 +135,7 @@ export const geminiFunctionCallTool = (
         `Error processing ${GEMINI_FUNCTION_CALL_TOOL_NAME}:`,
         error
       );
-      
+
       // Use the centralized error mapping utility to ensure consistent error handling
       throw mapAnyErrorToMcpError(error, GEMINI_FUNCTION_CALL_TOOL_NAME);
     }

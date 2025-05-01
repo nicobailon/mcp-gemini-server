@@ -27,6 +27,9 @@ export const REQUIRED_ENV_VARS = {
   // Image tests need the API key and optionally image configs
   IMAGE_TESTS: ['GOOGLE_GEMINI_API_KEY'],
   
+  // Router tests need the API key and at least two models to test routing between
+  ROUTER_TESTS: ['GOOGLE_GEMINI_API_KEY', 'GOOGLE_GEMINI_MODEL'],
+  
   // All test types in a single array for convenience
   ALL: ['GOOGLE_GEMINI_API_KEY', 'GOOGLE_GEMINI_MODEL', 'GEMINI_SAFE_FILE_BASE_DIR', 
         'GOOGLE_GEMINI_IMAGE_RESOLUTION', 'GOOGLE_GEMINI_MAX_IMAGE_SIZE_MB',

@@ -1,8 +1,8 @@
 import { GoogleGenAI, CachedContent } from "@google/genai";
-import { 
-  GeminiApiError, 
-  GeminiResourceNotFoundError, 
-  GeminiInvalidParameterError 
+import {
+  GeminiApiError,
+  GeminiResourceNotFoundError,
+  GeminiInvalidParameterError,
 } from "../../utils/errors.js";
 import { logger } from "../../utils/logger.js";
 import { CachedContentMetadata } from "../../types/index.js";
@@ -197,11 +197,14 @@ export class GeminiCacheService {
     } catch (error: unknown) {
       // Check for specific error patterns in the error message
       if (error instanceof Error) {
-        if (error.message.includes("not found") || error.message.includes("404")) {
+        if (
+          error.message.includes("not found") ||
+          error.message.includes("404")
+        ) {
           throw new GeminiResourceNotFoundError("Cache", cacheId, error);
         }
       }
-      
+
       logger.error(
         `Error getting cache: ${error instanceof Error ? error.message : String(error)}`,
         error
@@ -244,11 +247,14 @@ export class GeminiCacheService {
     } catch (error: unknown) {
       // Check for specific error patterns in the error message
       if (error instanceof Error) {
-        if (error.message.includes("not found") || error.message.includes("404")) {
+        if (
+          error.message.includes("not found") ||
+          error.message.includes("404")
+        ) {
           throw new GeminiResourceNotFoundError("Cache", cacheId, error);
         }
       }
-      
+
       logger.error(
         `Error updating cache: ${error instanceof Error ? error.message : String(error)}`,
         error
@@ -284,11 +290,14 @@ export class GeminiCacheService {
     } catch (error: unknown) {
       // Check for specific error patterns in the error message
       if (error instanceof Error) {
-        if (error.message.includes("not found") || error.message.includes("404")) {
+        if (
+          error.message.includes("not found") ||
+          error.message.includes("404")
+        ) {
           throw new GeminiResourceNotFoundError("Cache", cacheId, error);
         }
       }
-      
+
       logger.error(
         `Error deleting cache: ${error instanceof Error ? error.message : String(error)}`,
         error

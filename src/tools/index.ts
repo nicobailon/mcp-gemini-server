@@ -11,6 +11,7 @@ import { geminiFunctionCallTool } from "./geminiFunctionCallTool.js";
 import { geminiStartChatTool } from "./geminiStartChatTool.js";
 import { geminiSendMessageTool } from "./geminiSendMessageTool.js";
 import { geminiSendFunctionResultTool } from "./geminiSendFunctionResultTool.js";
+import { geminiRouteMessageTool } from "./geminiRouteMessageTool.js";
 // --- File Handling Tool Imports ---
 import { geminiUploadFileTool } from "./geminiUploadFileTool.js";
 import { geminiListFilesTool } from "./geminiListFilesTool.js";
@@ -66,35 +67,40 @@ export function registerTools(server: McpServer): void {
     // Register example tool with a special case for its interface
     // Use type assertion to handle the interface mismatch
     (exampleTool as (server: McpServer) => void)(server);
-    
+
     // Register content generation tools
     registerTool(geminiGenerateContentTool, server, geminiServiceInstance);
-    registerTool(geminiGenerateContentStreamTool, server, geminiServiceInstance);
+    registerTool(
+      geminiGenerateContentStreamTool,
+      server,
+      geminiServiceInstance
+    );
     registerTool(geminiFunctionCallTool, server, geminiServiceInstance);
-    
+
     // Register chat tools
     registerTool(geminiStartChatTool, server, geminiServiceInstance);
     registerTool(geminiSendMessageTool, server, geminiServiceInstance);
     registerTool(geminiSendFunctionResultTool, server, geminiServiceInstance);
-    
+    registerTool(geminiRouteMessageTool, server, geminiServiceInstance);
+
     // Register File Handling tools
     registerTool(geminiUploadFileTool, server, geminiServiceInstance);
     registerTool(geminiListFilesTool, server, geminiServiceInstance);
     registerTool(geminiGetFileTool, server, geminiServiceInstance);
     registerTool(geminiDeleteFileTool, server, geminiServiceInstance);
-    
+
     // Register Caching tools
     registerTool(geminiCreateCacheTool, server, geminiServiceInstance);
     registerTool(geminiListCachesTool, server, geminiServiceInstance);
     registerTool(geminiGetCacheTool, server, geminiServiceInstance);
     registerTool(geminiUpdateCacheTool, server, geminiServiceInstance);
     registerTool(geminiDeleteCacheTool, server, geminiServiceInstance);
-    
+
     // Register image feature tools
     registerTool(geminiGenerateImageTool, server);
     registerTool(geminiObjectDetectionTool, server);
     registerTool(geminiContentUnderstandingTool, server);
-    
+
     // Register audio transcription tool
     registerTool(geminiAudioTranscriptionTool, server);
   } catch (error) {

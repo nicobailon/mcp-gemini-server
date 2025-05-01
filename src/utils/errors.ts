@@ -139,7 +139,7 @@ export { ToolError };
 /**
  * Maps internal application errors to standardized MCP errors.
  * This function ensures consistent error mapping across all tool handlers.
- * 
+ *
  * @param error - The error to be mapped to an MCP error
  * @param toolName - The name of the tool where the error occurred (for better error messages)
  * @returns McpError - A properly mapped MCP error
@@ -157,14 +157,14 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
   // Extract error message and details if error is an Error instance
   if (error instanceof Error) {
     errorMessage = error.message;
-    
+
     // Extract details from BaseError instances
     if (error instanceof BaseError && error.details) {
       errorDetails = error.details;
     }
-  } else if (typeof error === 'string') {
+  } else if (typeof error === "string") {
     errorMessage = error;
-  } else if (error !== null && typeof error === 'object') {
+  } else if (error !== null && typeof error === "object") {
     // Try to extract information from unknown object errors
     try {
       errorMessage = JSON.stringify(error);
@@ -208,7 +208,7 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
       errorDetails
     );
   }
-  
+
   if (error instanceof GeminiInvalidParameterError) {
     return new McpError(
       ErrorCode.InvalidParams,
@@ -216,7 +216,7 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
       errorDetails
     );
   }
-  
+
   if (error instanceof GeminiAuthenticationError) {
     return new McpError(
       ErrorCode.InvalidRequest, // Changed from PermissionDenied which is not in MCP SDK
@@ -224,7 +224,7 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
       errorDetails
     );
   }
-  
+
   if (error instanceof GeminiQuotaExceededError) {
     return new McpError(
       ErrorCode.InternalError, // Changed from ResourceExhausted which is not in MCP SDK
@@ -232,7 +232,7 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
       errorDetails
     );
   }
-  
+
   if (error instanceof GeminiSafetyError) {
     return new McpError(
       ErrorCode.InvalidRequest,
@@ -240,12 +240,12 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
       errorDetails
     );
   }
-  
+
   // Generic GeminiApiError mapping with enhanced pattern detection
   if (error instanceof GeminiApiError) {
     // Convert message to lowercase for case-insensitive pattern matching
     const lowerCaseMessage = errorMessage.toLowerCase();
-    
+
     // Handle rate limiting and quota errors
     if (
       lowerCaseMessage.includes("quota") ||
@@ -261,7 +261,7 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
         errorDetails
       );
     }
-    
+
     // Handle permission and authorization errors
     if (
       lowerCaseMessage.includes("permission") ||
@@ -277,7 +277,7 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
         errorDetails
       );
     }
-    
+
     // Handle not found errors
     if (
       lowerCaseMessage.includes("not found") ||
@@ -292,7 +292,7 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
         errorDetails
       );
     }
-    
+
     // Handle invalid argument/parameter errors
     if (
       lowerCaseMessage.includes("invalid argument") ||
@@ -309,7 +309,7 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
         errorDetails
       );
     }
-    
+
     // Handle safety-related errors
     if (
       lowerCaseMessage.includes("safety") ||
@@ -325,7 +325,7 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
         errorDetails
       );
     }
-    
+
     // Handle File API and other unsupported feature errors
     if (
       lowerCaseMessage.includes("file api is not supported") ||
@@ -339,7 +339,7 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
         errorDetails
       );
     }
-    
+
     // Default case for GeminiApiError - map to internal error
     return new McpError(
       ErrorCode.InternalError,
@@ -347,7 +347,7 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
       errorDetails
     );
   }
-  
+
   // Generic ServiceError mapping
   if (error instanceof ServiceError) {
     return new McpError(
@@ -367,23 +367,26 @@ export function mapToMcpError(error: unknown, toolName: string): McpError {
 /**
  * Combined error mapping function that handles both standard errors and ToolError instances.
  * This function accommodates the different error types used across different tool implementations.
- * 
+ *
  * @param error - Any error type, including McpError, BaseError, ToolError, or standard Error
  * @param toolName - The name of the tool where the error occurred
  * @returns McpError - A consistently mapped MCP error
  */
-export function mapAnyErrorToMcpError(error: unknown, toolName: string): McpError {
+export function mapAnyErrorToMcpError(
+  error: unknown,
+  toolName: string
+): McpError {
   // Check if error is a ToolError from image feature tools
   if (
-    error !== null && 
-    typeof error === 'object' && 
-    'code' in error && 
-    typeof (error as any).code === 'string'
+    error !== null &&
+    typeof error === "object" &&
+    "code" in error &&
+    typeof (error as any).code === "string"
   ) {
     // For objects that match the ToolError interface
     return mapToolErrorToMcpError(error, toolName);
   }
-  
+
   // For standard errors and BaseError types
   return mapToMcpError(error, toolName);
 }
@@ -394,74 +397,77 @@ export function mapAnyErrorToMcpError(error: unknown, toolName: string): McpErro
 /**
  * Maps ToolError instances used in some image feature tools to McpError.
  * This is a compatibility layer for tools that use a different error structure.
- * 
+ *
  * @param toolError - The ToolError instance or object with code/details properties
  * @param toolName - The name of the tool for better error messages
  * @returns McpError - A consistent MCP error
  */
-export function mapToolErrorToMcpError(toolError: any, toolName: string): McpError {
+export function mapToolErrorToMcpError(
+  toolError: any,
+  toolName: string
+): McpError {
   // Default message if more specific extraction fails
   let errorMessage = `Error in ${toolName}`;
   let errorDetails: unknown = undefined;
-  
+
   // Extract error message and details if possible
-  if (toolError && typeof toolError === 'object') {
+  if (toolError && typeof toolError === "object") {
     // Extract message
-    if ('message' in toolError && typeof toolError.message === 'string') {
+    if ("message" in toolError && typeof toolError.message === "string") {
       errorMessage = toolError.message;
     }
-    
+
     // Extract details
-    if ('details' in toolError) {
+    if ("details" in toolError) {
       errorDetails = toolError.details;
     }
-    
+
     // Extract code for mapping
-    if ('code' in toolError && typeof toolError.code === 'string') {
+    if ("code" in toolError && typeof toolError.code === "string") {
       const code = toolError.code.toUpperCase();
-      
+
       // Map common ToolError codes to appropriate ErrorCode values
-      if (code.includes('SAFETY') || code.includes('BLOCKED')) {
+      if (code.includes("SAFETY") || code.includes("BLOCKED")) {
         return new McpError(
           ErrorCode.InvalidRequest,
           `Content blocked by safety settings: ${errorMessage}`,
           errorDetails
         );
       }
-      
-      if (code.includes('QUOTA') || code.includes('RATE_LIMIT')) {
+
+      if (code.includes("QUOTA") || code.includes("RATE_LIMIT")) {
         return new McpError(
           ErrorCode.InternalError, // Changed from ResourceExhausted which is not in MCP SDK
           `API quota or rate limit exceeded: ${errorMessage}`,
           errorDetails
         );
       }
-      
-      if (code.includes('PERMISSION') || code.includes('AUTH')) {
+
+      if (code.includes("PERMISSION") || code.includes("AUTH")) {
         return new McpError(
           ErrorCode.InvalidRequest, // Changed from PermissionDenied which is not in MCP SDK
           `Permission denied: ${errorMessage}`,
           errorDetails
         );
       }
-      
-      if (code.includes('NOT_FOUND')) {
+
+      if (code.includes("NOT_FOUND")) {
         return new McpError(
           ErrorCode.InvalidRequest,
           `Resource not found: ${errorMessage}`,
           errorDetails
         );
       }
-      
-      if (code.includes('INVALID') || code.includes('ARGUMENT')) {
+
+      if (code.includes("INVALID") || code.includes("ARGUMENT")) {
         return new McpError(
           ErrorCode.InvalidParams,
           `Invalid parameters: ${errorMessage}`,
           errorDetails
         );
       }
-      
-      if (code.includes('UNSUPPORTED') || code.includes('NOT_SUPPORTED')) {
+
+      if (code.includes("UNSUPPORTED") || code.includes("NOT_SUPPORTED")) {
         return new McpError(
           ErrorCode.InvalidRequest, // Changed from FailedPrecondition which is not in MCP SDK
           `Operation not supported: ${errorMessage}`,
@@ -470,7 +476,7 @@ export function mapToolErrorToMcpError(toolError: any, toolName: string): McpErr
       }
     }
   }
-  
+
   // Default to internal error for any other case
   return new McpError(
     ErrorCode.InternalError,

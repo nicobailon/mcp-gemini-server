@@ -2,11 +2,11 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { GeminiService, CacheId } from "../services/index.js";
-import { 
-  GeminiApiError, 
-  GeminiResourceNotFoundError, 
+import {
+  GeminiApiError,
+  GeminiResourceNotFoundError,
   GeminiInvalidParameterError,
-  mapToMcpError 
+  mapToMcpError,
 } from "../utils/errors.js";
 import { logger } from "../utils/index.js";
 import {
@@ -49,7 +49,7 @@ export const geminiUpdateCacheTool = (
           `Cache ID must be in the format "cachedContents/{id}", received: ${params.cacheName}`
         );
       }
-      
+
       // Call the GeminiService method with proper type casting
       const cacheMetadata: CachedContentMetadata =
         await geminiService.updateCache(params.cacheName as CacheId, updates);
@@ -72,12 +72,12 @@ export const geminiUpdateCacheTool = (
         `Error processing ${TOOL_NAME_UPDATE_CACHE} for cache ${params.cacheName}:`,
         error
       );
-      
+
       // Handle known error types
       if (error instanceof GeminiResourceNotFoundError) {
         // Create a new error instance with the cacheName in the details
         const errorWithContext = new GeminiResourceNotFoundError(
-          "Cache", 
+          "Cache",
           params.cacheName,
           { cacheName: params.cacheName, originalError: error.details }
         );
@@ -94,10 +94,10 @@ export const geminiUpdateCacheTool = (
         const geminiErrorWithContext = error;
         // Add cache name to the error details for better context without mutating the object
         const enhancedDetails = {
-          ...(geminiErrorWithContext.details as object || {}),
-          cacheName: params.cacheName
+          ...((geminiErrorWithContext.details as object) || {}),
+          cacheName: params.cacheName,
         };
-        
+
         // Create a new error instance with the enhanced details
         const errorWithContext = new GeminiApiError(
           error.message,
@@ -105,7 +105,7 @@ export const geminiUpdateCacheTool = (
         );
         throw mapToMcpError(errorWithContext, TOOL_NAME_UPDATE_CACHE);
       }
-      
+
       // For other unknown errors, use the mapping utility directly
       throw mapToMcpError(error, TOOL_NAME_UPDATE_CACHE);
     }

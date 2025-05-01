@@ -7,7 +7,7 @@ import type {
   Tool,
   ToolConfig,
   FunctionCall,
-  FunctionDeclaration
+  FunctionDeclaration,
 } from "@google/genai";
 
 // Types for params that match the SDK v0.10.0 structure
@@ -127,6 +127,6 @@ export type {
   Candidate,
   LocalFunctionCall as FunctionCall, // Export our local interface as FunctionCall for backward compatibility
   ChatSession,
-  GenerateContentResponse
+  GenerateContentResponse,
 };
 export { FinishReason, BlockedReason };

@@ -2,10 +2,10 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { GeminiService, CacheId } from "../services/index.js";
-import { 
-  GeminiApiError, 
-  GeminiResourceNotFoundError, 
-  GeminiInvalidParameterError 
+import {
+  GeminiApiError,
+  GeminiResourceNotFoundError,
+  GeminiInvalidParameterError,
 } from "../utils/errors.js";
 import { logger } from "../utils/index.js";
 import {
@@ -42,7 +42,7 @@ export const geminiDeleteCacheTool = (
           `Cache ID must be in the format "cachedContents/{id}", received: ${params.cacheName}`
         );
       }
-      
+
       // Call the GeminiService method with proper type casting
       const result: { success: boolean } = await geminiService.deleteCache(
         params.cacheName as CacheId

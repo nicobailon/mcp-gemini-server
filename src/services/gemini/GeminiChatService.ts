@@ -1,6 +1,9 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { v4 as uuidv4 } from "uuid";
-import { GeminiApiError } from "../../utils/errors.js";
+import {
+  GeminiApiError,
+  ValidationError as GeminiValidationError,
+} from "../../utils/errors.js";
 import { logger } from "../../utils/logger.js";
 import {
   Content,
@@ -11,6 +14,9 @@ import {
   FunctionCall,
   ChatSession,
 } from "./GeminiTypes.js";
+import { RouteMessageParams } from "../GeminiService.js";
+import { validateRouteMessageParams } from "./GeminiValidationSchemas.js";
+import { ZodError } from "zod";
 
 /**
  * Interface for the parameters of the startChatSession method
@@ -367,6 +373,169 @@ export class GeminiChatService {
       );
       throw new GeminiApiError(
         `Failed to send function result to session ${sessionId}: ${(error as Error).message}`,
+        error
+      );
+    }
+  }
+
+  /**
+   * Routes a message to the most appropriate model based on a routing prompt.
+   * Uses a two-step process:
+   * 1. First asks a routing model to determine which model to use
+   * 2. Then sends the original message to the chosen model
+   *
+   * @param params Parameters for routing a message
+   * @returns Promise resolving to the chat response from the chosen model
+   * @throws {GeminiApiError} If routing fails or all models are unavailable
+   */
+  public async routeMessage(
+    params: RouteMessageParams
+  ): Promise<{ response: GenerateContentResponse; chosenModel: string }> {
+    let validatedParams;
+
+    try {
+      // Validate all parameters using Zod schema
+      validatedParams = validateRouteMessageParams(params);
+    } catch (validationError) {
+      if (validationError instanceof ZodError) {
+        const fieldErrors = validationError.errors
+          .map((err) => `${err.path.join(".")}: ${err.message}`)
+          .join(", ");
+        throw new GeminiValidationError(
+          `Invalid parameters for message routing: ${fieldErrors}`,
+          validationError.errors[0]?.path.join(".")
+        );
+      }
+      throw validationError;
+    }
+
+    const {
+      message,
+      models,
+      routingPrompt,
+      defaultModel,
+      generationConfig,
+      safetySettings,
+      systemInstruction,
+    } = validatedParams;
+
+    try {
+      // Use either a specific routing prompt or a default one
+      const effectiveRoutingPrompt =
+        routingPrompt ||
+        `You are a sophisticated model router. Your task is to analyze the following message and determine which AI model would be best suited to handle it. Choose exactly one model from this list: ${models.join(", ")}. Respond with ONLY the name of the chosen model, nothing else.`;
+
+      // Step 1: Determine the appropriate model using routing prompt
+      // For routing decisions, we'll use a low temperature to ensure deterministic routing
+      const routingConfig = {
+        model: models[0], // Use the first model as the router by default
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                text: `${effectiveRoutingPrompt}\n\nUser message: "${message}"`,
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 20, // Keep it short, we just need the model name
+          ...generationConfig,
+        },
+        safetySettings: safetySettings,
+      };
+
+      // If system instruction is provided, add it to the routing request
+      if (systemInstruction) {
+        if (typeof systemInstruction === "string") {
+          routingConfig.contents.unshift({
+            role: "system" as const,
+            parts: [{ text: systemInstruction }],
+          });
+        } else {
+          const formattedInstruction = {
+            ...systemInstruction,
+            role: systemInstruction.role || ("system" as const),
+          };
+          routingConfig.contents.unshift(
+            formattedInstruction as { role: string; parts: { text: string }[] }
+          );
+        }
+      }
+
+      logger.debug(`Routing message using model ${routingConfig.model}`);
+
+      // Send the routing request
+      const routingResponse =
+        await this.genAI.models.generateContent(routingConfig);
+
+      if (!routingResponse?.text) {
+        throw new GeminiApiError("Routing model did not return any text");
+      }
+
+      // Extract the chosen model from the routing response
+      // Normalize text by removing whitespace and checking for exact matches
+      const routingResponseText = routingResponse.text.trim();
+      const chosenModel =
+        models.find((model) => routingResponseText.includes(model)) ||
+        defaultModel;
+
+      if (!chosenModel) {
+        throw new GeminiApiError(
+          `Routing failed: couldn't identify a valid model from response "${routingResponseText}"`
+        );
+      }
+
+      logger.info(
+        `Routing complete. Selected model: ${chosenModel} for message`
+      );
+
+      // Step 2: Send the original message to the chosen model
+      const requestConfig = {
+        model: chosenModel,
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: message }],
+          },
+        ],
+        generationConfig: generationConfig,
+        safetySettings: safetySettings,
+      };
+
+      // If system instruction is provided, add it to the final request
+      if (systemInstruction) {
+        if (typeof systemInstruction === "string") {
+          requestConfig.contents.unshift({
+            role: "system" as const,
+            parts: [{ text: systemInstruction }],
+          });
+        } else {
+          const formattedInstruction = {
+            ...systemInstruction,
+            role: systemInstruction.role || ("system" as const),
+          };
+          requestConfig.contents.unshift(
+            formattedInstruction as { role: string; parts: { text: string }[] }
+          );
+        }
+      }
+
+      logger.debug(`Sending routed message to model ${chosenModel}`);
+
+      // Call the generateContent API with the chosen model
+      const response = await this.genAI.models.generateContent(requestConfig);
+
+      return {
+        response,
+        chosenModel,
+      };
+    } catch (error) {
+      logger.error(`Error routing message: ${(error as Error).message}`, error);
+      throw new GeminiApiError(
+        `Failed to route message: ${(error as Error).message}`,
         error
       );
     }

@@ -30,7 +30,7 @@ export const stylePresetSchema = z
     "sketch",
     "comic-book",
     "neon",
-    "fantasy"
+    "fantasy",
   ])
   .describe("Style preset to apply to the generated image.");
 
@@ -99,7 +99,7 @@ export const GEMINI_GENERATE_IMAGE_PARAMS = z.object({
     .optional()
     .describe(
       "Optional. The strength of the style preset (0.0-1.0). Higher values apply more style. Defaults to 0.5."
-    )
+    ),
 });
 
 // Type for parameter object using zod inference

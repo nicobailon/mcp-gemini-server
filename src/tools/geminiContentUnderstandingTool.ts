@@ -50,11 +50,10 @@ async function* streamBase64Data(
  * @param server - The MCP server instance.
  * @param serviceInstance - Instance of the GeminiService.
  */
-export function geminiContentUnderstandingTool(
-  server: McpServer
-) {
+export function geminiContentUnderstandingTool(server: McpServer) {
   // Get the GeminiService instance
-  const serviceInstance = require("../services/index.js").GeminiService.getInstance();
+  const serviceInstance =
+    require("../services/index.js").GeminiService.getInstance();
   const toolName = TOOL_NAME_CONTENT_UNDERSTANDING;
   const toolDescription = TOOL_DESCRIPTION_CONTENT_UNDERSTANDING;
 
@@ -62,7 +61,9 @@ export function geminiContentUnderstandingTool(
    * Handles the conversion of input parameters into proper Gemini SDK formats and calls the service.
    * @param args - Arguments for content analysis.
    */
-  async function processRequest(args: GeminiContentUnderstandingArgs): Promise<{content: Array<{type: 'text', text: string}>}> {
+  async function processRequest(
+    args: GeminiContentUnderstandingArgs
+  ): Promise<{ content: Array<{ type: "text"; text: string }> }> {
     try {
       // Validate args against schema
       try {
@@ -146,9 +147,9 @@ export function geminiContentUnderstandingTool(
           content: [
             {
               type: "text",
-              text: JSON.stringify(result.analysis.data, null, 2)
-            }
-          ]
+              text: JSON.stringify(result.analysis.data, null, 2),
+            },
+          ],
         };
       } else if (result.analysis.text) {
         // For plain text
@@ -156,9 +157,9 @@ export function geminiContentUnderstandingTool(
           content: [
             {
               type: "text",
-              text: result.analysis.text
-            }
-          ]
+              text: result.analysis.text,
+            },
+          ],
         };
       } else {
         // Fallback
@@ -166,9 +167,9 @@ export function geminiContentUnderstandingTool(
           content: [
             {
               type: "text",
-              text: "Analysis completed. No textual content to display."
-            }
-          ]
+              text: "Analysis completed. No textual content to display.",
+            },
+          ],
         };
       }
     } catch (error: unknown) {

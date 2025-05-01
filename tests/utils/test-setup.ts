@@ -66,32 +66,41 @@ export async function setupTestServer(options: TestServerOptions = {}): Promise<
     process.env.GEMINI_SAFE_FILE_BASE_DIR = options.fileBasePath;
   }
 
-  // Create a dynamic import for the server to ensure we get a fresh instance
-  const { default: createServer } = await import('../../src/server.js');
-  const server = createServer();
-
-  // Start the server on the specified or random port
+  // Import server creation functions
+  const { createServer } = await import('../../src/createServer.js');
+  const http = await import('node:http');
+  
+  // Create MCP server instance
+  const mcpServer = createServer();
+  
+  // Create an HTTP server using the MCP server handler
   const port = options.port || 0;
-  const runningServer = server.listen(port);
-
+  const httpServer = http.createServer((req, res) => {
+    // Pass requests to the MCP server
+    mcpServer(req, res);
+  });
+  
+  // Start the HTTP server
+  httpServer.listen(port);
+  
   // Wait for the server to be ready
   await new Promise<void>((resolve) => {
-    runningServer.once('listening', () => resolve());
+    httpServer.once('listening', () => resolve());
   });
-
+  
   // Get the actual port (in case it was randomly assigned)
-  const actualPort = (runningServer.address() as AddressInfo).port;
+  const actualPort = (httpServer.address() as AddressInfo).port;
   const baseUrl = `http://localhost:${actualPort}`;
 
   // Return the context with server and helper methods
   return {
-    server: runningServer,
+    server: httpServer,
     baseUrl,
     port: actualPort,
     teardown: async () => {
-      // Close the server
+      // Close the HTTP server
       await new Promise<void>((resolve, reject) => {
-        runningServer.close((err) => {
+        httpServer.close((err: Error | undefined) => {
           if (err) reject(err);
           else resolve();
         });

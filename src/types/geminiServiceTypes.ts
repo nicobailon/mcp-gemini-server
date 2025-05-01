@@ -132,14 +132,25 @@ export interface ImageGenerationResult {
     reasons?: string[];
     safetyRatings?: Array<{
       category: string;
-      severity: "SEVERITY_UNSPECIFIED" | "HARM_CATEGORY_DEROGATORY" | 
-                "HARM_CATEGORY_TOXICITY" | "HARM_CATEGORY_VIOLENCE" | 
-                "HARM_CATEGORY_SEXUAL" | "HARM_CATEGORY_MEDICAL" | 
-                "HARM_CATEGORY_DANGEROUS" | "HARM_CATEGORY_HARASSMENT" | 
-                "HARM_CATEGORY_HATE_SPEECH" | "HARM_CATEGORY_SEXUALLY_EXPLICIT" | 
-                "HARM_CATEGORY_DANGEROUS_CONTENT";
-      probability: "PROBABILITY_UNSPECIFIED" | "NEGLIGIBLE" | "LOW" | 
-                  "MEDIUM" | "HIGH" | "VERY_HIGH";
+      severity:
+        | "SEVERITY_UNSPECIFIED"
+        | "HARM_CATEGORY_DEROGATORY"
+        | "HARM_CATEGORY_TOXICITY"
+        | "HARM_CATEGORY_VIOLENCE"
+        | "HARM_CATEGORY_SEXUAL"
+        | "HARM_CATEGORY_MEDICAL"
+        | "HARM_CATEGORY_DANGEROUS"
+        | "HARM_CATEGORY_HARASSMENT"
+        | "HARM_CATEGORY_HATE_SPEECH"
+        | "HARM_CATEGORY_SEXUALLY_EXPLICIT"
+        | "HARM_CATEGORY_DANGEROUS_CONTENT";
+      probability:
+        | "PROBABILITY_UNSPECIFIED"
+        | "NEGLIGIBLE"
+        | "LOW"
+        | "MEDIUM"
+        | "HIGH"
+        | "VERY_HIGH";
     }>;
   };
   /**

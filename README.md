@@ -78,6 +78,10 @@ The server uses environment variables for configuration, passed via the `env` ob
 
 This server provides the following MCP tools. Parameter schemas are defined using Zod for validation and description.
 
+**Validation and Error Handling:** All parameters are validated using Zod schemas at both the MCP tool level and service layer, providing consistent validation, detailed error messages, and type safety. The server implements comprehensive error mapping to provide clear, actionable error messages.
+
+**Retry Logic:** API requests automatically use exponential backoff retry for transient errors (network issues, rate limits, timeouts), improving reliability for unstable connections. The retry mechanism includes configurable parameters for maximum attempts, delay times, and jitter to prevent thundering herd effects.
+
 **Note on Optional Parameters:** Many tools accept complex optional parameters (e.g., `generationConfig`, `safetySettings`, `toolConfig`, `history`, `functionDeclarations`, `contents`). These parameters are typically objects or arrays whose structure mirrors the types defined in the underlying `@google/genai` SDK (v0.10.0). For the exact structure and available fields within these complex parameters, please refer to:
     1. The corresponding `src/tools/*Params.ts` file in this project.
     2. The official [Google AI JS SDK Documentation](https://github.com/google/generative-ai-js).
@@ -140,6 +144,17 @@ This server provides the following MCP tools. Parameter schemas are defined usin
   * *Description:* Sends the result of a function execution back to a chat session.
   * *Required Params:* `sessionId` (string), `functionResponse` (string) - The result of the function execution
   * *Optional Params:* `functionCall` (object) - Reference to the original function call
+* **`gemini_routeMessage`**
+  * *Description:* Routes a message to the most appropriate model from a provided list based on message content. Returns both the model's response and which model was selected.
+  * *Required Params:* 
+    * `message` (string) - The text message to be routed to the most appropriate model
+    * `models` (array) - Array of model names to consider for routing (e.g., ['gemini-1.5-flash', 'gemini-1.5-pro']). The first model in the list will be used for routing decisions.
+  * *Optional Params:* 
+    * `routingPrompt` (string) - Custom prompt to use for routing decisions. If not provided, a default routing prompt will be used.
+    * `defaultModel` (string) - Model to fall back to if routing fails. If not provided and routing fails, an error will be thrown.
+    * `generationConfig` (object) - Generation configuration settings to apply to the selected model's response.
+    * `safetySettings` (array) - Safety settings to apply to both routing and final response.
+    * `systemInstruction` (string or object) - A system instruction to guide the model's behavior after routing.
 
 ### File Handling (Google AI Studio Key Required)
 
@@ -523,6 +538,36 @@ Here are examples of how an MCP client (like Claude) might call these tools usin
 </use_mcp_tool>
 ```
 
+**Example 12: Message Routing Between Models**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_routeMessage</tool_name>
+  <arguments>
+    {
+      "message": "Can you create a detailed business plan for a sustainable fashion startup?",
+      "models": ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.5-pro"],
+      "routingPrompt": "Analyze this message and determine which model would be best suited to handle it. Consider: gemini-1.5-flash for simpler tasks, gemini-1.5-pro for balanced capabilities, and gemini-2.5-pro for complex creative tasks.",
+      "defaultModel": "gemini-1.5-pro",
+      "generationConfig": {
+        "temperature": 0.7,
+        "maxOutputTokens": 1024
+      }
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+The response will be a JSON string containing both the text response and which model was chosen:
+
+```json
+{
+  "text": "# Business Plan for Sustainable Fashion Startup\n\n## Executive Summary\n...",
+  "chosenModel": "gemini-2.5-pro"
+}
+```
+
 ## Environment Variables
 
 Required:
@@ -560,6 +605,24 @@ The server provides enhanced error handling using the MCP standard `McpError` ty
 * `message`: A human-readable description of the error with specific details.
 * `details`: (Optional) An object with more specific information from the Gemini SDK error.
 
+### Implementation Details
+
+The server uses a multi-layered approach to error handling:
+
+1. **Validation Layer**: Zod schemas validate all parameters at both the tool level (MCP request) and service layer (before API calls).
+2. **Error Classification**: A detailed error mapping system categorizes errors from the Google GenAI SDK into specific error types:
+   * `GeminiValidationError`: Parameter validation failures 
+   * `GeminiAuthError`: Authentication issues
+   * `GeminiQuotaError`: Rate limiting and quota exhaustion
+   * `GeminiContentFilterError`: Content safety filtering
+   * `GeminiNetworkError`: Connection and timeout issues
+   * `GeminiModelError`: Model-specific problems
+3. **Retry Mechanism**: Automatic retry with exponential backoff for transient errors:
+   * Network issues, timeouts, and rate limit errors are automatically retried
+   * Configurable retry parameters (attempts, delay, backoff factor)
+   * Jitter randomization to prevent synchronized retry attempts
+   * Detailed logging of retry attempts for debugging
+
 **Common Error Scenarios:**
 
 * **Authentication Failures:** `PermissionDenied` - Invalid API key, expired credentials, or unauthorized access.
@@ -577,6 +640,146 @@ The server provides enhanced error handling using the MCP standard `McpError` ty
 The server includes additional context in error messages to help with troubleshooting, including session IDs for chat-related errors and specific validation details for parameter errors.
 
 Check the `message` and `details` fields of the returned `McpError` for specific troubleshooting information.
+
+## Development and Testing
+
+This server includes a comprehensive test suite to ensure functionality and compatibility with the Gemini API. The tests are organized into unit tests (for individual components) and integration tests (for end-to-end functionality).
+
+### Test Structure
+
+- **Unit Tests**: Located in `tests/unit/` - Test individual components in isolation with mocked dependencies
+- **Integration Tests**: Located in `tests/integration/` - Test end-to-end functionality with real server interaction
+- **Test Utilities**: Located in `tests/utils/` - Helper functions and fixtures for testing
+
+### Running Tests
+
+```bash
+# Install dependencies first
+npm install
+
+# Run all tests
+npm run test
+
+# Run only unit tests
+npm run test:unit
+
+# Run only integration tests
+npm run test:integration
+
+# Run a specific test file
+node --test --loader ts-node/esm tests/path/to/test-file.test.ts
+```
+
+### Testing Approach
+
+1. **Service Mocking**: The tests use a combination of direct method replacement and mock interfaces to simulate the Gemini API response. This is particularly important for the `@google/genai` SDK (v0.10.0) which has a complex object structure.
+
+2. **Environmental Variables**: Tests automatically check for required environment variables and will skip tests that require API keys if they're not available. This allows core functionality to be tested without credentials.
+
+3. **Test Server**: Integration tests use a test server fixture that creates an isolated HTTP server instance with the MCP handler configured for testing.
+
+4. **RetryService**: The retry mechanism is extensively tested to ensure proper handling of transient errors with exponential backoff, jitter, and configurable retry parameters.
+
+5. **Image Generation**: Tests specifically address the complex interactions with the Gemini API for image generation, supporting both Gemini models and the dedicated Imagen 3.1 model.
+
+### Test Environment Setup
+
+For running tests that require API access, create a `.env.test` file in the project root with the following variables:
+
+```env
+# Required for basic API tests
+GOOGLE_GEMINI_API_KEY=your_api_key_here
+
+# Required for router tests
+GOOGLE_GEMINI_MODEL=gemini-1.5-flash-latest
+
+# Required for file tests
+GEMINI_SAFE_FILE_BASE_DIR=/path/to/allowed/files
+```
+
+The test suite will automatically detect available environment variables and skip tests that require missing configuration.
+
+## Contributing
+
+We welcome contributions to improve the MCP Gemini Server! This section provides guidelines for contributing to the project.
+
+### Development Environment Setup
+
+1. **Fork and Clone the Repository**
+   ```bash
+   git clone https://github.com/yourusername/mcp-gemini-server.git
+   cd mcp-gemini-server
+   ```
+
+2. **Install Dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Set Up Environment Variables**
+   Create a `.env` file in the project root with the necessary variables as described in the Environment Variables section.
+
+4. **Build and Run**
+   ```bash
+   npm run build
+   npm run dev
+   ```
+
+### Development Process
+
+1. **Create a Feature Branch**
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+2. **Make Your Changes**
+   Implement your feature or fix, following the code style guidelines.
+
+3. **Write Tests**
+   Add tests for your changes to ensure functionality and prevent regressions.
+
+4. **Run Tests and Linting**
+   ```bash
+   npm run test
+   npm run lint
+   npm run format
+   ```
+
+5. **Commit Your Changes**
+   Use clear, descriptive commit messages that explain the purpose of your changes.
+
+### Testing Guidelines
+
+- Write unit tests for all new functionality
+- Update existing tests when modifying functionality
+- Ensure all tests pass before submitting a pull request
+- Include both positive and negative test cases
+- Mock external dependencies to ensure tests can run without external services
+
+### Pull Request Process
+
+1. **Update Documentation**
+   Update the README.md and other documentation to reflect your changes.
+
+2. **Submit a Pull Request**
+   - Provide a clear description of the changes
+   - Link to any related issues
+   - Explain how to test the changes
+   - Ensure all CI checks pass
+
+3. **Code Review**
+   - Address any feedback from reviewers
+   - Make requested changes and update the PR
+
+### Coding Standards
+
+- Follow the existing code style (PascalCase for classes/interfaces/types, camelCase for functions/variables)
+- Use strong typing with TypeScript interfaces
+- Document public APIs with JSDoc comments
+- Handle errors properly by extending base error classes
+- Follow the service-based architecture with dependency injection
+- Use Zod for schema validation
+- Format code according to the project's ESLint and Prettier configuration
 
 ## Known Issues
 

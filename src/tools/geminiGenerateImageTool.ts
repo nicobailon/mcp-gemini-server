@@ -19,11 +19,10 @@ import { ImageGenerationResult } from "../types/index.js";
  * @param server - The McpServer instance.
  * @param serviceInstance - An instance of the GeminiService.
  */
-export const geminiGenerateImageTool = (
-  server: McpServer
-): void => {
+export const geminiGenerateImageTool = (server: McpServer): void => {
   // Get the GeminiService instance
-  const serviceInstance = require("../services/index.js").GeminiService.getInstance();
+  const serviceInstance =
+    require("../services/index.js").GeminiService.getInstance();
   /**
    * Processes the request for the gemini_generateImage tool.
    * @param args - The arguments object matching GEMINI_GENERATE_IMAGE_PARAMS.
@@ -31,7 +30,7 @@ export const geminiGenerateImageTool = (
    */
   const processRequest = async (args: {
     prompt: string;
-    modelName?: string; 
+    modelName?: string;
     safetySettings?: any[];
     resolution?: "512x512" | "1024x1024" | "1536x1536";
     numberOfImages?: number;
@@ -43,7 +42,7 @@ export const geminiGenerateImageTool = (
     logger.debug(`Received ${TOOL_NAME_GENERATE_IMAGE} request:`, {
       model: args.modelName,
       resolution: args.resolution,
-      stylePreset: args.stylePreset
+      stylePreset: args.stylePreset,
     }); // Avoid logging full prompt for privacy/security
 
     try {
@@ -57,7 +56,7 @@ export const geminiGenerateImageTool = (
         negativePrompt,
         stylePreset,
         seed,
-        styleStrength
+        styleStrength,
       } = args;
 
       // Call the service method with all parameters
@@ -98,7 +97,7 @@ export const geminiGenerateImageTool = (
       };
     } catch (error: unknown) {
       logger.error(`Error processing ${TOOL_NAME_GENERATE_IMAGE}:`, error);
-      
+
       // Use the centralized error mapping utility to ensure consistent error handling
       throw mapToMcpError(error, TOOL_NAME_GENERATE_IMAGE);
     }

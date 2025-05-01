@@ -59,7 +59,7 @@ export const geminiStartChatTool = (
         safetySettings: safetySettings as SafetySetting[] | undefined,
         tools: tools as Tool[] | undefined,
         systemInstruction, // The method will handle string conversion internally
-        cachedContentName
+        cachedContentName,
       });
 
       logger.info(
@@ -77,7 +77,7 @@ export const geminiStartChatTool = (
       };
     } catch (error: unknown) {
       logger.error(`Error processing ${GEMINI_START_CHAT_TOOL_NAME}:`, error);
-      
+
       // Use the centralized error mapping utility to ensure consistent error handling
       throw mapAnyErrorToMcpError(error, GEMINI_START_CHAT_TOOL_NAME);
     }

@@ -1,8 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import {
-  McpError,
-  CallToolResult,
-} from "@modelcontextprotocol/sdk/types.js";
+import { McpError, CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import {
   GEMINI_SEND_MESSAGE_TOOL_NAME,
   GEMINI_SEND_MESSAGE_TOOL_DESCRIPTION,
@@ -69,7 +66,7 @@ export const geminiSendMessageTool = (
           safetySettings: safetySettings as SafetySetting[] | undefined,
           tools: tools as Tool[] | undefined,
           toolConfig: toolConfig as ToolConfig | undefined,
-          cachedContentName
+          cachedContentName,
         });
 
       // --- Process the SDK Response into MCP Format ---
@@ -176,7 +173,7 @@ export const geminiSendMessageTool = (
         `Error processing ${GEMINI_SEND_MESSAGE_TOOL_NAME} for session ${args.sessionId}:`,
         error
       );
-      
+
       // Enhance error details with session ID for better debugging
       // Make a copy of the error to add session context before mapping
       // We can't modify the error.details directly since it's read-only,
@@ -186,14 +183,17 @@ export const geminiSendMessageTool = (
         // Create a new error object with the session context
         errorWithContext = new GeminiApiError(
           error.message,
-          typeof error.details === 'object' 
+          typeof error.details === "object"
             ? { ...(error.details as object), sessionId: args.sessionId }
             : { originalDetails: error.details, sessionId: args.sessionId }
         );
       }
-      
+
       // Use the centralized error mapping utility to ensure consistent error handling
-      throw mapAnyErrorToMcpError(errorWithContext, GEMINI_SEND_MESSAGE_TOOL_NAME);
+      throw mapAnyErrorToMcpError(
+        errorWithContext,
+        GEMINI_SEND_MESSAGE_TOOL_NAME
+      );
     }
   };
 

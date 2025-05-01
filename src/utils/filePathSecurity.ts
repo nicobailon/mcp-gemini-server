@@ -30,7 +30,7 @@ export function validateAndResolvePath(
   const { mustExist = true } = options;
 
   // Get the safe base directory from environment variable
-  const safeBaseDir = process.env.GEMINI_SAFE_FILE_BASE_DIR 
+  const safeBaseDir = process.env.GEMINI_SAFE_FILE_BASE_DIR
     ? path.normalize(process.env.GEMINI_SAFE_FILE_BASE_DIR)
     : path.resolve(process.cwd());
 

@@ -1,9 +1,24 @@
 import { GoogleGenAI } from "@google/genai";
-import { GeminiApiError } from "../../utils/errors.js";
+import {
+  GeminiApiError,
+  GeminiValidationError,
+  mapGeminiError,
+} from "../../utils/geminiErrors.js";
 import { logger } from "../../utils/logger.js";
 import { FileMetadata } from "../../types/index.js";
 import { GeminiSecurityService } from "./GeminiSecurityService.js";
-import { Content, GenerationConfig, SafetySetting, Part } from "./GeminiTypes.js";
+import {
+  Content,
+  GenerationConfig,
+  SafetySetting,
+  Part,
+} from "./GeminiTypes.js";
+import { ZodError } from "zod";
+import {
+  validateGenerateContentParams,
+  ValidatedGenerateContentParams,
+} from "./GeminiValidationSchemas.js";
+import { RetryService, withRetry } from "../../utils/RetryService.js";
 
 // Request configuration type definition for reuse
 interface RequestConfig {
@@ -17,8 +32,9 @@ interface RequestConfig {
 
 /**
  * Interface for the parameters of the generateContent method
+ * This interface is used internally, while the parent GeminiService exports a compatible version
  */
-export interface GenerateContentParams {
+interface GenerateContentParams {
   prompt: string;
   modelName?: string;
   generationConfig?: GenerationConfig;
@@ -30,6 +46,22 @@ export interface GenerateContentParams {
 }
 
 /**
+ * Default retry options for Gemini API calls
+ */
+const DEFAULT_RETRY_OPTIONS = {
+  maxAttempts: 3,
+  initialDelayMs: 500,
+  maxDelayMs: 10000,
+  backoffFactor: 2,
+  jitter: true,
+  onRetry: (error: unknown, attempt: number, delayMs: number) => {
+    logger.warn(
+      `Retrying Gemini API call after error (attempt ${attempt}): ${error instanceof Error ? error.message : String(error)}`
+    );
+  },
+};
+
+/**
  * Service for handling content generation related operations for the Gemini service.
  * Manages content generation in both streaming and non-streaming modes.
  */
@@ -37,6 +69,7 @@ export class GeminiContentService {
   private genAI: GoogleGenAI;
   private defaultModelName?: string;
   private securityService: GeminiSecurityService;
+  private retryService: RetryService;
 
   /**
    * Creates a new instance of the GeminiContentService.
@@ -52,6 +85,7 @@ export class GeminiContentService {
     this.genAI = genAI;
     this.defaultModelName = defaultModelName;
     this.securityService = securityService || new GeminiSecurityService();
+    this.retryService = new RetryService(DEFAULT_RETRY_OPTIONS);
   }
 
   /**
@@ -64,38 +98,65 @@ export class GeminiContentService {
   public async *generateContentStream(
     params: GenerateContentParams
   ): AsyncGenerator<string> {
-    logger.debug(`generateContentStream called with prompt: ${params.prompt}`);
-    
+    // Log with truncated prompt for privacy/security
+    logger.debug(
+      `generateContentStream called with prompt: ${params.prompt.substring(0, 30)}...`
+    );
+
     try {
+      // Validate parameters using Zod schema
+      try {
+        validateGenerateContentParams(params);
+      } catch (validationError) {
+        if (validationError instanceof ZodError) {
+          const fieldErrors = validationError.errors
+            .map((err) => `${err.path.join(".")}: ${err.message}`)
+            .join(", ");
+          throw new GeminiValidationError(
+            `Invalid parameters for content generation: ${fieldErrors}`,
+            validationError.errors[0]?.path.join(".")
+          );
+        }
+        throw validationError;
+      }
+
       // Create the request configuration using the helper method
       const requestConfig = this.createRequestConfig(params);
-      
-      // Call generateContentStream directly on the models property in v0.10.0
-      const streamResult =
-        await this.genAI.models.generateContentStream(requestConfig);
 
-      // Iterate through the chunks and yield text
-      // The v0.10.0 SDK returns an AsyncGenerator directly, not an object with a stream property
-      for await (const chunk of streamResult) {
-        // Extract text from the chunk if available - text is a getter, not a method
-        const chunkText = chunk.text;
-        if (chunkText) {
-          yield chunkText;
+      // Call generateContentStream with retry
+      // Note: We can't use the retry service directly here because we need to handle streaming
+      // Instead, we'll add retry logic to the initial API call, but not the streaming part
+      let streamResult;
+      try {
+        streamResult = await this.retryService.execute(async () => {
+          return this.genAI.models.generateContentStream(requestConfig);
+        });
+      } catch (error) {
+        throw mapGeminiError(error, "generateContentStream");
+      }
+
+      // Stream the results (no retry for individual chunks)
+      try {
+        for await (const chunk of streamResult) {
+          // Extract text from the chunk if available - text is a getter, not a method
+          const chunkText = chunk.text;
+          if (chunkText) {
+            yield chunkText;
+          }
         }
+      } catch (error) {
+        throw mapGeminiError(error, "generateContentStream");
       }
     } catch (error) {
-      logger.error("Error generating content stream:", error);
-      throw new GeminiApiError(
-        `Failed to generate content stream: ${(error as Error).message}`,
-        error
-      );
+      // Map to appropriate error type for any other errors
+      throw mapGeminiError(error, "generateContentStream");
     }
   }
 
   /**
    * Creates the request configuration object for both content generation methods.
    * This helper method reduces code duplication between generateContent and generateContentStream.
-   * 
+   *
    * @param params The content generation parameters
    * @returns A properly formatted request configuration object
    * @throws GeminiApiError if parameters are invalid or model name is missing
@@ -114,8 +175,9 @@ export class GeminiContentService {
 
     const effectiveModelName = modelName ?? this.defaultModelName;
     if (!effectiveModelName) {
-      throw new GeminiApiError(
-        "Model name must be provided either as a parameter or via the GOOGLE_GEMINI_MODEL environment variable."
+      throw new GeminiValidationError(
+        "Model name must be provided either as a parameter or via the GOOGLE_GEMINI_MODEL environment variable.",
+        "modelName"
       );
     }
     logger.debug(`Creating request config for model: ${effectiveModelName}`);
@@ -147,8 +209,9 @@ export class GeminiContentService {
           },
         });
       } else {
-        throw new GeminiApiError(
-          "Invalid file reference or inline data provided"
+        throw new GeminiValidationError(
+          "Invalid file reference or inline data provided",
+          "fileReferenceOrInlineData"
         );
       }
     }
@@ -189,33 +252,52 @@ export class GeminiContentService {
   }
 
   /**
-   * Generates content using the Gemini model.
+   * Generates content using the Gemini model with automatic retries for transient errors.
+   * Uses exponential backoff to avoid overwhelming the API during temporary issues.
    *
    * @param params An object containing all necessary parameters for content generation
    * @returns A promise resolving to the generated text content
    */
   public async generateContent(params: GenerateContentParams): Promise<string> {
-    logger.debug(`generateContent called with prompt: ${params.prompt}`);
-    
-    try {
-      // Create the request configuration using the helper method
-      const requestConfig = this.createRequestConfig(params);
-      
-      // Call generateContent directly on the models property in v0.10.0
-      const result = await this.genAI.models.generateContent(requestConfig);
+    // Log with truncated prompt for privacy/security
+    logger.debug(
+      `generateContent called with prompt: ${params.prompt.substring(0, 30)}...`
+    );
 
-      // Handle potentially undefined text property
-      if (!result.text) {
-        throw new GeminiApiError("No text was generated in the response");
+    try {
+      // Validate parameters using Zod schema
+      try {
+        validateGenerateContentParams(params);
+      } catch (validationError) {
+        if (validationError instanceof ZodError) {
+          const fieldErrors = validationError.errors
+            .map((err) => `${err.path.join(".")}: ${err.message}`)
+            .join(", ");
+          throw new GeminiValidationError(
+            `Invalid parameters for content generation: ${fieldErrors}`,
+            validationError.errors[0]?.path.join(".")
+          );
+        }
+        throw validationError;
       }
 
-      return result.text;
+      // Create the request configuration using the helper method
+      const requestConfig = this.createRequestConfig(params);
+
+      // Call generateContent with retry logic
+      return await this.retryService.execute(async () => {
+        const result = await this.genAI.models.generateContent(requestConfig);
+
+        // Handle potentially undefined text property
+        if (!result.text) {
+          throw new GeminiApiError("No text was generated in the response");
+        }
+
+        return result.text;
+      });
     } catch (error) {
-      logger.error("Error generating content:", error);
-      throw new GeminiApiError(
-        `Failed to generate content: ${(error as Error).message}`,
-        error
-      );
+      // Map to appropriate error type
+      throw mapGeminiError(error, "generateContent");
     }
   }
 }

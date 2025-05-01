@@ -50,11 +50,10 @@ async function* streamBase64Data(
  * @param server - The MCP server instance.
  * @param serviceInstance - Instance of the GeminiService.
  */
-export function geminiObjectDetectionTool(
-  server: McpServer
-) {
+export function geminiObjectDetectionTool(server: McpServer) {
   // Get the GeminiService instance
-  const serviceInstance = require("../services/index.js").GeminiService.getInstance();
+  const serviceInstance =
+    require("../services/index.js").GeminiService.getInstance();
   const toolName = TOOL_NAME_OBJECT_DETECTION;
   const toolDescription = TOOL_DESCRIPTION_OBJECT_DETECTION;
 
@@ -62,7 +61,9 @@ export function geminiObjectDetectionTool(
    * Handles the conversion of input parameters into proper Gemini SDK formats and calls the service.
    * @param args - Arguments for object detection.
    */
-  async function processRequest(args: GeminiObjectDetectionArgs): Promise<{content: Array<{type: 'text', text: string}>}> {
+  async function processRequest(
+    args: GeminiObjectDetectionArgs
+  ): Promise<{ content: Array<{ type: "text"; text: string }> }> {
     try {
       // Validate args against schema
       try {
@@ -145,9 +146,9 @@ export function geminiObjectDetectionTool(
           content: [
             {
               type: "text",
-              text: result.rawText
-            }
-          ]
+              text: result.rawText,
+            },
+          ],
         };
       } else {
         // For JSON format
@@ -155,9 +156,9 @@ export function geminiObjectDetectionTool(
           content: [
             {
               type: "text",
-              text: JSON.stringify(result.objects, null, 2)
-            }
-          ]
+              text: JSON.stringify(result.objects, null, 2),
+            },
+          ],
         };
       }
     } catch (error: unknown) {

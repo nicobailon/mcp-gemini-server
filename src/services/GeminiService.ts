@@ -1,31 +1,40 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { ConfigurationManager } from "../config/ConfigurationManager.js";
 import { logger } from "../utils/logger.js";
-import { FileMetadata, CachedContentMetadata, ImageGenerationResult } from "../types/index.js";
-import { 
-  GeminiApiError, 
-  GeminiContentFilterError, 
-  GeminiModelError, 
+import {
+  FileMetadata,
+  CachedContentMetadata,
+  ImageGenerationResult,
+} from "../types/index.js";
+import {
+  GeminiApiError,
+  GeminiContentFilterError,
+  GeminiModelError,
   GeminiValidationError,
   mapGeminiError,
-  GeminiErrorMessages
+  GeminiErrorMessages,
 } from "../utils/geminiErrors.js";
 
 // Import specialized services
-import { GeminiFileService, ListFilesResponseType } from "./gemini/GeminiFileService.js";
-import { GeminiChatService, StartChatParams, SendMessageParams, SendFunctionResultParams } from "./gemini/GeminiChatService.js";
-import { GeminiContentService, GenerateContentParams } from "./gemini/GeminiContentService.js";
+import {
+  GeminiFileService,
+  ListFilesResponseType,
+} from "./gemini/GeminiFileService.js";
+import { GeminiChatService } from "./gemini/GeminiChatService.js";
+import { GeminiContentService } from "./gemini/GeminiContentService.js";
 import { GeminiCacheService } from "./gemini/GeminiCacheService.js";
 import { GeminiSecurityService } from "./gemini/GeminiSecurityService.js";
-import { 
-  ChatSession, 
-  Content, 
-  Tool, 
+import {
+  ChatSession,
+  Content,
+  Tool,
   ToolConfig,
   GenerationConfig,
   SafetySetting,
   FileId,
-  CacheId
+  CacheId,
+  FunctionCall,
+  Part,
 } from "./gemini/GeminiTypes.js";
 
 /**
@@ -35,7 +44,7 @@ import {
 export class GeminiService {
   private genAI: GoogleGenAI;
   private defaultModelName?: string;
-  
+
   // Specialized services
   private fileService: GeminiFileService;
   private chatService: GeminiChatService;
@@ -73,7 +82,11 @@ export class GeminiService {
 
     // Initialize specialized services
     this.fileService = new GeminiFileService(this.genAI, this.securityService);
-    this.contentService = new GeminiContentService(this.genAI, this.defaultModelName, this.securityService);
+    this.contentService = new GeminiContentService(
+      this.genAI,
+      this.defaultModelName,
+      this.securityService
+    );
     this.chatService = new GeminiChatService(this.genAI, this.defaultModelName);
     this.cacheService = new GeminiCacheService(this.genAI);
   }
@@ -152,10 +165,10 @@ export class GeminiService {
   public setSecureBasePath(basePath: string): void {
     this.securityService.setSecureBasePath(basePath);
   }
-  
+
   /**
    * Analyze content of an image to extract information such as charts, diagrams, etc.
-   * 
+   *
    * @param imagePart The image part to analyze
    * @param prompt Prompt guiding the analysis
    * @param structuredOutput Whether to return structured JSON
@@ -171,23 +184,25 @@ export class GeminiService {
     safetySettings?: any[]
   ): Promise<any> {
     // This is a stub method to satisfy TypeScript
-    // In a real implementation, this would call the content service 
-    logger.warn("GeminiService.analyzeContent called but not fully implemented");
-    
+    // In a real implementation, this would call the content service
+    logger.warn(
+      "GeminiService.analyzeContent called but not fully implemented"
+    );
+
     // Use a simpler approach to avoid TypeScript errors
     logger.warn("GeminiService.analyzeContent: Using mock implementation");
-    
+
     return {
       analysis: {
         text: "This is a mock implementation of analyzeContent. The actual implementation would analyze the image content.",
-        data: structuredOutput ? { mock: "data" } : undefined
-      }
+        data: structuredOutput ? { mock: "data" } : undefined,
+      },
     };
   }
-  
+
   /**
    * Detect objects in an image
-   * 
+   *
    * @param imagePart The image part to analyze
    * @param promptAddition Additional prompt to guide detection
    * @param modelName Optional model name
@@ -203,10 +218,10 @@ export class GeminiService {
     // This is a stub method to satisfy TypeScript
     // In a real implementation, this would call the content service
     logger.warn("GeminiService.detectObjects called but not fully implemented");
-    
+
     // Use a simpler approach to avoid TypeScript errors
     logger.warn("GeminiService.detectObjects: Using mock implementation");
-    
+
     return {
       objects: [
         {
@@ -215,22 +230,23 @@ export class GeminiService {
             yMin: 0.1,
             xMin: 0.1,
             yMax: 0.9,
-            xMax: 0.9
+            xMax: 0.9,
           },
-          confidence: 0.95
-        }
+          confidence: 0.95,
+        },
       ],
-      rawText: "This is a mock implementation of detectObjects. The actual implementation would detect objects in the image."
+      rawText:
+        "This is a mock implementation of detectObjects. The actual implementation would detect objects in the image.",
     };
   }
-  
+
   /**
    * Generate an image from a text prompt using Gemini's Imagen 3.1 model
-   * 
+   *
    * This method generates images based on a text prompt using Google's Imagen 3.1 model.
    * It supports various parameters to customize the generation process, including
    * resolution, number of images, safety settings, and style options.
-   * 
+   *
    * @param prompt - Text description of the image to generate. Should be detailed and specific.
    * @param modelName - Optional model to use (defaults to imagen-3.1-generate-003 if not specified)
    * @param resolution - Image resolution: 512x512, 1024x1024, or 1536x1536 (default: 1024x1024)
@@ -261,14 +277,12 @@ export class GeminiService {
   ): Promise<ImageGenerationResult> {
     // Log with truncated prompt for privacy/security
     logger.debug(`Generating image with prompt: ${prompt.substring(0, 30)}...`);
-    
+
     try {
       // Import validation schemas and error handling
-      const { 
-        validateImageGenerationParams, 
-        DEFAULT_SAFETY_SETTINGS 
-      } = await import("./gemini/GeminiValidationSchemas.js");
-      
+      const { validateImageGenerationParams, DEFAULT_SAFETY_SETTINGS } =
+        await import("./gemini/GeminiValidationSchemas.js");
+
       // Validate parameters using Zod schemas
       const validatedParams = validateImageGenerationParams(
         prompt,
@@ -281,60 +295,61 @@ export class GeminiService {
         seed,
         styleStrength
       );
-      
+
       // Default model for image generation if not specified
       // Using the latest Imagen 3.1 model for improved quality (as of April 2025)
       const defaultImageModel = "imagen-3.1-generate-003";
       const effectiveModel = validatedParams.modelName || defaultImageModel;
-      
+
       // Get the imagen model from the SDK
-      const model = this.genAI.models.getGenerativeModel({
-        model: effectiveModel
+      // Using type assertion to handle API changes between SDK versions
+      const model = (this.genAI.models as any).getGenerativeModel({
+        model: effectiveModel,
       });
-      
+
       // Prepare generation parameters
       const generationConfig: Record<string, any> = {
         // Use validated parameters with defaults
         resolution: validatedParams.resolution || "1024x1024",
         numberOfImages: validatedParams.numberOfImages,
       };
-      
+
       // Add optional parameters if provided
       if (validatedParams.negativePrompt) {
         generationConfig.negativePrompt = validatedParams.negativePrompt;
       }
-      
+
       if (validatedParams.stylePreset) {
         generationConfig.stylePreset = validatedParams.stylePreset;
       }
-      
+
       if (validatedParams.seed !== undefined) {
         generationConfig.seed = validatedParams.seed;
       }
-      
+
       if (validatedParams.styleStrength !== undefined) {
         generationConfig.styleStrength = validatedParams.styleStrength;
       }
-      
+
       // Apply default safety settings if none provided
-      const effectiveSafetySettings = 
+      const effectiveSafetySettings =
         validatedParams.safetySettings || DEFAULT_SAFETY_SETTINGS;
-      
+
       // Generate the images
       const result = await model.generateImages({
         prompt: validatedParams.prompt,
         safetySettings: effectiveSafetySettings,
-        ...generationConfig
+        ...generationConfig,
       });
-      
+
       // Validate response
       if (!result.images || result.images.length === 0) {
         throw new GeminiModelError(
-          GeminiErrorMessages.UNSUPPORTED_FORMAT, 
+          GeminiErrorMessages.UNSUPPORTED_FORMAT,
           effectiveModel
         );
       }
-      
+
       // Check for safety issues in response
       if (result.promptSafetyMetadata?.blocked) {
         throw new GeminiContentFilterError(
@@ -342,37 +357,39 @@ export class GeminiService {
           result.promptSafetyMetadata?.reasons
         );
       }
-      
+
       // Extract width and height from resolution
       const [width, height] = (validatedParams.resolution || "1024x1024")
         .split("x")
-        .map(dim => parseInt(dim, 10));
-      
+        .map((dim) => parseInt(dim, 10));
+
       // Format the result according to our interface
       const formattedResult: ImageGenerationResult = {
-        images: result.images.map(img => ({
-          base64Data: img.data || "",
-          mimeType: img.mimeType || "image/png",
-          width,
-          height
-        })),
+        images: result.images.map(
+          (img: { data?: string; mimeType?: string }) => ({
+            base64Data: img.data || "",
+            mimeType: img.mimeType || "image/png",
+            width,
+            height,
+          })
+        ),
         promptSafetyMetadata: result.promptSafetyMetadata || undefined,
         metadata: {
           model: effectiveModel,
-          generationConfig
-        }
+          generationConfig,
+        },
       };
-      
+
       // Validate output data integrity
       this.validateGeneratedImages(formattedResult);
-      
+
       return formattedResult;
     } catch (error) {
       // Map to appropriate error type
       throw mapGeminiError(error, "generateImage");
     }
   }
-  
+
   /**
    * Validates generated images to ensure they meet quality and safety standards
    * @param result - The image generation result to validate
@@ -388,7 +405,7 @@ export class GeminiService {
           "base64Data"
         );
       }
-      
+
       // Verify MIME type is supported
       const supportedMimeTypes = ["image/png", "image/jpeg", "image/webp"];
       if (!supportedMimeTypes.includes(image.mimeType)) {
@@ -397,7 +414,7 @@ export class GeminiService {
           "mimeType"
         );
       }
-      
+
       // Verify dimensions are positive numbers
       if (image.width <= 0 || image.height <= 0) {
         throw new GeminiValidationError(
@@ -542,17 +559,77 @@ export class GeminiService {
   public async deleteCache(cacheId: CacheId): Promise<{ success: boolean }> {
     return this.cacheService.deleteCache(cacheId);
   }
+
+  /**
+   * Routes a message to the most appropriate model based on a routing prompt.
+   * This is useful when you have multiple specialized models and want to automatically
+   * select the best one for the specific query type.
+   *
+   * @param params Parameters for routing a message across models
+   * @returns Promise resolving to an object with the chat response and the chosen model
+   * @throws {GeminiApiError} If routing fails or all models are unavailable
+   */
+  public async routeMessage(
+    params: RouteMessageParams
+  ): Promise<{ response: GenerateContentResponse; chosenModel: string }> {
+    return this.chatService.routeMessage(params);
+  }
 }
 
-// Re-export interfaces from specialized services for backwards compatibility
-export { GenerateContentParams } from "./gemini/GeminiContentService.js";
-export { 
-  StartChatParams, 
-  SendMessageParams, 
-  SendFunctionResultParams
-} from "./gemini/GeminiChatService.js";
-export { ListFilesResponseType } from "./gemini/GeminiFileService.js";
-export { 
+// Define interfaces directly to avoid circular dependencies
+export interface GenerateContentParams {
+  prompt: string;
+  modelName?: string;
+  generationConfig?: GenerationConfig;
+  safetySettings?: SafetySetting[];
+  systemInstruction?: Content | string;
+  cachedContentName?: string;
+  fileReferenceOrInlineData?: any;
+  inlineDataMimeType?: string;
+}
+
+export interface StartChatParams {
+  modelName?: string;
+  history?: Content[];
+  generationConfig?: GenerationConfig;
+  safetySettings?: SafetySetting[];
+  tools?: Tool[];
+  systemInstruction?: Content | string;
+  cachedContentName?: string;
+}
+
+export interface SendMessageParams {
+  sessionId: string;
+  message: string;
+  generationConfig?: GenerationConfig;
+  safetySettings?: SafetySetting[];
+  tools?: Tool[];
+  toolConfig?: ToolConfig;
+  cachedContentName?: string;
+}
+
+export interface SendFunctionResultParams {
+  sessionId: string;
+  functionResponse: string;
+  functionCall?: FunctionCall;
+}
+
+/**
+ * Interface for the routing parameters when sending messages to multiple models
+ */
+export interface RouteMessageParams {
+  message: string;
+  models: string[];
+  routingPrompt?: string;
+  defaultModel?: string;
+  generationConfig?: GenerationConfig;
+  safetySettings?: SafetySetting[];
+  systemInstruction?: Content | string;
+}
+
+// Re-export other types for backwards compatibility
+export type { ListFilesResponseType } from "./gemini/GeminiFileService.js";
+export type {
   ChatSession,
   Content,
   Tool,
@@ -562,5 +639,5 @@ export {
   Part,
   FunctionCall,
   FileId,
-  CacheId
+  CacheId,
 } from "./gemini/GeminiTypes.js";

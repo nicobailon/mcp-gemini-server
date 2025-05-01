@@ -149,3 +149,5 @@ docs/
 *.md
 !README.md
 .env
+
+**/.claude/settings.local.json

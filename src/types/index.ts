@@ -1,12 +1,12 @@
 ﻿// Export all types and interfaces from this barrel file
-export * from './exampleServiceTypes.js';
-export * from './geminiServiceTypes.js'; // Exports GeminiServiceConfig, FileMetadata, CachedContentMetadata, PartSchema, ContentSchema
+export * from "./exampleServiceTypes.js";
+export * from "./geminiServiceTypes.js"; // Exports GeminiServiceConfig, FileMetadata, CachedContentMetadata, PartSchema, ContentSchema
 // export * from './yourServiceTypes.js'; // Add new type exports here
 
 // Define common types used across services/tools if any
 export interface CommonContext {
-    sessionId?: string;
-    userId?: string;
+  sessionId?: string;
+  userId?: string;
 }
 
 /**
@@ -14,8 +14,8 @@ export interface CommonContext {
  * Used by the gemini_sendFunctionResult tool.
  */
 export interface FunctionResponseInput {
-    /** The name of the function that was called by the model. */
-    name: string;
-    /** The JSON object result returned by the function execution. */
-    response: Record<string, unknown>;
+  /** The name of the function that was called by the model. */
+  name: string;
+  /** The JSON object result returned by the function execution. */
+  response: Record<string, unknown>;
 }

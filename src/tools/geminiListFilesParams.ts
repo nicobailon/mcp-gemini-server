@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 export const TOOL_NAME_LIST_FILES = "gemini_listFiles";
 
@@ -11,12 +11,22 @@ Returns a list of file metadata objects and potentially a token for the next pag
 
 // Define an object containing individual Zod schemas for each parameter
 export const ListFilesParamsObject = {
-    pageSize: z.number().int().positive().max(1000).optional().describe(
-        "Optional. The maximum number of files to return per page. Defaults to 100 if not specified by the API, max 1000."
+  pageSize: z
+    .number()
+    .int()
+    .positive()
+    .max(1000)
+    .optional()
+    .describe(
+      "Optional. The maximum number of files to return per page. Defaults to 100 if not specified by the API, max 1000."
     ),
-    pageToken: z.string().min(1).optional().describe(
-        "Optional. A token received from a previous listFiles call to retrieve the next page of results."
-    )
+  pageToken: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      "Optional. A token received from a previous listFiles call to retrieve the next page of results."
+    ),
 };
 
 // Define the type based on the object of schemas

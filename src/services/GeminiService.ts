@@ -10,7 +10,6 @@ import {
   mapGeminiError,
   GeminiErrorMessages
 } from "../utils/geminiErrors.js";
-import { incrementCounter, timeOperation } from "../utils/metrics.js";
 
 // Import specialized services
 import { GeminiFileService, ListFilesResponseType } from "./gemini/GeminiFileService.js";
@@ -263,139 +262,115 @@ export class GeminiService {
     // Log with truncated prompt for privacy/security
     logger.debug(`Generating image with prompt: ${prompt.substring(0, 30)}...`);
     
-    // Start metrics tracking
-    return timeOperation(
-      "gemini_generate_image_duration", 
-      async () => {
-        try {
-          // Import validation schemas and error handling
-          const { 
-            validateImageGenerationParams, 
-            DEFAULT_SAFETY_SETTINGS 
-          } = await import("./gemini/GeminiValidationSchemas.js");
-          
-          // Validate parameters using Zod schemas
-          const validatedParams = validateImageGenerationParams(
-            prompt,
-            modelName,
-            resolution,
-            numberOfImages,
-            safetySettings,
-            negativePrompt,
-            stylePreset,
-            seed,
-            styleStrength
-          );
-          
-          // Default model for image generation if not specified
-          // Using the latest Imagen 3.1 model for improved quality (as of April 2025)
-          const defaultImageModel = "imagen-3.1-generate-003";
-          const effectiveModel = validatedParams.modelName || defaultImageModel;
-          
-          // Record request metrics
-          incrementCounter("gemini_generate_image_requests_total", 1, {
-            model: effectiveModel,
-            resolution: validatedParams.resolution
-          });
-          
-          // Get the imagen model from the SDK
-          const model = this.genAI.models.getGenerativeModel({
-            model: effectiveModel
-          });
-          
-          // Prepare generation parameters
-          const generationConfig: Record<string, any> = {
-            // Use validated parameters with defaults
-            resolution: validatedParams.resolution || "1024x1024",
-            numberOfImages: validatedParams.numberOfImages,
-          };
-          
-          // Add optional parameters if provided
-          if (validatedParams.negativePrompt) {
-            generationConfig.negativePrompt = validatedParams.negativePrompt;
-          }
-          
-          if (validatedParams.stylePreset) {
-            generationConfig.stylePreset = validatedParams.stylePreset;
-          }
-          
-          if (validatedParams.seed !== undefined) {
-            generationConfig.seed = validatedParams.seed;
-          }
-          
-          if (validatedParams.styleStrength !== undefined) {
-            generationConfig.styleStrength = validatedParams.styleStrength;
-          }
-          
-          // Apply default safety settings if none provided
-          const effectiveSafetySettings = 
-            validatedParams.safetySettings || DEFAULT_SAFETY_SETTINGS;
-          
-          // Generate the images
-          const result = await model.generateImages({
-            prompt: validatedParams.prompt,
-            safetySettings: effectiveSafetySettings,
-            ...generationConfig
-          });
-          
-          // Validate response
-          if (!result.images || result.images.length === 0) {
-            throw new GeminiModelError(
-              GeminiErrorMessages.UNSUPPORTED_FORMAT, 
-              effectiveModel
-            );
-          }
-          
-          // Check for safety issues in response
-          if (result.promptSafetyMetadata?.blocked) {
-            throw new GeminiContentFilterError(
-              GeminiErrorMessages.CONTENT_FILTERED,
-              result.promptSafetyMetadata?.reasons
-            );
-          }
-          
-          // Extract width and height from resolution
-          const [width, height] = (validatedParams.resolution || "1024x1024")
-            .split("x")
-            .map(dim => parseInt(dim, 10));
-          
-          // Format the result according to our interface
-          const formattedResult: ImageGenerationResult = {
-            images: result.images.map(img => ({
-              base64Data: img.data || "",
-              mimeType: img.mimeType || "image/png",
-              width,
-              height
-            })),
-            promptSafetyMetadata: result.promptSafetyMetadata || undefined,
-            metadata: {
-              model: effectiveModel,
-              generationConfig
-            }
-          };
-          
-          // Validate output data integrity
-          this.validateGeneratedImages(formattedResult);
-          
-          // Record success metrics
-          incrementCounter("gemini_generate_image_success_total", 1, {
-            model: effectiveModel,
-            resolution: validatedParams.resolution
-          });
-          
-          return formattedResult;
-        } catch (error) {
-          // Record failure metrics
-          incrementCounter("gemini_generate_image_failure_total", 1, {
-            errorType: error instanceof Error ? error.constructor.name : "unknown"
-          });
-          
-          // Map to appropriate error type
-          throw mapGeminiError(error, "generateImage");
+    try {
+      // Import validation schemas and error handling
+      const { 
+        validateImageGenerationParams, 
+        DEFAULT_SAFETY_SETTINGS 
+      } = await import("./gemini/GeminiValidationSchemas.js");
+      
+      // Validate parameters using Zod schemas
+      const validatedParams = validateImageGenerationParams(
+        prompt,
+        modelName,
+        resolution,
+        numberOfImages,
+        safetySettings,
+        negativePrompt,
+        stylePreset,
+        seed,
+        styleStrength
+      );
+      
+      // Default model for image generation if not specified
+      // Using the latest Imagen 3.1 model for improved quality (as of April 2025)
+      const defaultImageModel = "imagen-3.1-generate-003";
+      const effectiveModel = validatedParams.modelName || defaultImageModel;
+      
+      // Get the imagen model from the SDK
+      const model = this.genAI.models.getGenerativeModel({
+        model: effectiveModel
+      });
+      
+      // Prepare generation parameters
+      const generationConfig: Record<string, any> = {
+        // Use validated parameters with defaults
+        resolution: validatedParams.resolution || "1024x1024",
+        numberOfImages: validatedParams.numberOfImages,
+      };
+      
+      // Add optional parameters if provided
+      if (validatedParams.negativePrompt) {
+        generationConfig.negativePrompt = validatedParams.negativePrompt;
+      }
+      
+      if (validatedParams.stylePreset) {
+        generationConfig.stylePreset = validatedParams.stylePreset;
+      }
+      
+      if (validatedParams.seed !== undefined) {
+        generationConfig.seed = validatedParams.seed;
+      }
+      
+      if (validatedParams.styleStrength !== undefined) {
+        generationConfig.styleStrength = validatedParams.styleStrength;
+      }
+      
+      // Apply default safety settings if none provided
+      const effectiveSafetySettings = 
+        validatedParams.safetySettings || DEFAULT_SAFETY_SETTINGS;
+      
+      // Generate the images
+      const result = await model.generateImages({
+        prompt: validatedParams.prompt,
+        safetySettings: effectiveSafetySettings,
+        ...generationConfig
+      });
+      
+      // Validate response
+      if (!result.images || result.images.length === 0) {
+        throw new GeminiModelError(
+          GeminiErrorMessages.UNSUPPORTED_FORMAT, 
+          effectiveModel
+        );
+      }
+      
+      // Check for safety issues in response
+      if (result.promptSafetyMetadata?.blocked) {
+        throw new GeminiContentFilterError(
+          GeminiErrorMessages.CONTENT_FILTERED,
+          result.promptSafetyMetadata?.reasons
+        );
+      }
+      
+      // Extract width and height from resolution
+      const [width, height] = (validatedParams.resolution || "1024x1024")
+        .split("x")
+        .map(dim => parseInt(dim, 10));
+      
+      // Format the result according to our interface
+      const formattedResult: ImageGenerationResult = {
+        images: result.images.map(img => ({
+          base64Data: img.data || "",
+          mimeType: img.mimeType || "image/png",
+          width,
+          height
+        })),
+        promptSafetyMetadata: result.promptSafetyMetadata || undefined,
+        metadata: {
+          model: effectiveModel,
+          generationConfig
         }
-      },
-      { operation: "generateImage" }
-    );
+      };
+      
+      // Validate output data integrity
+      this.validateGeneratedImages(formattedResult);
+      
+      return formattedResult;
+    } catch (error) {
+      // Map to appropriate error type
+      throw mapGeminiError(error, "generateImage");
+    }
   }
   
   /**

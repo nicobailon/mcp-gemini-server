@@ -138,8 +138,22 @@ if [ -z "$DIFF_OUTPUT" ]; then
   exit 0
 fi
 
+# Check diff size and warn or exit if too large
 DIFF_LENGTH=${#DIFF_OUTPUT}
-echo "Diff size: $(($DIFF_LENGTH / 1024)) KB"
+MAX_SIZE_KB=1024  # 1MB limit (same as default in GeminiGitDiffService)
+DIFF_SIZE_KB=$(($DIFF_LENGTH / 1024))
+echo "Diff size: $DIFF_SIZE_KB KB"
+
+if [ $DIFF_SIZE_KB -gt $MAX_SIZE_KB ]; then
+  echo -e "${RED}Warning: Diff size exceeds recommended limit ($DIFF_SIZE_KB KB > $MAX_SIZE_KB KB)${NC}"
+  echo "Large diffs may result in incomplete review or API errors."
+  read -p "Continue anyway? (y/n) " -n 1 -r
+  echo
+  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "Operation cancelled."
+    exit 1
+  fi
+fi
 
 # Send request to the API
 echo -e "${YELLOW}Sending to Gemini for analysis...${NC}"

@@ -112,7 +112,7 @@ export class GeminiContentService {
       // Validate parameters using Zod schema
       try {
         validateGenerateContentParams(params);
-      } catch (validationError) {
+      } catch (validationError: unknown) {
         if (validationError instanceof ZodError) {
           const fieldErrors = validationError.errors
             .map((err) => `${err.path.join(".")}: ${err.message}`)
@@ -136,7 +136,7 @@ export class GeminiContentService {
         streamResult = await this.retryService.execute(async () => {
           return this.genAI.models.generateContentStream(requestConfig);
         });
-      } catch (error) {
+      } catch (error: unknown) {
         throw mapGeminiError(error, "generateContentStream");
       }
 
@@ -149,10 +149,10 @@ export class GeminiContentService {
             yield chunkText;
           }
         }
-      } catch (error) {
+      } catch (error: unknown) {
         throw mapGeminiError(error, "generateContentStream");
       }
-    } catch (error) {
+    } catch (error: unknown) {
       // Map to appropriate error type for any other errors
       throw mapGeminiError(error, "generateContentStream");
     }
@@ -242,32 +242,40 @@ export class GeminiContentService {
     // Add optional parameters if provided
     if (generationConfig) {
       requestConfig.generationConfig = generationConfig;
-      
+
       // Extract thinking config if it exists within generation config
       if (generationConfig.thinkingConfig) {
         requestConfig.thinkingConfig = generationConfig.thinkingConfig;
       }
     }
-    
+
     // Map reasoningEffort to thinkingBudget if provided
     if (requestConfig.thinkingConfig?.reasoningEffort) {
       const effortMap: Record<string, number> = {
-        "none": 0,
-        "low": 1024, // 1K tokens
-        "medium": 8192, // 8K tokens
-        "high": 24576 // 24K tokens
+        none: 0,
+        low: 1024, // 1K tokens
+        medium: 8192, // 8K tokens
+        high: 24576, // 24K tokens
       };
-      
-      requestConfig.thinkingConfig.thinkingBudget = effortMap[requestConfig.thinkingConfig.reasoningEffort];
-      logger.debug(`Mapped reasoning effort '${requestConfig.thinkingConfig.reasoningEffort}' to thinking budget: ${requestConfig.thinkingConfig.thinkingBudget} tokens`);
+
+      requestConfig.thinkingConfig.thinkingBudget =
+        effortMap[requestConfig.thinkingConfig.reasoningEffort];
+      logger.debug(
+        `Mapped reasoning effort '${requestConfig.thinkingConfig.reasoningEffort}' to thinking budget: ${requestConfig.thinkingConfig.thinkingBudget} tokens`
+      );
     }
-    
+
     // Apply default thinking budget if available and not specified in request
-    if (this.defaultThinkingBudget !== undefined && !requestConfig.thinkingConfig) {
+    if (
+      this.defaultThinkingBudget !== undefined &&
+      !requestConfig.thinkingConfig
+    ) {
       requestConfig.thinkingConfig = {
-        thinkingBudget: this.defaultThinkingBudget
+        thinkingBudget: this.defaultThinkingBudget,
       };
-      logger.debug(`Applied default thinking budget: ${this.defaultThinkingBudget} tokens`);
+      logger.debug(
+        `Applied default thinking budget: ${this.defaultThinkingBudget} tokens`
+      );
     }
     if (safetySettings) {
       requestConfig.safetySettings = safetySettings;
@@ -299,7 +307,7 @@ export class GeminiContentService {
       // Validate parameters using Zod schema
       try {
         validateGenerateContentParams(params);
-      } catch (validationError) {
+      } catch (validationError: unknown) {
         if (validationError instanceof ZodError) {
           const fieldErrors = validationError.errors
             .map((err) => `${err.path.join(".")}: ${err.message}`)
@@ -326,7 +334,7 @@ export class GeminiContentService {
 
         return result.text;
       });
-    } catch (error) {
+    } catch (error: unknown) {
       // Map to appropriate error type
       throw mapGeminiError(error, "generateContent");
     }

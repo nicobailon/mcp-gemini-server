@@ -57,7 +57,7 @@ export class GeminiFileService {
     // Check if file exists
     try {
       await fs.access(validatedPath);
-    } catch (error) {
+    } catch (error: unknown) {
       throw new GeminiApiError(`File not found: ${validatedPath}`, error);
     }
 

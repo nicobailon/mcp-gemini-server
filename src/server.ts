@@ -1,19 +1,58 @@
 ﻿import { createServer } from "./createServer.js";
-import { logger } from "./utils/index.js";
+import {
+  logger,
+  setServerState,
+  startHealthCheckServer,
+  ServerState,
+} from "./utils/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-// import { WebSocketServerTransport } from "@modelcontextprotocol/sdk/server/ws.js"; // Example for WebSocket
+import { WebSocketServerTransport } from "@modelcontextprotocol/sdk/server/ws.js";
+
+// Server state tracking
+let serverState: ServerState = {
+  isRunning: false,
+  startTime: null,
+  transport: null,
+  server: null,
+  healthCheckServer: null,
+};
+
+// Share server state with the health check module
+setServerState(serverState);
 
 const main = async () => {
   try {
     const server = createServer();
+    serverState.server = server;
     logger.info("Starting MCP server...");
 
-    // Choose your transport
-    const transport = new StdioServerTransport();
-    // const transport = new WebSocketServerTransport({ port: 8080 }); // Example
+    // Start health check server if enabled
+    if (process.env.ENABLE_HEALTH_CHECK !== "false") {
+      logger.info("Starting health check server...");
+      const healthServer = startHealthCheckServer();
+      serverState.healthCheckServer = healthServer;
+    }
 
+    // Choose transport based on environment
+    let transport;
+    const transportType = process.env.MCP_TRANSPORT_TYPE || "stdio";
+
+    if (transportType === "ws") {
+      const port = parseInt(process.env.MCP_WS_PORT || "8080", 10);
+      transport = new WebSocketServerTransport({ port });
+      logger.info(`Using WebSocket transport on port ${port}`);
+    } else {
+      transport = new StdioServerTransport();
+      logger.info("Using stdio transport");
+    }
+
+    serverState.transport = transport;
     logger.info(`Connecting transport: ${transport}`);
     await server.connect(transport);
+
+    // Update server state
+    serverState.isRunning = true;
+    serverState.startTime = Date.now();
 
     logger.info("MCP Server connected and listening.");
   } catch (error) {
@@ -22,4 +61,49 @@ const main = async () => {
   }
 };
 
-main();
+// Graceful shutdown handling
+const shutdown = async (signal: string) => {
+  logger.info(`${signal} signal received: closing MCP server`);
+
+  // Track if any shutdown process fails
+  let hasError = false;
+
+  if (serverState.isRunning && serverState.server) {
+    try {
+      // Disconnect the server if it exists and has a disconnect method
+      if (typeof serverState.server.disconnect === "function") {
+        await serverState.server.disconnect();
+      }
+
+      serverState.isRunning = false;
+      logger.info("MCP Server shutdown completed successfully");
+    } catch (error) {
+      hasError = true;
+      logger.error("Error during MCP server shutdown:", error);
+    }
+  }
+
+  // Close health check server if it exists
+  if (serverState.healthCheckServer) {
+    try {
+      logger.info("Closing health check server...");
+      serverState.healthCheckServer.close();
+      logger.info("Health check server closed successfully");
+    } catch (error) {
+      hasError = true;
+      logger.error("Error during health check server shutdown:", error);
+    }
+  }
+
+  // Exit with appropriate code
+  process.exit(hasError ? 1 : 0);
+};
+
+// Register shutdown handlers
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+
+// If this is the main module, start the server
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main();
+}

@@ -29,6 +29,11 @@ import { geminiObjectDetectionTool } from "./geminiObjectDetectionTool.js";
 import { geminiContentUnderstandingTool } from "./geminiContentUnderstandingTool.js";
 // Import audio transcription tool
 import { geminiAudioTranscriptionTool } from "./geminiAudioTranscriptionTool.js";
+// Import git diff review tools
+import { geminiGitLocalDiffReviewTool } from "./geminiGitLocalDiffReviewTool.js";
+import { geminiGitLocalDiffStreamReviewTool } from "./geminiGitLocalDiffStreamReviewTool.js";
+import { geminiGitHubRepoReviewTool } from "./geminiGitHubRepoReviewTool.js";
+import { geminiGitHubPRReviewTool } from "./geminiGitHubPRReviewTool.js";
 
 /**
  * Register all defined tools with the MCP server instance.
@@ -44,23 +49,35 @@ export function registerTools(server: McpServer): void {
 
   // Use a consistent approach to call all tools
   try {
-    // Handle tools with different function signatures using type assertions and function introspection
-    const registerTool = (toolFn: any, ...args: any[]) => {
+    // Define types for the different tool registration function signatures
+    type ToolWithService = (server: McpServer, service: GeminiService) => void;
+    type ToolWithoutService = (server: McpServer) => void;
+    type ToolRegistrationFn = ToolWithService | ToolWithoutService;
+
+    // Handle tools with different function signatures
+    const registerTool = (
+      toolFn: ToolRegistrationFn,
+      server: McpServer,
+      service?: GeminiService
+    ) => {
       try {
-        // Handle functions that take a different number of arguments
-        // by checking the function signature length and adapting accordingly
-        if (toolFn.length === 0) {
-          // Function doesn't expect any arguments
-          toolFn();
-        } else if (toolFn.length === 1) {
-          // Function expects just the server argument
-          toolFn(server);
+        // Check if the tool requires both server and service arguments
+        if (toolFn.length >= 2) {
+          if (!service) {
+            throw new Error(
+              `Tool function requires a service but none was provided`
+            );
+          }
+          // Cast to handle TypeScript's limitation with union types and function parameters
+          (toolFn as ToolWithService)(server, service);
         } else {
-          // Function expects server and possibly service instance
-          toolFn(...args);
+          // Tool only requires server
+          (toolFn as ToolWithoutService)(server);
         }
-      } catch (error) {
-        logger.error(`Failed to register tool: ${error}`);
+      } catch (error: unknown) {
+        logger.error(
+          `Failed to register tool: ${error instanceof Error ? error.message : String(error)}`
+        );
       }
     };
 
@@ -103,8 +120,45 @@ export function registerTools(server: McpServer): void {
 
     // Register audio transcription tool
     registerTool(geminiAudioTranscriptionTool, server);
-  } catch (error) {
-    logger.error("Error registering tools:", error);
+
+    // Register git diff review tools
+    // Use type assertion to handle GitHub review tools that are direct Tool implementations
+    // These actually need to be registered directly with the server since they're Express handlers
+    server.tool(
+      "gemini_gitLocalDiffReview",
+      "Review local git diff using Gemini models",
+      {},
+      geminiGitLocalDiffReviewTool as unknown as (args: any) => Promise<any>
+    );
+
+    server.tool(
+      "gemini_gitLocalDiffStreamReview",
+      "Stream review of local git diff using Gemini models",
+      {},
+      geminiGitLocalDiffStreamReviewTool as unknown as (
+        args: any
+      ) => Promise<any>
+    );
+
+    // Register GitHub review tools
+    server.tool(
+      "gemini_githubRepoReview",
+      "Review GitHub repository using Gemini models",
+      {},
+      geminiGitHubRepoReviewTool as unknown as (args: any) => Promise<any>
+    );
+
+    server.tool(
+      "gemini_githubPRReview",
+      "Review GitHub pull request using Gemini models",
+      {},
+      geminiGitHubPRReviewTool as unknown as (args: any) => Promise<any>
+    );
+  } catch (error: unknown) {
+    logger.error(
+      "Error registering tools:",
+      error instanceof Error ? error.message : String(error)
+    );
   }
 
   logger.info("All tools registered.");

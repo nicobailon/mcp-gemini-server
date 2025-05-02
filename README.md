@@ -630,10 +630,10 @@ The response will be a JSON string containing both the text response and which m
 
 ## Environment Variables
 
-Required:
+### Required:
 - `GOOGLE_GEMINI_API_KEY`: Your Google Gemini API key (required)
 
-Optional:
+### Optional - Gemini API Configuration:
 - `GOOGLE_GEMINI_MODEL`: Default model to use (e.g., `gemini-1.5-pro-latest`, `gemini-1.5-flash-latest`)
 - `GOOGLE_GEMINI_DEFAULT_THINKING_BUDGET`: Default thinking budget in tokens (0-24576) for controlling model reasoning
 - `GOOGLE_GEMINI_IMAGE_RESOLUTION`: Default image resolution (512x512, 1024x1024, or 1536x1536)
@@ -641,16 +641,31 @@ Optional:
 - `GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS`: JSON array of supported image formats (e.g., `["image/jpeg","image/png","image/webp"]`)
 - `GEMINI_SAFE_FILE_BASE_DIR`: Restricts file operations to a specific directory for security (defaults to current working directory)
 
+### Optional - Server Configuration:
+- `MCP_TRANSPORT_TYPE`: Transport to use for MCP server (options: `stdio`, `ws`; default: `stdio`)
+- `MCP_WS_PORT`: Port for WebSocket transport when using `ws` transport type (default: `8080`)
+- `ENABLE_HEALTH_CHECK`: Enable health check server (options: `true`, `false`; default: `true`)
+- `HEALTH_CHECK_PORT`: Port for health check HTTP server (default: `3000`)
+
 You can create a `.env` file in the root directory with these variables:
 
 ```env
+# Required API Configuration
 GOOGLE_GEMINI_API_KEY=your_api_key_here
+
+# Optional API Configuration
 GOOGLE_GEMINI_MODEL=gemini-1.5-pro-latest
 GOOGLE_GEMINI_DEFAULT_THINKING_BUDGET=4096
 GOOGLE_GEMINI_IMAGE_RESOLUTION=1024x1024
 GOOGLE_GEMINI_MAX_IMAGE_SIZE_MB=10
 GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS=["image/jpeg","image/png","image/webp"]
 GEMINI_SAFE_FILE_BASE_DIR=/path/to/allowed/files
+
+# Server Configuration
+MCP_TRANSPORT_TYPE=stdio
+# MCP_WS_PORT=8080 # Uncomment when using WebSocket transport
+ENABLE_HEALTH_CHECK=true
+HEALTH_CHECK_PORT=3000
 ```
 
 ## Error Handling
@@ -842,6 +857,94 @@ We welcome contributions to improve the MCP Gemini Server! This section provides
 - Follow the service-based architecture with dependency injection
 - Use Zod for schema validation
 - Format code according to the project's ESLint and Prettier configuration
+
+## Code Review Tools
+
+The MCP Gemini Server provides powerful code review capabilities leveraging Gemini's models to analyze git diffs and GitHub repositories. These tools help identify potential issues, suggest improvements, and provide comprehensive feedback on code changes.
+
+### Local Git Diff Review
+
+Review local git changes directly from your command line:
+
+```bash
+# Using the included CLI script
+./scripts/gemini-review.sh
+
+# Options
+./scripts/gemini-review.sh --focus=security --reasoning=high
+```
+
+The CLI script supports various options:
+- `--focus=FOCUS`: Focus of the review (security, performance, architecture, bugs, general)
+- `--model=MODEL`: Model to use (defaults to gemini-flash-2.0 for cost efficiency)
+- `--reasoning=LEVEL`: Reasoning effort (none, low, medium, high)
+- `--exclude=PATTERN`: Files to exclude using glob patterns
+
+### GitHub Repository Review
+
+Review GitHub repositories, branches, and pull requests using the following tools:
+
+- **GitHub PR Review Tool**: Analyzes pull requests for issues and improvements
+- **GitHub Repository Review Tool**: Analyzes entire repositories or branches
+
+### Cost Optimization
+
+By default, code review tools use the more cost-efficient `gemini-flash-2.0` model, which offers a good balance between cost and capability for most code review tasks. For particularly complex code bases or when higher reasoning depth is needed, you can specify more powerful models:
+
+```bash
+# Using a more powerful model for complex code
+./scripts/gemini-review.sh --model=gemini-1.5-pro --reasoning=high
+```
+
+### Running Tests
+
+Tests for the GitHub code review functionality can also use the cheaper model:
+
+```bash
+# Run tests with the default gemini-flash-2.0 model
+npm run test:unit
+```
+
+## Server Features
+
+### Health Check Endpoint
+
+The server provides a built-in health check HTTP endpoint that can be used for monitoring and status checks. This is separate from the MCP server transport and runs as a lightweight HTTP server.
+
+When enabled, you can access the health check at:
+```
+http://localhost:3000/health
+```
+
+The health check endpoint returns a JSON response with the following information:
+```json
+{
+  "status": "running",
+  "uptime": 1234,  // Seconds since the server started
+  "transport": "StdioServerTransport",  // Current transport type
+  "version": "0.1.0"  // Server version
+}
+```
+
+You can check the health endpoint using curl:
+```bash
+curl http://localhost:3000/health
+```
+
+You can configure the health check using these environment variables:
+- `ENABLE_HEALTH_CHECK`: Set to "false" to disable the health check server (default: "true")
+- `HEALTH_CHECK_PORT`: Port number for the health check server (default: 3000)
+
+### Graceful Shutdown
+
+The server implements graceful shutdown handling for SIGTERM and SIGINT signals. When the server receives a shutdown signal:
+
+1. It attempts to properly disconnect the MCP server transport
+2. It closes the health check server if running
+3. It logs the shutdown status
+4. It exits with the appropriate exit code (0 for successful shutdown, 1 if errors occurred)
+
+This ensures clean termination when the server is run in containerized environments or when stopped manually.
 
 ## Known Issues
 

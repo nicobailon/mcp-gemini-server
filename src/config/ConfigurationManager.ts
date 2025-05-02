@@ -7,6 +7,9 @@ import { configureFilePathSecurity } from "../utils/filePathSecurity.js";
 interface ManagedConfigs {
   exampleService: Required<ExampleServiceConfig>;
   geminiService: GeminiServiceConfig; // Use the interface directly, not Required<>
+  github: {
+    apiToken: string;
+  };
   // Add other service config types here:
   // yourService: Required<YourServiceConfig>;
 }
@@ -40,6 +43,10 @@ export class ConfigurationManager {
         supportedImageFormats: ["image/jpeg", "image/png", "image/webp"],
         // Reasoning control settings
         defaultThinkingBudget: undefined,
+      },
+      github: {
+        // Default GitHub API token is empty; will be loaded from environment variable
+        apiToken: "",
       },
       // Initialize other service configs with defaults:
       // yourService: {
@@ -124,6 +131,14 @@ export class ConfigurationManager {
     return process.env.GEMINI_SAFE_FILE_BASE_DIR;
   }
 
+  /**
+   * Returns the GitHub API token for GitHub API requests
+   * @returns The configured GitHub API token or undefined if not set
+   */
+  public getGitHubApiToken(): string | undefined {
+    return this.config.github.apiToken || undefined;
+  }
+
   // Add getters for other service configs:
   // public getYourServiceConfig(): Required<YourServiceConfig> {
   //   return { ...this.config.yourService };
@@ -167,6 +182,16 @@ export class ConfigurationManager {
     if (process.env.GEMINI_SAFE_FILE_BASE_DIR) {
       logger.info(
         `Safe file base directory configured: ${process.env.GEMINI_SAFE_FILE_BASE_DIR}`
+      );
+    }
+
+    // Load GitHub API token if provided
+    if (process.env.GITHUB_API_TOKEN) {
+      this.config.github.apiToken = process.env.GITHUB_API_TOKEN;
+      logger.info("[ConfigurationManager] GitHub API token configured");
+    } else {
+      logger.warn(
+        "[ConfigurationManager] GITHUB_API_TOKEN environment variable not set. GitHub code review features may not work properly."
       );
     }
 
@@ -257,7 +282,10 @@ export class ConfigurationManager {
 
     // Load default thinking budget if provided
     if (process.env.GOOGLE_GEMINI_DEFAULT_THINKING_BUDGET) {
-      const budget = parseInt(process.env.GOOGLE_GEMINI_DEFAULT_THINKING_BUDGET, 10);
+      const budget = parseInt(
+        process.env.GOOGLE_GEMINI_DEFAULT_THINKING_BUDGET,
+        10
+      );
       if (!isNaN(budget) && budget >= 0 && budget <= 24576) {
         this.config.geminiService.defaultThinkingBudget = budget;
         logger.info(

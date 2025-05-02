@@ -381,14 +381,26 @@ export function mapAnyErrorToMcpError(
     error !== null &&
     typeof error === "object" &&
     "code" in error &&
-    typeof (error as any).code === "string"
+    typeof (error as ToolErrorLike).code === "string"
   ) {
     // For objects that match the ToolError interface
-    return mapToolErrorToMcpError(error, toolName);
+    return mapToolErrorToMcpError(error as ToolErrorLike, toolName);
   }
 
   // For standard errors and BaseError types
   return mapToMcpError(error, toolName);
+}
+
+/**
+ * Interface for objects that conform to the ToolError structure
+ * This provides type safety for objects that have a similar structure to ToolError
+ * but may not be actual instances of the ToolError class.
+ */
+export interface ToolErrorLike {
+  code?: string;
+  message?: string;
+  details?: unknown;
+  [key: string]: unknown; // Allow additional properties for flexibility
 }
 
 // These tools use a different error structure than the rest of the application
@@ -403,7 +415,7 @@ export function mapAnyErrorToMcpError(
  * @returns McpError - A consistent MCP error
  */
 export function mapToolErrorToMcpError(
-  toolError: any,
+  toolError: ToolErrorLike | unknown,
   toolName: string
 ): McpError {
   // Default message if more specific extraction fails
@@ -412,19 +424,21 @@ export function mapToolErrorToMcpError(
 
   // Extract error message and details if possible
   if (toolError && typeof toolError === "object") {
+    const errorObj = toolError as ToolErrorLike;
+
     // Extract message
-    if ("message" in toolError && typeof toolError.message === "string") {
-      errorMessage = toolError.message;
+    if ("message" in errorObj && typeof errorObj.message === "string") {
+      errorMessage = errorObj.message;
     }
 
     // Extract details
-    if ("details" in toolError) {
-      errorDetails = toolError.details;
+    if ("details" in errorObj) {
+      errorDetails = errorObj.details;
     }
 
     // Extract code for mapping
-    if ("code" in toolError && typeof toolError.code === "string") {
-      const code = toolError.code.toUpperCase();
+    if ("code" in errorObj && typeof errorObj.code === "string") {
+      const code = errorObj.code.toUpperCase();
 
       // Map common ToolError codes to appropriate ErrorCode values
       if (code.includes("SAFETY") || code.includes("BLOCKED")) {

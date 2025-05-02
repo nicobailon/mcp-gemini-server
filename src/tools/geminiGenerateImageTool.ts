@@ -31,7 +31,7 @@ export const geminiGenerateImageTool = (server: McpServer): void => {
   const processRequest = async (args: {
     prompt: string;
     modelName?: string;
-    safetySettings?: any[];
+    safetySettings?: SafetySetting[];
     resolution?: "512x512" | "1024x1024" | "1536x1536";
     numberOfImages?: number;
     negativePrompt?: string;
@@ -65,7 +65,7 @@ export const geminiGenerateImageTool = (server: McpServer): void => {
         modelName,
         resolution,
         numberOfImages,
-        safetySettings as SafetySetting[] | undefined,
+        safetySettings,
         negativePrompt,
         stylePreset,
         seed,

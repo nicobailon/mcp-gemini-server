@@ -54,8 +54,8 @@ export const geminiGenerateContentTool = (
       const resultText = await serviceInstance.generateContent({
         prompt,
         modelName,
-        generationConfig: generationConfig as GenerationConfig | undefined,
-        safetySettings: safetySettings as SafetySetting[] | undefined,
+        generationConfig,
+        safetySettings,
         systemInstruction, // The method will handle string conversion internally
         cachedContentName,
       });

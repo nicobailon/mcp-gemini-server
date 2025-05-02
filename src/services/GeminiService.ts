@@ -14,6 +14,11 @@ import {
   mapGeminiError,
   GeminiErrorMessages,
 } from "../utils/geminiErrors.js";
+import {
+  GeminiGitDiffService,
+  GitDiffReviewParams,
+} from "./gemini/GeminiGitDiffService.js";
+import { GitHubApiService } from "./gemini/GitHubApiService.js";
 
 // Import specialized services
 import {
@@ -35,6 +40,7 @@ import {
   CacheId,
   FunctionCall,
   Part,
+  ImagePart,
 } from "./gemini/GeminiTypes.js";
 
 /**
@@ -51,6 +57,8 @@ export class GeminiService {
   private contentService: GeminiContentService;
   private cacheService: GeminiCacheService;
   private securityService: GeminiSecurityService;
+  private gitDiffService: GeminiGitDiffService;
+  private gitHubApiService: GitHubApiService;
 
   constructor() {
     const configManager = ConfigurationManager.getInstance();
@@ -90,6 +98,27 @@ export class GeminiService {
     );
     this.chatService = new GeminiChatService(this.genAI, this.defaultModelName);
     this.cacheService = new GeminiCacheService(this.genAI);
+    this.gitDiffService = new GeminiGitDiffService(
+      this.genAI,
+      this.defaultModelName,
+      1024 * 1024, // 1MB default
+      [
+        "package-lock.json",
+        "yarn.lock",
+        "*.min.js",
+        "*.min.css",
+        "node_modules/**",
+        "dist/**",
+        "build/**",
+        "*.lock",
+        "**/*.map",
+      ],
+      config.defaultThinkingBudget
+    );
+
+    // Initialize GitHub API service with token from config manager
+    const githubApiToken = configManager.getGitHubApiToken();
+    this.gitHubApiService = new GitHubApiService(githubApiToken);
   }
 
   /**
@@ -178,11 +207,11 @@ export class GeminiService {
    * @returns Analysis results
    */
   public async analyzeContent(
-    imagePart: any,
+    imagePart: ImagePart,
     prompt: string,
     structuredOutput?: boolean,
     modelName?: string,
-    safetySettings?: any[]
+    safetySettings?: SafetySetting[]
   ): Promise<any> {
     // This is a stub method to satisfy TypeScript
     // In a real implementation, this would call the content service
@@ -211,10 +240,10 @@ export class GeminiService {
    * @returns Detection results
    */
   public async detectObjects(
-    imagePart: any,
+    imagePart: ImagePart,
     promptAddition?: string,
     modelName?: string,
-    safetySettings?: any[]
+    safetySettings?: SafetySetting[]
   ): Promise<any> {
     // This is a stub method to satisfy TypeScript
     // In a real implementation, this would call the content service
@@ -303,13 +332,37 @@ export class GeminiService {
       const effectiveModel = validatedParams.modelName || defaultImageModel;
 
       // Get the imagen model from the SDK
-      // Using type assertion to handle API changes between SDK versions
-      const model = (this.genAI.models as any).getGenerativeModel({
+      // Access the models property in a type-safe way
+      const genAIModels = this.genAI.models as {
+        getGenerativeModel: (params: { model: string }) => {
+          generateImages: (params: {
+            prompt: string;
+            safetySettings: SafetySetting[];
+            [key: string]: unknown;
+          }) => Promise<{
+            images?: { data?: string; mimeType?: string }[];
+            promptSafetyMetadata?: { blocked: boolean; reasons?: string[] };
+          }>;
+        };
+      };
+
+      const model = genAIModels.getGenerativeModel({
         model: effectiveModel,
       });
 
+      // Define a type for image generation config parameters
+      interface ImageGenerationConfig {
+        resolution: string;
+        numberOfImages?: number;
+        negativePrompt?: string;
+        stylePreset?: string;
+        seed?: number;
+        styleStrength?: number;
+        [key: string]: unknown; // For future flexibility while keeping type safety
+      }
+
       // Prepare generation parameters
-      const generationConfig: Record<string, any> = {
+      const generationConfig: ImageGenerationConfig = {
         // Use validated parameters with defaults
         resolution: validatedParams.resolution || "1024x1024",
         numberOfImages: validatedParams.numberOfImages,
@@ -385,7 +438,7 @@ export class GeminiService {
       this.validateGeneratedImages(formattedResult);
 
       return formattedResult;
-    } catch (error) {
+    } catch (error: unknown) {
       // Map to appropriate error type
       throw mapGeminiError(error, "generateImage");
     }
@@ -575,6 +628,193 @@ export class GeminiService {
   ): Promise<{ response: GenerateContentResponse; chosenModel: string }> {
     return this.chatService.routeMessage(params);
   }
+
+  /**
+   * Reviews a git diff and generates analysis using Gemini models
+   *
+   * @param params Parameters for the git diff review
+   * @returns Promise resolving to the review text
+   */
+  public async reviewGitDiff(params: GitDiffReviewParams): Promise<string> {
+    return this.gitDiffService.reviewDiff(params);
+  }
+
+  /**
+   * Streams a git diff review content using Gemini models
+   *
+   * @param params Parameters for the git diff review
+   * @returns AsyncGenerator yielding review content chunks as they become available
+   */
+  public async *reviewGitDiffStream(
+    params: GitDiffReviewParams
+  ): AsyncGenerator<string> {
+    yield* this.gitDiffService.reviewDiffStream(params);
+  }
+
+  /**
+   * Reviews a GitHub repository and generates analysis using Gemini models
+   *
+   * @param params Parameters for the GitHub repository review
+   * @returns Promise resolving to the review text
+   */
+  public async reviewGitHubRepository(params: {
+    owner: string;
+    repo: string;
+    branch?: string;
+    modelName?: string;
+    reasoningEffort?: "none" | "low" | "medium" | "high";
+    reviewFocus?:
+      | "security"
+      | "performance"
+      | "architecture"
+      | "bugs"
+      | "general";
+    maxFilesToInclude?: number;
+    excludePatterns?: string[];
+    prioritizeFiles?: string[];
+    customPrompt?: string;
+  }): Promise<string> {
+    try {
+      const {
+        owner,
+        repo,
+        branch,
+        modelName,
+        reasoningEffort = "medium",
+        reviewFocus = "general",
+        maxFilesToInclude = 50,
+        excludePatterns = [],
+        prioritizeFiles,
+        customPrompt,
+      } = params;
+
+      // Get repository overview using GitHub API
+      const repoOverview = await this.gitHubApiService.getRepositoryOverview(
+        owner,
+        repo
+      );
+
+      // Get default branch if not specified
+      const targetBranch = branch || repoOverview.defaultBranch;
+
+      // Create repository context for Gemini prompt
+      const repositoryContext = `Repository: ${owner}/${repo}
+Primary Language: ${repoOverview.language}
+Languages: ${repoOverview.languages.map((l) => `${l.name} (${l.percentage}%)`).join(", ")}
+Description: ${repoOverview.description || "No description"}
+Default Branch: ${repoOverview.defaultBranch}
+Target Branch: ${targetBranch}
+Stars: ${repoOverview.stars}
+Forks: ${repoOverview.forks}`;
+
+      // Get content from repository files that match our criteria
+      // For now, we'll use a git diff approach by getting a comparison diff
+      // between the empty state and the target branch
+      const diff = await this.gitHubApiService.getComparisonDiff(
+        owner,
+        repo,
+        // Use a known empty reference as the base
+        "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+        targetBranch
+      );
+
+      // Use the git diff service to analyze the repository content
+      return this.gitDiffService.reviewDiff({
+        diffContent: diff,
+        modelName,
+        reviewFocus,
+        repositoryContext,
+        diffOptions: {
+          maxFilesToInclude,
+          excludePatterns,
+          prioritizeFiles,
+        },
+        reasoningEffort,
+        customPrompt,
+      });
+    } catch (error: unknown) {
+      logger.error("Error reviewing GitHub repository:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Reviews a GitHub Pull Request and generates analysis using Gemini models
+   *
+   * @param params Parameters for the GitHub PR review
+   * @returns Promise resolving to the review text
+   */
+  public async reviewGitHubPullRequest(params: {
+    owner: string;
+    repo: string;
+    prNumber: number;
+    modelName?: string;
+    reasoningEffort?: "none" | "low" | "medium" | "high";
+    reviewFocus?:
+      | "security"
+      | "performance"
+      | "architecture"
+      | "bugs"
+      | "general";
+    filesOnly?: boolean;
+    excludePatterns?: string[];
+    customPrompt?: string;
+  }): Promise<string> {
+    try {
+      const {
+        owner,
+        repo,
+        prNumber,
+        modelName,
+        reasoningEffort = "medium",
+        reviewFocus = "general",
+        filesOnly = false,
+        excludePatterns = [],
+        customPrompt,
+      } = params;
+
+      // Get PR details using GitHub API
+      const pullRequest = await this.gitHubApiService.getPullRequest(
+        owner,
+        repo,
+        prNumber
+      );
+
+      // Create repository context for Gemini prompt
+      const repositoryContext = `Repository: ${owner}/${repo}
+Pull Request: #${prNumber} - ${pullRequest.title}
+Author: ${pullRequest.user.login}
+Base Branch: ${pullRequest.base.ref}
+Head Branch: ${pullRequest.head.ref}
+Files Changed: ${pullRequest.changed_files}
+Additions: ${pullRequest.additions}
+Deletions: ${pullRequest.deletions}
+Description: ${pullRequest.body || "No description"}`;
+
+      // Get PR diff using GitHub API
+      const diff = await this.gitHubApiService.getPullRequestDiff(
+        owner,
+        repo,
+        prNumber
+      );
+
+      // Use the git diff service to analyze the PR
+      return this.gitDiffService.reviewDiff({
+        diffContent: diff,
+        modelName,
+        reviewFocus,
+        repositoryContext,
+        diffOptions: {
+          excludePatterns,
+        },
+        reasoningEffort,
+        customPrompt,
+      });
+    } catch (error: unknown) {
+      logger.error("Error reviewing GitHub Pull Request:", error);
+      throw error;
+    }
+  }
 }
 
 // Define interfaces directly to avoid circular dependencies
@@ -585,7 +825,7 @@ export interface GenerateContentParams {
   safetySettings?: SafetySetting[];
   systemInstruction?: Content | string;
   cachedContentName?: string;
-  fileReferenceOrInlineData?: any;
+  fileReferenceOrInlineData?: FileId | ImagePart | string;
   inlineDataMimeType?: string;
 }
 

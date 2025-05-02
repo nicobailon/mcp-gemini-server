@@ -29,6 +29,11 @@ import { geminiObjectDetectionTool } from "./geminiObjectDetectionTool.js";
 import { geminiContentUnderstandingTool } from "./geminiContentUnderstandingTool.js";
 // Import audio transcription tool
 import { geminiAudioTranscriptionTool } from "./geminiAudioTranscriptionTool.js";
+// Import git diff review tools
+import { geminiGitLocalDiffReviewTool } from "./geminiGitLocalDiffReviewTool.js";
+import { geminiGitLocalDiffStreamReviewTool } from "./geminiGitLocalDiffStreamReviewTool.js";
+import { geminiGitHubRepoReviewTool } from "./geminiGitHubRepoReviewTool.js";
+import { geminiGitHubPRReviewTool } from "./geminiGitHubPRReviewTool.js";
 
 /**
  * Register all defined tools with the MCP server instance.
@@ -44,8 +49,17 @@ export function registerTools(server: McpServer): void {
 
   // Use a consistent approach to call all tools
   try {
+    // Define types for the different tool registration function signatures
+    type ToolRegistrationFn =
+      | ((server: McpServer, service: GeminiService) => void)
+      | ((server: McpServer) => void)
+      | (() => void);
+
     // Handle tools with different function signatures using type assertions and function introspection
-    const registerTool = (toolFn: any, ...args: any[]) => {
+    const registerTool = (
+      toolFn: ToolRegistrationFn,
+      ...args: [McpServer, GeminiService?]
+    ) => {
       try {
         // Handle functions that take a different number of arguments
         // by checking the function signature length and adapting accordingly
@@ -59,8 +73,10 @@ export function registerTools(server: McpServer): void {
           // Function expects server and possibly service instance
           toolFn(...args);
         }
-      } catch (error) {
-        logger.error(`Failed to register tool: ${error}`);
+      } catch (error: unknown) {
+        logger.error(
+          `Failed to register tool: ${error instanceof Error ? error.message : String(error)}`
+        );
       }
     };
 
@@ -103,8 +119,23 @@ export function registerTools(server: McpServer): void {
 
     // Register audio transcription tool
     registerTool(geminiAudioTranscriptionTool, server);
-  } catch (error) {
-    logger.error("Error registering tools:", error);
+
+    // Register git diff review tools
+    registerTool(geminiGitLocalDiffReviewTool, server, geminiServiceInstance);
+    registerTool(
+      geminiGitLocalDiffStreamReviewTool,
+      server,
+      geminiServiceInstance
+    );
+
+    // Register GitHub review tools
+    registerTool(geminiGitHubRepoReviewTool, server, geminiServiceInstance);
+    registerTool(geminiGitHubPRReviewTool, server, geminiServiceInstance);
+  } catch (error: unknown) {
+    logger.error(
+      "Error registering tools:",
+      error instanceof Error ? error.message : String(error)
+    );
   }
 
   logger.info("All tools registered.");

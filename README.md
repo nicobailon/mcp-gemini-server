@@ -843,6 +843,53 @@ We welcome contributions to improve the MCP Gemini Server! This section provides
 - Use Zod for schema validation
 - Format code according to the project's ESLint and Prettier configuration
 
+## Code Review Tools
+
+The MCP Gemini Server provides powerful code review capabilities leveraging Gemini's models to analyze git diffs and GitHub repositories. These tools help identify potential issues, suggest improvements, and provide comprehensive feedback on code changes.
+
+### Local Git Diff Review
+
+Review local git changes directly from your command line:
+
+```bash
+# Using the included CLI script
+./scripts/gemini-review.sh
+
+# Options
+./scripts/gemini-review.sh --focus=security --reasoning=high
+```
+
+The CLI script supports various options:
+- `--focus=FOCUS`: Focus of the review (security, performance, architecture, bugs, general)
+- `--model=MODEL`: Model to use (defaults to gemini-flash-2.0 for cost efficiency)
+- `--reasoning=LEVEL`: Reasoning effort (none, low, medium, high)
+- `--exclude=PATTERN`: Files to exclude using glob patterns
+
+### GitHub Repository Review
+
+Review GitHub repositories, branches, and pull requests using the following tools:
+
+- **GitHub PR Review Tool**: Analyzes pull requests for issues and improvements
+- **GitHub Repository Review Tool**: Analyzes entire repositories or branches
+
+### Cost Optimization
+
+By default, code review tools use the more cost-efficient `gemini-flash-2.0` model, which offers a good balance between cost and capability for most code review tasks. For particularly complex code bases or when higher reasoning depth is needed, you can specify more powerful models:
+
+```bash
+# Using a more powerful model for complex code
+./scripts/gemini-review.sh --model=gemini-1.5-pro --reasoning=high
+```
+
+### Running Tests
+
+Tests for the GitHub code review functionality can also use the cheaper model:
+
+```bash
+# Run tests with the default gemini-flash-2.0 model
+npm run test:unit
+```
+
 ## Known Issues
 
 * **Streaming Limitations:** `gemini_generateContentStream` uses a workaround, collecting all chunks before returning the full text. True streaming to the MCP client is not yet implemented due to current MCP SDK limitations.

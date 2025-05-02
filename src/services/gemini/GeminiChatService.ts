@@ -23,10 +23,10 @@ import { ZodError } from "zod";
  * Maps reasoningEffort string values to token budgets
  */
 const REASONING_EFFORT_MAP: Record<string, number> = {
-  "none": 0,
-  "low": 1024,   // 1K tokens
-  "medium": 8192, // 8K tokens
-  "high": 24576   // 24K tokens
+  none: 0,
+  low: 1024, // 1K tokens
+  medium: 8192, // 8K tokens
+  high: 24576, // 24K tokens
 };
 
 /**
@@ -34,17 +34,25 @@ const REASONING_EFFORT_MAP: Record<string, number> = {
  * @param thinkingConfig The thinking configuration object to process
  * @returns Processed thinking configuration
  */
-function processThinkingConfig(thinkingConfig?: ThinkingConfig): ThinkingConfig | undefined {
+function processThinkingConfig(
+  thinkingConfig?: ThinkingConfig
+): ThinkingConfig | undefined {
   if (!thinkingConfig) return undefined;
-  
+
   const processedConfig = { ...thinkingConfig };
-  
+
   // Map reasoningEffort to thinkingBudget if provided
-  if (processedConfig.reasoningEffort && REASONING_EFFORT_MAP[processedConfig.reasoningEffort] !== undefined) {
-    processedConfig.thinkingBudget = REASONING_EFFORT_MAP[processedConfig.reasoningEffort];
-    logger.debug(`Mapped reasoning effort '${processedConfig.reasoningEffort}' to thinking budget: ${processedConfig.thinkingBudget} tokens`);
+  if (
+    processedConfig.reasoningEffort &&
+    REASONING_EFFORT_MAP[processedConfig.reasoningEffort] !== undefined
+  ) {
+    processedConfig.thinkingBudget =
+      REASONING_EFFORT_MAP[processedConfig.reasoningEffort];
+    logger.debug(
+      `Mapped reasoning effort '${processedConfig.reasoningEffort}' to thinking budget: ${processedConfig.thinkingBudget} tokens`
+    );
   }
-  
+
   return processedConfig;
 }
 
@@ -159,10 +167,12 @@ export class GeminiChatService {
       }
       if (generationConfig) {
         chatConfig.generationConfig = generationConfig;
-        
+
         // Extract thinking config if it exists within generation config
         if (generationConfig.thinkingConfig) {
-          chatConfig.thinkingConfig = processThinkingConfig(generationConfig.thinkingConfig);
+          chatConfig.thinkingConfig = processThinkingConfig(
+            generationConfig.thinkingConfig
+          );
         }
       }
       if (safetySettings && Array.isArray(safetySettings)) {
@@ -195,7 +205,7 @@ export class GeminiChatService {
       );
 
       return sessionId;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error("Error creating chat session:", error);
       throw new GeminiApiError(
         `Failed to create chat session: ${(error as Error).message}`,
@@ -264,17 +274,21 @@ export class GeminiChatService {
       // Override with any per-message configuration options
       if (generationConfig) {
         requestConfig.generationConfig = generationConfig;
-        
+
         // Extract thinking config if it exists within generation config
         if (generationConfig.thinkingConfig) {
-          requestConfig.thinkingConfig = processThinkingConfig(generationConfig.thinkingConfig);
+          requestConfig.thinkingConfig = processThinkingConfig(
+            generationConfig.thinkingConfig
+          );
         }
       } else if (session.config.generationConfig) {
         requestConfig.generationConfig = session.config.generationConfig;
-        
+
         // Use thinking config from session if available
         if (session.config.thinkingConfig) {
-          requestConfig.thinkingConfig = processThinkingConfig(session.config.thinkingConfig);
+          requestConfig.thinkingConfig = processThinkingConfig(
+            session.config.thinkingConfig
+          );
         }
       }
 
@@ -317,7 +331,7 @@ export class GeminiChatService {
       }
 
       return response;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`Error sending message to session ${sessionId}:`, error);
       throw new GeminiApiError(
         `Failed to send message to session ${sessionId}: ${(error as Error).message}`,
@@ -383,10 +397,12 @@ export class GeminiChatService {
 
       if (session.config.generationConfig) {
         requestConfig.generationConfig = session.config.generationConfig;
-        
+
         // Use thinking config from session if available
         if (session.config.thinkingConfig) {
-          requestConfig.thinkingConfig = processThinkingConfig(session.config.thinkingConfig);
+          requestConfig.thinkingConfig = processThinkingConfig(
+            session.config.thinkingConfig
+          );
         }
       }
 
@@ -419,7 +435,7 @@ export class GeminiChatService {
       }
 
       return response;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(
         `Error sending function result to session ${sessionId}:`,
         error
@@ -563,10 +579,12 @@ export class GeminiChatService {
         generationConfig: generationConfig,
         safetySettings: safetySettings,
       };
-      
+
       // Extract thinking config if it exists within generation config
       if (generationConfig?.thinkingConfig) {
-        requestConfig.thinkingConfig = processThinkingConfig(generationConfig.thinkingConfig);
+        requestConfig.thinkingConfig = processThinkingConfig(
+          generationConfig.thinkingConfig
+        );
       }
 
       // If system instruction is provided, add it to the final request
@@ -596,7 +614,7 @@ export class GeminiChatService {
         response,
         chosenModel,
       };
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`Error routing message: ${(error as Error).message}`, error);
       throw new GeminiApiError(
         `Failed to route message: ${(error as Error).message}`,

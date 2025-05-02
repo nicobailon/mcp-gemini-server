@@ -15,8 +15,10 @@ import type {
 } from "../../types/googleGenAITypes.js";
 
 // Re-export types from Google GenAI SDK and our custom types
+// Note: We're re-exporting the ExtendedGenerationConfig as GenerationConfig
+// to ensure consistent usage across the codebase
 export type {
-  GenerationConfig,
+  GenerationConfig as BaseGenerationConfig,
   SafetySetting,
   Content,
   Part,
@@ -24,8 +26,17 @@ export type {
   ToolConfig,
   FunctionCall,
   ThinkingConfig,
-  ExtendedGenerationConfig,
 };
+
+// Re-export our extended GenerationConfig as the default GenerationConfig
+export type { GenerationConfig } from "../../types/googleGenAITypes.js";
+
+// Extend GenerationConfig to include thinkingBudget property
+declare module "@google/genai" {
+  interface GenerationConfig {
+    thinkingBudget?: number;
+  }
+}
 
 // Type-safe resource IDs
 export type FileId = `files/${string}`;
@@ -55,6 +66,7 @@ export interface ChatSession {
     tools?: Tool[];
     systemInstruction?: Content;
     cachedContent?: string;
+    thinkingConfig?: ThinkingConfig;
   };
   history: Content[];
 }

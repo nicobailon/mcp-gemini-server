@@ -122,7 +122,7 @@ describe("GeminiValidationSchemas", () => {
 
       // Should not throw
       const result = ThinkingConfigSchema.parse(validThinkingConfig);
-      assert.strictEqual(result.thinkingBudget, 5000);
+      assert.strictEqual(result?.thinkingBudget, 5000);
     });
 
     it("should validate empty thinking budget object", () => {
@@ -130,7 +130,7 @@ describe("GeminiValidationSchemas", () => {
 
       // Should not throw
       const result = ThinkingConfigSchema.parse(emptyThinkingConfig);
-      assert.strictEqual(result.thinkingBudget, undefined);
+      assert.strictEqual(result?.thinkingBudget, undefined);
     });
 
     it("should validate valid reasoningEffort values", () => {
@@ -139,7 +139,7 @@ describe("GeminiValidationSchemas", () => {
       for (const value of validValues) {
         // Should not throw
         const result = ThinkingConfigSchema.parse({ reasoningEffort: value });
-        assert.strictEqual(result.reasoningEffort, value);
+        assert.strictEqual(result?.reasoningEffort, value);
       }
     });
 
@@ -163,8 +163,8 @@ describe("GeminiValidationSchemas", () => {
 
       // Should not throw
       const result = ThinkingConfigSchema.parse(config);
-      assert.strictEqual(result.thinkingBudget, 5000);
-      assert.strictEqual(result.reasoningEffort, "medium");
+      assert.strictEqual(result?.thinkingBudget, 5000);
+      assert.strictEqual(result?.reasoningEffort, "medium");
     });
 
     it("should validate thinking budget at boundaries", () => {
@@ -224,8 +224,8 @@ describe("GeminiValidationSchemas", () => {
 
       // Should not throw
       const result = GenerationConfigSchema.parse(validGenerationConfig);
-      assert.strictEqual(result.temperature, 0.7);
-      assert.strictEqual(result.thinkingConfig?.thinkingBudget, 5000);
+      assert.strictEqual(result?.temperature, 0.7);
+      assert.strictEqual(result?.thinkingConfig?.thinkingBudget, 5000);
     });
 
     it("should validate reasoningEffort within generation config", () => {
@@ -238,8 +238,8 @@ describe("GeminiValidationSchemas", () => {
 
       // Should not throw
       const result = GenerationConfigSchema.parse(validGenerationConfig);
-      assert.strictEqual(result.temperature, 0.7);
-      assert.strictEqual(result.thinkingConfig?.reasoningEffort, "high");
+      assert.strictEqual(result?.temperature, 0.7);
+      assert.strictEqual(result?.thinkingConfig?.reasoningEffort, "high");
     });
 
     it("should throw on invalid thinking budget in generation config", () => {

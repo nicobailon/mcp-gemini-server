@@ -2,17 +2,10 @@ import { describe, it, before, mock, afterEach } from "node:test";
 import assert from "node:assert";
 import { geminiGitHubPRReviewTool } from "../../../src/tools/geminiGitHubPRReviewTool.js";
 import { GitHubUrlParser } from "../../../src/services/gemini/GitHubUrlParser.js";
+import { createMockRequest, createMockResponse } from "../../utils/express-mocks.js";
+import { Request, Response } from "express";
 
 describe("geminiGitHubPRReviewTool", () => {
-  interface MockRequest {
-    query: Record<string, string>;
-  }
-
-  interface MockResponse {
-    json: (data: unknown) => MockResponse;
-    status: (code: number) => MockResponse;
-  }
-
   interface MockGeminiService {
     reviewGitHubPullRequest: (params: {
       owner: string;
@@ -24,8 +17,8 @@ describe("geminiGitHubPRReviewTool", () => {
     }) => Promise<string>;
   }
 
-  let mockRequest: MockRequest;
-  let mockResponse: MockResponse;
+  let mockRequest: Request;
+  let mockResponse: Response;
   let mockGeminiService: MockGeminiService;
   let responseData: Record<string, unknown>;
   let responseStatus: number;
@@ -44,21 +37,9 @@ describe("geminiGitHubPRReviewTool", () => {
       return null;
     });
 
-    // Setup mock response
+    // Setup initial state
     responseData = {};
     responseStatus = 200;
-
-    // Create mock response object
-    mockResponse = {
-      json: mock.fn((data) => {
-        responseData = data;
-        return mockResponse;
-      }),
-      status: mock.fn((code) => {
-        responseStatus = code;
-        return mockResponse;
-      }),
-    };
 
     // Create mock Gemini service with parameter capture
     mockGeminiService = {
@@ -71,19 +52,32 @@ describe("geminiGitHubPRReviewTool", () => {
 
   afterEach(() => {
     mock.restoreAll();
-    mockGeminiService.reviewGitHubPullRequest.mock.resetCalls();
+    // Cast to any to access mock property
+    ((mockGeminiService.reviewGitHubPullRequest as any).mock).resetCalls();
     responseData = {};
     responseStatus = 200;
   });
 
   it("should review a PR with Gemini Flash 2.0 model", async () => {
-    mockRequest = {
+    // Create new mocks for each test
+    mockRequest = createMockRequest({
       query: {
         prUrl: "https://github.com/nicobailon/mcp-gemini-server/pull/2",
         model: "gemini-flash-2.0",
         reviewFocus: "general",
       },
-    };
+    });
+    
+    mockResponse = createMockResponse({
+      json: function(data: any): Response {
+        responseData = data;
+        return this as Response;
+      },
+      status: function(code: number): Response {
+        responseStatus = code;
+        return this as Response;
+      },
+    });
 
     await geminiGitHubPRReviewTool(mockRequest, mockResponse, {
       geminiService: mockGeminiService,
@@ -97,12 +91,10 @@ describe("geminiGitHubPRReviewTool", () => {
     );
 
     // Check that reviewGitHubPullRequest was called with the right parameters
-    assert.strictEqual(
-      mockGeminiService.reviewGitHubPullRequest.mock.calls.length,
-      1
-    );
-    const params =
-      mockGeminiService.reviewGitHubPullRequest.mock.calls[0].arguments[0];
+    const mockFn = mockGeminiService.reviewGitHubPullRequest as any;
+    assert.strictEqual(mockFn.mock.calls.length, 1);
+    
+    const params = mockFn.mock.calls[0].arguments[0];
     assert.strictEqual(params.owner, "nicobailon");
     assert.strictEqual(params.repo, "mcp-gemini-server");
     assert.strictEqual(params.prNumber, 2);
@@ -110,13 +102,25 @@ describe("geminiGitHubPRReviewTool", () => {
   });
 
   it("should use different reasoning effort levels with Gemini Flash 2.0", async () => {
-    mockRequest = {
+    // Create new mocks for each test
+    mockRequest = createMockRequest({
       query: {
         prUrl: "https://github.com/nicobailon/mcp-gemini-server/pull/2",
         model: "gemini-flash-2.0",
         reasoningEffort: "low",
       },
-    };
+    });
+    
+    mockResponse = createMockResponse({
+      json: function(data: any): Response {
+        responseData = data;
+        return this as Response;
+      },
+      status: function(code: number): Response {
+        responseStatus = code;
+        return this as Response;
+      },
+    });
 
     await geminiGitHubPRReviewTool(mockRequest, mockResponse, {
       geminiService: mockGeminiService,
@@ -125,10 +129,8 @@ describe("geminiGitHubPRReviewTool", () => {
     assert.strictEqual(responseStatus, 200);
 
     // Verify the call was made to the service
-    assert.strictEqual(
-      mockGeminiService.reviewGitHubPullRequest.mock.calls.length,
-      1
-    );
+    const mockFn = mockGeminiService.reviewGitHubPullRequest as any;
+    assert.strictEqual(mockFn.mock.calls.length, 1);
 
     // For tests matching against Zod schemas with defaults, just verify the call was made
     // and the service returns successfully
@@ -140,13 +142,25 @@ describe("geminiGitHubPRReviewTool", () => {
   });
 
   it("should handle review focus parameters", async () => {
-    mockRequest = {
+    // Create new mocks for each test
+    mockRequest = createMockRequest({
       query: {
         prUrl: "https://github.com/nicobailon/mcp-gemini-server/pull/2",
         model: "gemini-flash-2.0",
         reviewFocus: "security",
       },
-    };
+    });
+    
+    mockResponse = createMockResponse({
+      json: function(data: any): Response {
+        responseData = data;
+        return this as Response;
+      },
+      status: function(code: number): Response {
+        responseStatus = code;
+        return this as Response;
+      },
+    });
 
     await geminiGitHubPRReviewTool(mockRequest, mockResponse, {
       geminiService: mockGeminiService,
@@ -155,10 +169,8 @@ describe("geminiGitHubPRReviewTool", () => {
     assert.strictEqual(responseStatus, 200);
 
     // Verify the call was made to the service
-    assert.strictEqual(
-      mockGeminiService.reviewGitHubPullRequest.mock.calls.length,
-      1
-    );
+    const mockFn = mockGeminiService.reviewGitHubPullRequest as any;
+    assert.strictEqual(mockFn.mock.calls.length, 1);
 
     // For tests matching against Zod schemas with defaults, just verify the call was made
     // and the service returns successfully
@@ -170,12 +182,24 @@ describe("geminiGitHubPRReviewTool", () => {
   });
 
   it("should handle invalid URLs", async () => {
-    mockRequest = {
+    // Create new mocks for each test
+    mockRequest = createMockRequest({
       query: {
         prUrl: "https://example.com/invalid",
         model: "gemini-flash-2.0",
       },
-    };
+    });
+    
+    mockResponse = createMockResponse({
+      json: function(data: any): Response {
+        responseData = data;
+        return this as Response;
+      },
+      status: function(code: number): Response {
+        responseStatus = code;
+        return this as Response;
+      },
+    });
 
     await geminiGitHubPRReviewTool(mockRequest, mockResponse, {
       geminiService: mockGeminiService,

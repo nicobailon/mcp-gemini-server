@@ -4,10 +4,30 @@ import { GeminiContentService } from "../../../../src/services/gemini/GeminiCont
 import { GeminiSecurityService } from "../../../../src/services/gemini/GeminiSecurityService.js";
 import { GeminiChatService } from "../../../../src/services/gemini/GeminiChatService.js";
 import { GenerateContentResponse } from "@google/genai";
+import { FinishReason } from "../../../../src/types/googleGenAITypes.js";
+
+// Create a partial type for mocking GenerateContentResponse
+type PartialGenerateContentResponse = Partial<GenerateContentResponse>;
+
+// Define extended generation config type for tests
+interface ExtendedGenerationConfig {
+  temperature?: number;
+  thinkingConfig?: {
+    thinkingBudget?: number;
+    reasoningEffort?: "none" | "low" | "medium" | "high";
+  };
+}
 
 describe("Thinking Budget Feature", () => {
+  // Create a properly typed mock requestConfig for assertions
+  interface MockRequestConfig {
+    thinkingConfig?: {
+      thinkingBudget?: number;
+    }
+  }
+
   // Mock GoogleGenAI
-  const mockGenerateContentMethod = mock.fn(() => ({
+  const mockGenerateContentMethod = mock.fn((_config?: MockRequestConfig) => ({
     text: "Mock response from generateContent",
   }));
 
@@ -42,13 +62,17 @@ describe("Thinking Budget Feature", () => {
           thinkingConfig: {
             thinkingBudget: 5000,
           },
-        },
+        } as ExtendedGenerationConfig,
       });
 
       // Assert
       assert.strictEqual(mockGenerateContentMethod.mock.calls.length, 1);
-      const requestConfig =
-        mockGenerateContentMethod.mock.calls[0].arguments[0];
+      // Get mock arguments safely with null checks
+      const args = mockGenerateContentMethod.mock.calls[0];
+      assert.ok(args, "Mock should have been called with arguments");
+      
+      const requestConfig = args.arguments[0];
+      assert.ok(requestConfig, "Request config should exist");
       assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");
       assert.strictEqual(
         requestConfig.thinkingConfig.thinkingBudget,
@@ -83,13 +107,17 @@ describe("Thinking Budget Feature", () => {
             thinkingConfig: {
               reasoningEffort: testCase.reasoningEffort as any,
             },
-          },
+          } as ExtendedGenerationConfig,
         });
 
         // Assert
         assert.strictEqual(mockGenerateContentMethod.mock.calls.length, 1);
-        const requestConfig =
-          mockGenerateContentMethod.mock.calls[0].arguments[0];
+        // Get mock arguments safely with null checks
+        const args = mockGenerateContentMethod.mock.calls[0];
+        assert.ok(args, "Mock should have been called with arguments");
+        
+        const requestConfig = args.arguments[0];
+        assert.ok(requestConfig, "Request config should exist");
         assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");
         assert.strictEqual(
           requestConfig.thinkingConfig.thinkingBudget,
@@ -116,8 +144,12 @@ describe("Thinking Budget Feature", () => {
 
       // Assert
       assert.strictEqual(mockGenerateContentMethod.mock.calls.length, 1);
-      const requestConfig =
-        mockGenerateContentMethod.mock.calls[0].arguments[0];
+      // Get mock arguments safely with null checks
+      const args = mockGenerateContentMethod.mock.calls[0];
+      assert.ok(args, "Mock should have been called with arguments");
+      
+      const requestConfig = args.arguments[0];
+      assert.ok(requestConfig, "Request config should exist");
       assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");
       assert.strictEqual(
         requestConfig.thinkingConfig.thinkingBudget,
@@ -144,13 +176,17 @@ describe("Thinking Budget Feature", () => {
           thinkingConfig: {
             thinkingBudget: configThinkingBudget,
           },
-        },
+        } as ExtendedGenerationConfig,
       });
 
       // Assert
       assert.strictEqual(mockGenerateContentMethod.mock.calls.length, 1);
-      const requestConfig =
-        mockGenerateContentMethod.mock.calls[0].arguments[0];
+      // Get mock arguments safely with null checks
+      const args = mockGenerateContentMethod.mock.calls[0];
+      assert.ok(args, "Mock should have been called with arguments");
+      
+      const requestConfig = args.arguments[0];
+      assert.ok(requestConfig, "Request config should exist");
       assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");
       assert.strictEqual(
         requestConfig.thinkingConfig.thinkingBudget,
@@ -161,21 +197,29 @@ describe("Thinking Budget Feature", () => {
   });
 
   describe("GeminiChatService", () => {
-    // Mock for chat service
+    // Mock for chat service with proper typing
     const mockChatGenerateContentMethod = mock.fn(
-      (): GenerateContentResponse => ({
-        candidates: [
-          {
-            content: {
-              role: "model",
-              parts: [{ text: "Mock chat response" }],
+      (_config?: MockRequestConfig): Promise<PartialGenerateContentResponse> => {
+        const response: PartialGenerateContentResponse = {
+          candidates: [
+            {
+              content: {
+                role: "model",
+                parts: [{ text: "Mock chat response" }],
+              },
+              finishReason: FinishReason.STOP,
             },
-            finishReason: "STOP",
-          },
-        ],
-        text: () => "Mock chat response",
-        promptFeedback: {},
-      })
+          ],
+          promptFeedback: {},
+        };
+        
+        // Define the text property as a getter function
+        Object.defineProperty(response, 'text', {
+          get: function() { return "Mock chat response"; }
+        });
+        
+        return Promise.resolve(response);
+      }
     );
 
     const mockChatGenAI = {
@@ -202,7 +246,7 @@ describe("Thinking Budget Feature", () => {
           thinkingConfig: {
             thinkingBudget: 6000,
           },
-        },
+        } as ExtendedGenerationConfig,
       });
 
       await chatService.sendMessageToSession({
@@ -212,8 +256,12 @@ describe("Thinking Budget Feature", () => {
 
       // Assert
       assert.strictEqual(mockChatGenerateContentMethod.mock.calls.length, 1);
-      const requestConfig =
-        mockChatGenerateContentMethod.mock.calls[0].arguments[0];
+      // Get mock arguments safely with null checks
+      const args = mockChatGenerateContentMethod.mock.calls[0];
+      assert.ok(args, "Mock should have been called with arguments");
+      
+      const requestConfig = args.arguments[0];
+      assert.ok(requestConfig, "Request config should exist");
       assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");
       assert.strictEqual(
         requestConfig.thinkingConfig.thinkingBudget,
@@ -246,7 +294,7 @@ describe("Thinking Budget Feature", () => {
             thinkingConfig: {
               reasoningEffort: testCase.reasoningEffort as any,
             },
-          },
+          } as ExtendedGenerationConfig,
         });
 
         await chatService.sendMessageToSession({
@@ -256,8 +304,12 @@ describe("Thinking Budget Feature", () => {
 
         // Assert
         assert.strictEqual(mockChatGenerateContentMethod.mock.calls.length, 1);
-        const requestConfig =
-          mockChatGenerateContentMethod.mock.calls[0].arguments[0];
+        // Get mock arguments safely with null checks
+        const args = mockChatGenerateContentMethod.mock.calls[0];
+        assert.ok(args, "Mock should have been called with arguments");
+        
+        const requestConfig = args.arguments[0];
+        assert.ok(requestConfig, "Request config should exist");
         assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");
         assert.strictEqual(
           requestConfig.thinkingConfig.thinkingBudget,
@@ -280,7 +332,7 @@ describe("Thinking Budget Feature", () => {
           thinkingConfig: {
             thinkingBudget: 3000,
           },
-        },
+        } as ExtendedGenerationConfig,
       });
 
       await chatService.sendMessageToSession({
@@ -290,13 +342,17 @@ describe("Thinking Budget Feature", () => {
           thinkingConfig: {
             thinkingBudget: 8000,
           },
-        },
+        } as ExtendedGenerationConfig,
       });
 
       // Assert
       assert.strictEqual(mockChatGenerateContentMethod.mock.calls.length, 1);
-      const requestConfig =
-        mockChatGenerateContentMethod.mock.calls[0].arguments[0];
+      // Get mock arguments safely with null checks
+      const args = mockChatGenerateContentMethod.mock.calls[0];
+      assert.ok(args, "Mock should have been called with arguments");
+      
+      const requestConfig = args.arguments[0];
+      assert.ok(requestConfig, "Request config should exist");
       assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");
       assert.strictEqual(
         requestConfig.thinkingConfig.thinkingBudget,

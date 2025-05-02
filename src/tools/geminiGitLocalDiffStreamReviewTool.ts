@@ -1,3 +1,5 @@
+/// <reference path="../types/modelcontextprotocol-sdk.d.ts" />
+
 import { Request, Response } from "express";
 import { Tool } from "@modelcontextprotocol/sdk";
 import { logger } from "../utils/logger.js";
@@ -15,8 +17,10 @@ import { GeminiService } from "../services/GeminiService.js";
 export const geminiGitLocalDiffStreamReviewTool: Tool = async (
   req: Request,
   res: Response,
-  services: { geminiService: GeminiService }
+  services: Record<string, unknown>
 ): Promise<void> => {
+  // Type cast services to access geminiService
+  const typedServices = services as { geminiService: GeminiService };
   logger.info(
     "[geminiGitLocalDiffStreamReviewTool] Processing streaming request"
   );
@@ -56,7 +60,7 @@ export const geminiGitLocalDiffStreamReviewTool: Tool = async (
     };
 
     // Get the streaming review generator from the Gemini Service
-    const reviewStream = services.geminiService.reviewGitDiffStream({
+    const reviewStream = typedServices.geminiService.reviewGitDiffStream({
       diffContent,
       modelName: model,
       reasoningEffort,
@@ -71,13 +75,16 @@ export const geminiGitLocalDiffStreamReviewTool: Tool = async (
       res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
 
       // Flush the response to ensure chunks are sent immediately
-      res.flush?.();
+      // TypeScript doesn't know about this Express-specific method, but it might exist
+      if (typeof (res as any).flush === "function") {
+        (res as any).flush();
+      }
     }
 
     // Send end of stream marker
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
-  } catch (error) {
+  } catch (error: unknown) {
     // Log error details
     logger.error("[geminiGitLocalDiffStreamReviewTool] Error", { error });
 
@@ -85,17 +92,24 @@ export const geminiGitLocalDiffStreamReviewTool: Tool = async (
     let statusCode = 500;
     let errorMessage = "Internal server error";
 
-    if (error.name === "ZodError") {
-      statusCode = 400;
-      errorMessage = "Invalid parameters: " + JSON.stringify(error.errors);
-    } else if (error.name === "GeminiValidationError") {
-      statusCode = 400;
-      errorMessage = `Validation error: ${error.message} (field: ${error.field})`;
-    } else if (error.name === "GeminiApiError") {
-      statusCode = 502;
-      errorMessage = `Gemini API error: ${error.message}`;
-    } else {
-      errorMessage = error.message || "Unknown error";
+    if (error instanceof Error) {
+      if (error.name === "ZodError" && "errors" in error) {
+        statusCode = 400;
+        errorMessage =
+          "Invalid parameters: " + JSON.stringify((error as any).errors);
+      } else if (error.name === "GeminiValidationError" && "field" in error) {
+        statusCode = 400;
+        const validationError = error as Error & {
+          message: string;
+          field: string;
+        };
+        errorMessage = `Validation error: ${validationError.message} (field: ${validationError.field})`;
+      } else if (error.name === "GeminiApiError") {
+        statusCode = 502;
+        errorMessage = `Gemini API error: ${error.message}`;
+      } else {
+        errorMessage = error.message || "Unknown error";
+      }
     }
 
     // For streaming responses, send error in SSE format before ending

@@ -2,6 +2,7 @@ import { describe, it, before, mock, afterEach } from "node:test";
 import assert from "node:assert";
 import { GeminiGitDiffService } from "../../../../src/services/gemini/GeminiGitDiffService.js";
 import { Content } from "../../../../src/services/gemini/GeminiTypes.js";
+import gitdiffParser from "gitdiff-parser";
 
 // Create a simple mock for gitdiff-parser
 const mockParsedDiff = [
@@ -91,21 +92,17 @@ describe("GeminiGitDiffService", () => {
       getGenerativeModel: mock.fn(() => mockModel),
     };
 
-    // Create a custom GeminiGitDiffService class for testing
-    class TestGeminiGitDiffService extends GeminiGitDiffService {
-      // Override the parseGitDiff method to avoid actual parsing
-      protected async parseGitDiff(diffContent: string) {
-        return mockParsedDiff as any;
-      }
-    }
-
     // Create service with flash model as default
-    service = new TestGeminiGitDiffService(
+    service = new GeminiGitDiffService(
       mockGenAI,
       "gemini-flash-2.0", // Use Gemini Flash 2.0 as default model
       1024 * 1024,
       ["package-lock.json", "*.min.js"]
     );
+    
+    // We need to mock gitdiff-parser.parse correctly since it's used by the parseGitDiff method
+    // Intercept calls to gitdiff-parser.parse and return our mock
+    mock.method(gitdiffParser, "parse", () => mockParsedDiff);
   });
 
   afterEach(() => {

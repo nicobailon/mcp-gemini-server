@@ -13,7 +13,7 @@ describe("GitHubApiService", () => {
   let mockOctokit: any;
   let mockGraphql: any;
 
-  before(() => {
+  before(async () => {
     // Create mock implementation for Octokit
     mockOctokit = {
       rateLimit: {
@@ -68,14 +68,15 @@ describe("GitHubApiService", () => {
       },
     }));
 
-    // Mock Octokit and graphql imports
-    mock.module("@octokit/rest", () => ({
+    // Mock Octokit and graphql imports with mock.module
+    // This requires the --experimental-test-module-mocks flag
+    (mock as any).module("@octokit/rest", () => ({
       Octokit: function () {
         return mockOctokit;
       },
     }));
 
-    mock.module("@octokit/graphql", () => ({
+    (mock as any).module("@octokit/graphql", () => ({
       graphql: mockGraphql,
       defaults: () => mockGraphql,
     }));

@@ -1,7 +1,7 @@
 // Import types directly from the SDK
 import type {
   GenerateContentResponse,
-  GenerationConfig,
+  GenerationConfig as GoogleGenerationConfig,
   SafetySetting,
   Content,
   Tool,
@@ -16,12 +16,22 @@ interface ThinkingConfig {
   reasoningEffort?: "none" | "low" | "medium" | "high";
 }
 
+// Override the imported GenerationConfig with our extended version
+interface GenerationConfig extends GoogleGenerationConfig {
+  thinkingConfig?: ThinkingConfig;
+  thinkingBudget?: number;
+}
+
+// Define ExtendedGenerationConfig (alias for our GenerationConfig)
+type ExtendedGenerationConfig = GenerationConfig;
+
 // Types for params that match the SDK v0.10.0 structure
 interface ChatSessionParams {
   history?: Content[];
   generationConfig?: GenerationConfig;
   safetySettings?: SafetySetting[];
   tools?: Tool[];
+  thinkingConfig?: ThinkingConfig;
   systemInstruction?: Content;
   cachedContent?: string;
 }
@@ -102,6 +112,7 @@ interface ChatSession {
     tools?: Tool[];
     systemInstruction?: Content;
     cachedContent?: string;
+    thinkingConfig?: ThinkingConfig;
   };
   history: Content[];
 }
@@ -122,11 +133,6 @@ interface GenerateContentResponseChunk {
   candidates?: Candidate[];
 }
 
-// Extended GenerationConfig that includes thinking configuration
-export interface ExtendedGenerationConfig extends GenerationConfig {
-  thinkingConfig?: ThinkingConfig;
-}
-
 // Re-export all types for use in other files
 export type {
   ChatSessionParams,
@@ -140,5 +146,8 @@ export type {
   ChatSession,
   GenerateContentResponse,
   ThinkingConfig, // Export ThinkingConfig
+  GenerationConfig, // Export our extended GenerationConfig
+  ExtendedGenerationConfig, // Export the alias for our extended GenerationConfig
+  GoogleGenerationConfig, // Export the original Google GenerationConfig in case it's needed
 };
 export { FinishReason, BlockedReason };

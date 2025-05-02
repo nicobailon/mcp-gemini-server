@@ -9,7 +9,7 @@ import {
   GeminiErrorMessages,
 } from "../../utils/geminiErrors.js";
 import { Content, GenerationConfig, SafetySetting } from "./GeminiTypes.js";
-import * as gitdiffParser from "gitdiff-parser";
+import gitdiffParser from "gitdiff-parser";
 import micromatch from "micromatch";
 import {
   getReviewTemplate,
@@ -17,11 +17,60 @@ import {
   getFocusInstructions,
 } from "./GeminiPromptTemplates.js";
 
+// Define our interface matching the original GoogleGenAI interface
+interface GenerativeModel {
+  generateContent(options: { contents: Content[] }): Promise<{
+    response: {
+      text(): string;
+    };
+  }>;
+  generateContentStream(options: { contents: Content[] }): Promise<{
+    stream: AsyncGenerator<{
+      text(): string;
+    }>;
+  }>;
+  startChat(options?: any): any;
+  generateImages(params: any): Promise<any>;
+}
+
+// Define interface for GoogleGenAI with getGenerativeModel method
+interface ExtendedGoogleGenAI extends GoogleGenAI {
+  getGenerativeModel(options: {
+    model: string;
+    generationConfig?: GenerationConfig;
+    safetySettings?: SafetySetting[];
+  }): GenerativeModel;
+}
+
 /**
- * Interface for parsed git diff files, extending the gitdiff-parser type
+ * Interface for parsed git diff files
  */
-interface ParsedDiffFile extends gitdiffParser.File {
+interface ParsedDiffFile {
+  oldPath: string;
+  newPath: string;
+  oldRevision: string;
+  newRevision: string;
+  hunks: Array<{
+    content: string;
+    oldStart: number;
+    newStart: number;
+    oldLines: number;
+    newLines: number;
+    changes: Array<{
+      content: string;
+      type: "insert" | "delete" | "normal";
+      lineNumber?: number;
+      oldLineNumber?: number;
+      newLineNumber?: number;
+    }>;
+  }>;
+  isBinary?: boolean;
   type: "add" | "delete" | "modify" | "rename";
+  oldEndingNewLine?: boolean;
+  newEndingNewLine?: boolean;
+  oldMode?: string;
+  newMode?: string;
+  similarity?: number;
 }
 
 /**
@@ -60,7 +109,7 @@ export interface GitDiffReviewParams {
  * Service for processing and analyzing git diffs using Gemini models
  */
 export class GeminiGitDiffService {
-  private genAI: GoogleGenAI;
+  private genAI: ExtendedGoogleGenAI;
   private defaultModelName?: string;
   private maxDiffSizeBytes: number;
   private defaultExcludePatterns: string[];
@@ -75,7 +124,7 @@ export class GeminiGitDiffService {
    * @param defaultThinkingBudget Optional default thinking budget in tokens (0-24576)
    */
   constructor(
-    genAI: GoogleGenAI,
+    genAI: ExtendedGoogleGenAI,
     defaultModelName?: string,
     maxDiffSizeBytes: number = 1024 * 1024, // 1MB default
     defaultExcludePatterns: string[] = [
@@ -115,9 +164,11 @@ export class GeminiGitDiffService {
       }
 
       // Parse using gitdiff-parser
-      const parsedFiles = gitdiffParser.parse(
-        diffContent
-      ) as gitdiffParser.File[];
+      // Using type assertion to handle the parse method
+      const parser = gitdiffParser as unknown as {
+        parse(diffStr: string): any[];
+      };
+      const parsedFiles = parser.parse(diffContent);
 
       // Extend with additional type information
       return parsedFiles.map((file) => {

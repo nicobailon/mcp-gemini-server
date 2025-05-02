@@ -330,7 +330,7 @@ export class GitHubApiService {
           throw new Error(`Path ${path} is a file, not a directory`);
         }
 
-        // Map to standardized structure
+        // Map to standardized structure and ensure html_url is never null
         return response.data.map((item) => ({
           name: item.name,
           path: item.path,
@@ -339,7 +339,7 @@ export class GitHubApiService {
           size: item.size,
           sha: item.sha,
           url: item.url,
-          html_url: item.html_url,
+          html_url: item.html_url || "", // Convert null to empty string
         }));
       } catch (error: unknown) {
         if (error instanceof RequestError && error.status === 404) {
@@ -468,7 +468,8 @@ export class GitHubApiService {
           }
         );
 
-        return response.data as string;
+        // The API returns a diff as text when using the diff content type
+        return String(response.data);
       } catch (error: unknown) {
         if (error instanceof RequestError && error.status === 404) {
           throw new GeminiValidationError(
@@ -582,7 +583,39 @@ export class GitHubApiService {
       await this.checkBeforeRequest();
 
       try {
-        const result = await this.graphqlWithAuth(
+        // Define the expected type of the GraphQL result
+        interface GraphQLRepoResult {
+          repository: {
+            name: string;
+            description: string | null;
+            defaultBranchRef: {
+              name: string;
+            };
+            primaryLanguage: {
+              name: string;
+            } | null;
+            languages: {
+              edges: Array<{
+                node: {
+                  name: string;
+                };
+                size: number;
+              }>;
+              totalSize: number;
+            };
+            stargazerCount: number;
+            forkCount: number;
+            issues: {
+              totalCount: number;
+            };
+            pullRequests: {
+              totalCount: number;
+            };
+            updatedAt: string;
+          };
+        }
+
+        const result = await this.graphqlWithAuth<GraphQLRepoResult>(
           `
           query getRepoOverview($owner: String!, $repo: String!) {
             repository(owner: $owner, name: $repo) {
@@ -623,12 +656,10 @@ export class GitHubApiService {
 
         // Process languages data
         const totalSize = result.repository.languages.totalSize;
-        const languages = result.repository.languages.edges.map(
-          (edge: any) => ({
-            name: edge.node.name,
-            percentage: Math.round((edge.size / totalSize) * 100),
-          })
-        );
+        const languages = result.repository.languages.edges.map((edge) => ({
+          name: edge.node.name,
+          percentage: Math.round((edge.size / totalSize) * 100),
+        }));
 
         return {
           name: result.repository.name,
@@ -690,7 +721,8 @@ export class GitHubApiService {
           }
         );
 
-        return response.data as string;
+        // The API returns a diff as text when using the diff content type
+        return String(response.data);
       } catch (error: unknown) {
         if (error instanceof RequestError) {
           if (error.status === 404) {

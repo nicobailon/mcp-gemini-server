@@ -6,6 +6,7 @@ import {
   Part,
   ThinkingConfig,
 } from "./GeminiTypes.js";
+import { HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { FileMetadata } from "../../types/index.js";
 
 /**
@@ -48,24 +49,24 @@ export const SafetySettingSchema = z.object({
 /**
  * Default safety settings to apply if none are provided
  */
-export const DEFAULT_SAFETY_SETTINGS = [
+export const DEFAULT_SAFETY_SETTINGS: SafetySetting[] = [
   {
-    category: "HARM_CATEGORY_HARASSMENT" as any,
-    threshold: "BLOCK_MEDIUM_AND_ABOVE" as any,
+    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
   },
   {
-    category: "HARM_CATEGORY_HATE_SPEECH" as any,
-    threshold: "BLOCK_MEDIUM_AND_ABOVE" as any,
+    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
   },
   {
-    category: "HARM_CATEGORY_SEXUALLY_EXPLICIT" as any,
-    threshold: "BLOCK_MEDIUM_AND_ABOVE" as any,
+    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
   },
   {
-    category: "HARM_CATEGORY_DANGEROUS_CONTENT" as any,
-    threshold: "BLOCK_MEDIUM_AND_ABOVE" as any,
+    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
   },
-] as SafetySetting[];
+];
 
 /**
  * Schema for thinking configuration to control model reasoning

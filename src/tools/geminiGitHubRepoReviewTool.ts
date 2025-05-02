@@ -1,3 +1,5 @@
+/// <reference path="../types/modelcontextprotocol-sdk.d.ts" />
+
 import { Request, Response } from "express";
 import { Tool } from "@modelcontextprotocol/sdk";
 import { logger } from "../utils/logger.js";
@@ -16,8 +18,10 @@ import { GitHubUrlParser } from "../services/gemini/GitHubUrlParser.js";
 export const geminiGitHubRepoReviewTool: Tool = async (
   req: Request,
   res: Response,
-  services: { geminiService: GeminiService }
+  services: Record<string, unknown>
 ): Promise<void> => {
+  // Type cast services to access geminiService
+  const typedServices = services as { geminiService: GeminiService };
   const start = Date.now();
   logger.info("[geminiGitHubRepoReviewTool] Processing request");
 
@@ -41,10 +45,11 @@ export const geminiGitHubRepoReviewTool: Tool = async (
     // Parse GitHub URL
     const parsedUrl = GitHubUrlParser.parse(repoUrl);
     if (!parsedUrl) {
-      return res.status(400).json({
+      res.status(400).json({
         error: "Invalid GitHub URL",
         message: "The provided URL is not a valid GitHub repository URL",
       });
+      return;
     }
 
     // Extract branch from URL if present and not provided as a separate parameter
@@ -55,18 +60,20 @@ export const geminiGitHubRepoReviewTool: Tool = async (
     const { owner, repo } = parsedUrl;
 
     // Call the GitHub Repository Review service
-    const reviewText = await services.geminiService.reviewGitHubRepository({
-      owner,
-      repo,
-      branch: effectiveBranch,
-      modelName: model,
-      reasoningEffort,
-      reviewFocus,
-      maxFilesToInclude: maxFiles,
-      excludePatterns,
-      prioritizeFiles,
-      customPrompt,
-    });
+    const reviewText = await typedServices.geminiService.reviewGitHubRepository(
+      {
+        owner,
+        repo,
+        branch: effectiveBranch,
+        modelName: model,
+        reasoningEffort,
+        reviewFocus,
+        maxFilesToInclude: maxFiles,
+        excludePatterns,
+        prioritizeFiles,
+        customPrompt,
+      }
+    );
 
     // Send the review result as JSON response
     res.json({
@@ -76,35 +83,42 @@ export const geminiGitHubRepoReviewTool: Tool = async (
       branch: effectiveBranch,
       executionTime: Date.now() - start,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     // Log error details
     logger.error("[geminiGitHubRepoReviewTool] Error", { error });
 
     // Send appropriate error response
-    if (error.name === "ZodError") {
-      res.status(400).json({
-        error: "Invalid parameters",
-        details: error.errors,
-      });
-    } else if (error.name === "GeminiValidationError") {
-      res.status(400).json({
-        error: error.message,
-        field: error.field,
-      });
-    } else if (error.name === "GeminiApiError") {
-      res.status(502).json({
-        error: "Gemini API error",
-        message: error.message,
-      });
-    } else if (error.message && error.message.includes("GitHub API")) {
-      res.status(502).json({
-        error: "GitHub API error",
-        message: error.message,
-      });
+    if (error instanceof Error) {
+      if (error.name === "ZodError" && "errors" in error) {
+        res.status(400).json({
+          error: "Invalid parameters",
+          details: (error as { errors: unknown }).errors,
+        });
+      } else if (error.name === "GeminiValidationError" && "field" in error) {
+        res.status(400).json({
+          error: error.message,
+          field: (error as { field: string }).field,
+        });
+      } else if (error.name === "GeminiApiError") {
+        res.status(502).json({
+          error: "Gemini API error",
+          message: error.message,
+        });
+      } else if (error.message && error.message.includes("GitHub API")) {
+        res.status(502).json({
+          error: "GitHub API error",
+          message: error.message,
+        });
+      } else {
+        res.status(500).json({
+          error: "Internal server error",
+          message: error.message || "Unknown error",
+        });
+      }
     } else {
       res.status(500).json({
         error: "Internal server error",
-        message: error.message || "Unknown error",
+        message: "An unknown error occurred",
       });
     }
   }

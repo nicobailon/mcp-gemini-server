@@ -1,3 +1,5 @@
+/// <reference path="../types/modelcontextprotocol-sdk.d.ts" />
+
 import { Request, Response } from "express";
 import { Tool } from "@modelcontextprotocol/sdk";
 import { logger } from "../utils/logger.js";
@@ -16,8 +18,10 @@ import { GitHubUrlParser } from "../services/gemini/GitHubUrlParser.js";
 export const geminiGitHubPRReviewTool: Tool = async (
   req: Request,
   res: Response,
-  services: { geminiService: GeminiService }
+  services: Record<string, unknown>
 ): Promise<void> => {
+  // Type cast services to access geminiService
+  const typedServices = services as { geminiService: GeminiService };
   const start = Date.now();
   logger.info("[geminiGitHubPRReviewTool] Processing request");
 
@@ -42,10 +46,11 @@ export const geminiGitHubPRReviewTool: Tool = async (
       !parsedUrl ||
       (parsedUrl.type !== "pull_request" && parsedUrl.type !== "pr_files")
     ) {
-      return res.status(400).json({
+      res.status(400).json({
         error: "Invalid GitHub URL",
         message: "The provided URL is not a valid GitHub pull request URL",
       });
+      return;
     }
 
     // Extract PR number and determine if filesOnly should be true based on URL type
@@ -56,17 +61,18 @@ export const geminiGitHubPRReviewTool: Tool = async (
     const { owner, repo } = parsedUrl;
 
     // Call the GitHub PR Review service
-    const reviewText = await services.geminiService.reviewGitHubPullRequest({
-      owner,
-      repo,
-      prNumber,
-      modelName: model,
-      reasoningEffort,
-      reviewFocus,
-      filesOnly: effectiveFilesOnly,
-      excludePatterns,
-      customPrompt,
-    });
+    const reviewText =
+      await typedServices.geminiService.reviewGitHubPullRequest({
+        owner,
+        repo,
+        prNumber,
+        modelName: model,
+        reasoningEffort,
+        reviewFocus,
+        filesOnly: effectiveFilesOnly,
+        excludePatterns,
+        customPrompt,
+      });
 
     // Send the review result as JSON response
     res.json({
@@ -76,35 +82,42 @@ export const geminiGitHubPRReviewTool: Tool = async (
       filesOnly: effectiveFilesOnly,
       executionTime: Date.now() - start,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     // Log error details
     logger.error("[geminiGitHubPRReviewTool] Error", { error });
 
     // Send appropriate error response
-    if (error.name === "ZodError") {
-      res.status(400).json({
-        error: "Invalid parameters",
-        details: error.errors,
-      });
-    } else if (error.name === "GeminiValidationError") {
-      res.status(400).json({
-        error: error.message,
-        field: error.field,
-      });
-    } else if (error.name === "GeminiApiError") {
-      res.status(502).json({
-        error: "Gemini API error",
-        message: error.message,
-      });
-    } else if (error.message && error.message.includes("GitHub API")) {
-      res.status(502).json({
-        error: "GitHub API error",
-        message: error.message,
-      });
+    if (error instanceof Error) {
+      if (error.name === "ZodError" && "errors" in error) {
+        res.status(400).json({
+          error: "Invalid parameters",
+          details: (error as { errors: unknown }).errors,
+        });
+      } else if (error.name === "GeminiValidationError" && "field" in error) {
+        res.status(400).json({
+          error: error.message,
+          field: (error as { field: string }).field,
+        });
+      } else if (error.name === "GeminiApiError") {
+        res.status(502).json({
+          error: "Gemini API error",
+          message: error.message,
+        });
+      } else if (error.message && error.message.includes("GitHub API")) {
+        res.status(502).json({
+          error: "GitHub API error",
+          message: error.message,
+        });
+      } else {
+        res.status(500).json({
+          error: "Internal server error",
+          message: error.message || "Unknown error",
+        });
+      }
     } else {
       res.status(500).json({
         error: "Internal server error",
-        message: error.message || "Unknown error",
+        message: "An unknown error occurred",
       });
     }
   }

@@ -242,12 +242,9 @@ describe("RetryService", () => {
       });
 
       // Direct access to the private method for testing
-      // @ts-expect-error - Accessing private method for testing
-      const delay1 = testRetryService["calculateDelay"](0);
-      // @ts-expect-error - Accessing private method for testing
-      const delay2 = testRetryService["calculateDelay"](1);
-      // @ts-expect-error - Accessing private method for testing
-      const delay3 = testRetryService["calculateDelay"](2);
+      const delay1 = (testRetryService as any)["calculateDelay"](0);
+      const delay2 = (testRetryService as any)["calculateDelay"](1);
+      const delay3 = (testRetryService as any)["calculateDelay"](2);
 
       // Verify calculated delays
       assert.strictEqual(delay1, 100);
@@ -266,14 +263,10 @@ describe("RetryService", () => {
       });
 
       // Test calculated delays directly
-      // @ts-expect-error - Accessing private method for testing
-      const delay1 = testRetryService["calculateDelay"](0);
-      // @ts-expect-error - Accessing private method for testing
-      const delay2 = testRetryService["calculateDelay"](1);
-      // @ts-expect-error - Accessing private method for testing
-      const delay3 = testRetryService["calculateDelay"](2); // Should be capped
-      // @ts-expect-error - Accessing private method for testing
-      const delay4 = testRetryService["calculateDelay"](3); // Should be capped
+      const delay1 = (testRetryService as any)["calculateDelay"](0);
+      const delay2 = (testRetryService as any)["calculateDelay"](1);
+      const delay3 = (testRetryService as any)["calculateDelay"](2); // Should be capped
+      const delay4 = (testRetryService as any)["calculateDelay"](3); // Should be capped
 
       // Verify calculated delays
       assert.strictEqual(delay1, 100);

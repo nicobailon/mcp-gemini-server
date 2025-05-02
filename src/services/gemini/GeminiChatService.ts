@@ -1,4 +1,9 @@
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import {
+  GoogleGenAI,
+  GenerateContentResponse,
+  HarmCategory,
+  HarmBlockThreshold,
+} from "@google/genai";
 import { v4 as uuidv4 } from "uuid";
 import {
   GeminiApiError,
@@ -577,7 +582,7 @@ export class GeminiChatService {
           },
         ],
         generationConfig: generationConfig,
-        safetySettings: safetySettings,
+        safetySettings: safetySettings as unknown as SafetySetting[],
       };
 
       // Extract thinking config if it exists within generation config

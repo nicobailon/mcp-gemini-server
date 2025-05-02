@@ -13,6 +13,7 @@ describe("GeminiPromptTemplates", () => {
       const context = {
         name: "John",
         place: "Paris",
+        diffContent: "sample diff content", // Required by function signature
       };
 
       const result = processTemplate(template, context);
@@ -23,6 +24,7 @@ describe("GeminiPromptTemplates", () => {
       const template = "Hello {{name}}, welcome to {{place}}!";
       const context = {
         name: "John",
+        diffContent: "sample diff content", // Required by function signature
       };
 
       const result = processTemplate(template, context);
@@ -34,6 +36,7 @@ describe("GeminiPromptTemplates", () => {
       const context = {
         name: "John",
         place: undefined,
+        diffContent: "sample diff content", // Required by function signature
       };
 
       const result = processTemplate(template, context);
@@ -44,6 +47,7 @@ describe("GeminiPromptTemplates", () => {
       const template = "The answer is {{answer}}.";
       const context = {
         answer: 42,
+        diffContent: "sample diff content", // Required by function signature
       };
 
       const result = processTemplate(template, context);
@@ -141,12 +145,12 @@ describe("GeminiPromptTemplates", () => {
       // Performance instructions should mention performance concepts
       const performanceInstructions = getFocusInstructions("performance");
       assert.ok(performanceInstructions.includes("performance"));
-      assert.ok(performanceInstructions.includes("algorithm"));
+      assert.ok(performanceInstructions.includes("Algorithm"));
 
       // Architecture instructions should mention architecture concepts
       const architectureInstructions = getFocusInstructions("architecture");
       assert.ok(architectureInstructions.includes("architectural"));
-      assert.ok(architectureInstructions.includes("design pattern"));
+      assert.ok(architectureInstructions.includes("Design pattern"));
 
       // Bugs instructions should mention bug-related concepts
       const bugsInstructions = getFocusInstructions("bugs");

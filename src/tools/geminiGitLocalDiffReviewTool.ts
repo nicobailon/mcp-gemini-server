@@ -1,3 +1,5 @@
+/// <reference path="../types/modelcontextprotocol-sdk.d.ts" />
+
 import { Request, Response } from "express";
 import { Tool } from "@modelcontextprotocol/sdk";
 import { logger } from "../utils/logger.js";
@@ -15,8 +17,10 @@ import { GeminiService } from "../services/GeminiService.js";
 export const geminiGitLocalDiffReviewTool: Tool = async (
   req: Request,
   res: Response,
-  services: { geminiService: GeminiService }
+  services: Record<string, unknown>
 ): Promise<void> => {
+  // Type cast services to access geminiService
+  const typedServices = services as { geminiService: GeminiService };
   const start = Date.now();
   logger.info("[geminiGitLocalDiffReviewTool] Processing request");
 
@@ -47,7 +51,7 @@ export const geminiGitLocalDiffReviewTool: Tool = async (
     };
 
     // Call the Gemini Git Diff Service via the GeminiService
-    const reviewText = await services.geminiService.reviewGitDiff({
+    const reviewText = await typedServices.geminiService.reviewGitDiff({
       diffContent,
       modelName: model,
       reasoningEffort,
@@ -63,30 +67,37 @@ export const geminiGitLocalDiffReviewTool: Tool = async (
       model: model || "default",
       executionTime: Date.now() - start,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     // Log error details
     logger.error("[geminiGitLocalDiffReviewTool] Error", { error });
 
     // Send appropriate error response
-    if (error.name === "ZodError") {
-      res.status(400).json({
-        error: "Invalid parameters",
-        details: error.errors,
-      });
-    } else if (error.name === "GeminiValidationError") {
-      res.status(400).json({
-        error: error.message,
-        field: error.field,
-      });
-    } else if (error.name === "GeminiApiError") {
-      res.status(502).json({
-        error: "Gemini API error",
-        message: error.message,
-      });
+    if (error instanceof Error) {
+      if (error.name === "ZodError" && "errors" in error) {
+        res.status(400).json({
+          error: "Invalid parameters",
+          details: (error as { errors: unknown }).errors,
+        });
+      } else if (error.name === "GeminiValidationError" && "field" in error) {
+        res.status(400).json({
+          error: error.message,
+          field: (error as { field: string }).field,
+        });
+      } else if (error.name === "GeminiApiError") {
+        res.status(502).json({
+          error: "Gemini API error",
+          message: error.message,
+        });
+      } else {
+        res.status(500).json({
+          error: "Internal server error",
+          message: error.message || "Unknown error",
+        });
+      }
     } else {
       res.status(500).json({
         error: "Internal server error",
-        message: error.message || "Unknown error",
+        message: "An unknown error occurred",
       });
     }
   }

@@ -57,7 +57,8 @@ export function isPathWithinAllowedDirs(
  * @param allowedDirs - An array of absolute paths (directories or files) that are permitted for writing.
  * @param overwrite - Whether to overwrite the file if it already exists (default: false).
  * @returns A promise that resolves when the file is written, or rejects on error/validation failure.
- * @throws Error if the filePath is outside the allowedPaths, if the file exists and overwrite is false, or if any file system operation fails.
+ * @throws Error if the filePath is outside the allowedPaths, if the file exists and overwrite is false,
+ * if the path is a symlink, or if any file system operation fails.
  */
 export async function secureWriteFile(
   filePath: string,
@@ -77,6 +78,51 @@ export async function secureWriteFile(
 
   // 2. Canonicalize the path
   const normalizedFilePath = path.normalize(path.resolve(filePath));
+
+  // 3. Check if the path is a symlink (security measure)
+  try {
+    // Check if the file exists first to avoid errors for new files
+    try {
+      const stats = await fs.lstat(normalizedFilePath);
+      if (stats.isSymbolicLink()) {
+        logger.error(
+          `Security violation: path is a symlink: ${normalizedFilePath}`
+        );
+        throw new Error(`Security error: Cannot write to symlink ${filePath}`);
+      }
+    } catch (err: any) {
+      // If file doesn't exist (ENOENT), that's fine - we'll create it
+      // Only continue throwing if it's not a "file not found" error
+      if (err.code !== "ENOENT") {
+        throw err;
+      }
+    }
+
+    // Also check parent directories to ensure we're not writing inside a symlinked directory
+    let currentPath = path.dirname(normalizedFilePath);
+    const root = path.parse(currentPath).root;
+
+    while (currentPath !== root) {
+      const dirStats = await fs.lstat(currentPath);
+      if (dirStats.isSymbolicLink()) {
+        logger.error(
+          `Security violation: parent directory is a symlink: ${currentPath}`
+        );
+        throw new Error(
+          `Security error: Cannot write to a file in symlinked directory ${currentPath}`
+        );
+      }
+      currentPath = path.dirname(currentPath);
+    }
+  } catch (err: any) {
+    if (err.message && err.message.includes("Security error:")) {
+      // Re-throw our custom security errors
+      throw err;
+    }
+    // For other errors related to symlink checking, provide a clearer error message
+    logger.error(`Error checking for symlinks: ${err.message}`, err);
+    throw new Error(`Error validating path security: ${err.message}`);
+  }
 
   // 3. Check if file exists and overwrite flag is false
   if (!overwrite) {

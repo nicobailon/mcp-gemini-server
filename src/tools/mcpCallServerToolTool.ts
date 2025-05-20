@@ -70,12 +70,12 @@ export function mcpCallServerToolTool(
             );
           }
 
-          // Write the result to the file with overwrite=true for tool outputs
+          // Use the overwriteFile parameter (defaults to true if not specified)
           await secureWriteFile(
             args.outputFilePath,
             JSON.stringify(result, null, 2),
             allowedOutputPaths,
-            true // Allow overwriting existing files for tool outputs
+            args.overwriteFile !== undefined ? args.overwriteFile : true
           );
 
           // Return a success message with the file path
@@ -105,22 +105,31 @@ export function mcpCallServerToolTool(
           // Specific handling for different error types
           if (
             error instanceof Error &&
-            error.message.includes("not within the allowed output")
+            (error.message.includes("not within the allowed output") ||
+              error.message.includes("Security error:"))
           ) {
             throw new McpError(
-              ErrorCode.InvalidParams,
+              ErrorCode.SecurityViolation,
               `Security error: ${error.message}`,
               { path: args.outputFilePath }
             );
+          } else if (
+            error instanceof Error &&
+            error.message.includes("File already exists")
+          ) {
+            throw new McpError(ErrorCode.InvalidParams, `${error.message}`, {
+              path: args.outputFilePath,
+              overwrite: args.overwriteFile,
+            });
+          } else {
+            throw new McpError(
+              ErrorCode.FileSystemError,
+              `Failed to write output to file: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+              { path: args.outputFilePath }
+            );
           }
-
-          throw new McpError(
-            ErrorCode.InvalidRequest,
-            `Failed to write output to file: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-            { path: args.outputFilePath }
-          );
         }
       }
 
@@ -143,8 +152,12 @@ export function mcpCallServerToolTool(
 
       // Handle specific error types based on error messages
       if (error instanceof McpError) {
-        // Pass through MCP errors
-        throw error;
+        // Pass through MCP errors but add additional context for better debugging
+        throw new McpError(error.code, error.message, {
+          ...error.data,
+          toolName: args.toolName,
+          connectionId: args.connectionId,
+        });
       } else if (
         error instanceof Error &&
         error.message &&
@@ -155,6 +168,26 @@ export function mcpCallServerToolTool(
           `Invalid connection ID: ${args.connectionId}`,
           { connectionId: args.connectionId }
         );
+      } else if (
+        error instanceof Error &&
+        error.message &&
+        error.message.includes("HTTP error")
+      ) {
+        throw new McpError(
+          ErrorCode.NetworkError,
+          `Network error while calling tool ${args.toolName}: ${error.message}`,
+          { toolName: args.toolName, connectionId: args.connectionId }
+        );
+      } else if (
+        error instanceof Error &&
+        error.message &&
+        error.message.includes("timeout")
+      ) {
+        throw new McpError(
+          ErrorCode.Timeout,
+          `Timeout while calling tool ${args.toolName}: ${error.message}`,
+          { toolName: args.toolName, connectionId: args.connectionId }
+        );
       } else {
         // Generic error case
         throw new McpError(
@@ -162,7 +195,7 @@ export function mcpCallServerToolTool(
           `Failed to call remote tool ${args.toolName}: ${
             error instanceof Error ? error.message : String(error)
           }`,
-          { toolName: args.toolName }
+          { toolName: args.toolName, connectionId: args.connectionId }
         );
       }
     }

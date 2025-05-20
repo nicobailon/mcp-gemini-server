@@ -30,14 +30,16 @@ export interface McpRequest {
   params?: Record<string, unknown>;
 }
 
+export interface McpError {
+  code: number;
+  message: string;
+  data?: Record<string, unknown>;
+}
+
 export interface McpResponse {
   id: string;
-  result?: unknown;
-  error?: {
-    code?: number;
-    message: string;
-    data?: unknown;
-  };
+  result?: Record<string, unknown> | Array<unknown>;
+  error?: McpError;
 }
 
 export interface ToolDefinition {
@@ -68,7 +70,10 @@ export class McpClientService {
     string, // connectionId
     Map<
       string,
-      { resolve: (value: any) => void; reject: (reason?: any) => void }
+      {
+        resolve: (value: Record<string, unknown> | Array<unknown>) => void;
+        reject: (reason: Error | McpError) => void;
+      }
     > // requestId -> handlers
   > = new Map();
 
@@ -248,7 +253,8 @@ export class McpClientService {
           if (!this.activeSseConnections.has(connectionId)) {
             // If we haven't resolved yet, this is a connection failure
             reject(
-              new Error(
+              new McpError(
+                ErrorCode.ConnectionFailed,
                 `Failed to establish SSE connection to ${url}: ${error.message || "Unknown error"}`
               )
             );
@@ -380,10 +386,46 @@ export class McpClientService {
 
                     if (parsedData.error) {
                       reject(
-                        parsedData.error || new Error("Tool execution error")
+                        new McpError(
+                          parsedData.error.code || ErrorCode.ServerError,
+                          parsedData.error.message || "Tool execution error",
+                          parsedData.error.data
+                        )
                       );
                     } else {
-                      resolve(parsedData.result);
+                      // Verify the result is an object or array
+                      if (
+                        parsedData.result === null ||
+                        parsedData.result === undefined
+                      ) {
+                        reject(
+                          new McpError(
+                            ErrorCode.InvalidResponse,
+                            "Received null or undefined result from tool",
+                            { responseId: parsedData.id }
+                          )
+                        );
+                      } else if (
+                        typeof parsedData.result !== "object" &&
+                        !Array.isArray(parsedData.result)
+                      ) {
+                        reject(
+                          new McpError(
+                            ErrorCode.InvalidResponse,
+                            "Expected object or array result from tool",
+                            {
+                              responseId: parsedData.id,
+                              receivedType: typeof parsedData.result,
+                            }
+                          )
+                        );
+                      } else {
+                        resolve(
+                          parsedData.result as
+                            | Record<string, unknown>
+                            | Array<unknown>
+                        );
+                      }
                     }
 
                     break;
@@ -434,7 +476,8 @@ export class McpClientService {
                   `Rejecting pending request ${requestId} due to connection error`
                 );
                 rejectRequest(
-                  new Error(
+                  new McpError(
+                    ErrorCode.ConnectionFailed,
                     `Connection error occurred before response: ${error.message}`
                   )
                 );
@@ -468,7 +511,8 @@ export class McpClientService {
                   `Rejecting pending request ${requestId} due to connection closure`
                 );
                 rejectRequest(
-                  new Error(
+                  new McpError(
+                    ErrorCode.ConnectionClosed,
                     `Connection closed before response (code: ${code}, signal: ${signal})`
                   )
                 );
@@ -603,7 +647,8 @@ export class McpClientService {
         });
 
         if (!response.ok) {
-          throw new Error(
+          throw new McpError(
+            ErrorCode.NetworkError,
             `HTTP error from MCP server: ${response.status} ${response.statusText}`
           );
         }
@@ -611,15 +656,37 @@ export class McpClientService {
         const mcpResponse: McpResponse = await response.json();
 
         if (mcpResponse.error) {
-          throw new Error(`MCP error: ${JSON.stringify(mcpResponse.error)}`);
+          throw new McpError(
+            mcpResponse.error.code || ErrorCode.ServerError,
+            `MCP error: ${mcpResponse.error.message}`,
+            mcpResponse.error.data
+          );
         }
 
-        return mcpResponse.result as ToolDefinition[];
+        // Type assertion with verification to ensure we have an array of ToolDefinition
+        const result = mcpResponse.result;
+        if (!Array.isArray(result)) {
+          throw new McpError(
+            ErrorCode.InvalidResponse,
+            "Expected array of tools in response",
+            { receivedType: typeof result }
+          );
+        }
+
+        return result as ToolDefinition[];
       } catch (error) {
         logger.error(
           `Error listing tools for SSE connection ${serverId}:`,
           error
         );
+
+        // Wrap non-McpError instances
+        if (!(error instanceof McpError)) {
+          throw new McpError(
+            ErrorCode.InternalError,
+            `Failed to list tools for connection ${serverId}: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
         throw error;
       }
     }
@@ -678,7 +745,7 @@ export class McpClientService {
     serverId: string,
     toolName: string,
     toolArgs: Record<string, unknown> | null | undefined
-  ): Promise<unknown> {
+  ): Promise<Record<string, unknown> | Array<unknown>> {
     // Validate serverId
     this.validateServerId(serverId);
 
@@ -734,7 +801,8 @@ export class McpClientService {
         });
 
         if (!response.ok) {
-          throw new Error(
+          throw new McpError(
+            ErrorCode.NetworkError,
             `HTTP error from MCP server: ${response.status} ${response.statusText}`
           );
         }
@@ -742,7 +810,24 @@ export class McpClientService {
         const mcpResponse: McpResponse = await response.json();
 
         if (mcpResponse.error) {
-          throw new Error(`MCP error: ${JSON.stringify(mcpResponse.error)}`);
+          throw new McpError(
+            mcpResponse.error.code || ErrorCode.ServerError,
+            `MCP error: ${mcpResponse.error.message}`,
+            mcpResponse.error.data
+          );
+        }
+
+        // Ensure result is either an object or array
+        if (
+          !mcpResponse.result ||
+          (typeof mcpResponse.result !== "object" &&
+            !Array.isArray(mcpResponse.result))
+        ) {
+          throw new McpError(
+            ErrorCode.InvalidResponse,
+            "Expected object or array result from tool call",
+            { receivedType: typeof mcpResponse.result }
+          );
         }
 
         return mcpResponse.result;
@@ -751,6 +836,14 @@ export class McpClientService {
           `Error calling tool ${toolName} on SSE connection ${serverId}:`,
           error
         );
+
+        // Wrap non-McpError instances
+        if (!(error instanceof McpError)) {
+          throw new McpError(
+            ErrorCode.InternalError,
+            `Failed to call tool ${toolName} on connection ${serverId}: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
         throw error;
       }
     }

@@ -25,6 +25,13 @@ export const TOOL_PARAMS = {
     .describe(
       "Optional. If provided, the tool's full JSON response will be written to this file. The path must be within an allowed directory."
     ),
+  overwriteFile: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe(
+      "Optional. If true, will overwrite the output file if it already exists. Defaults to true."
+    ),
 };
 
 // Create a schema for type inference

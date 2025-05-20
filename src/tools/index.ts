@@ -54,7 +54,7 @@ export function registerTools(server: McpServer): McpClientService {
   // Create a single GeminiService instance
   // GeminiService gets its config directly from ConfigurationManager
   const geminiServiceInstance = new GeminiService();
-  
+
   // Create McpClientService instance
   const mcpClientService = new McpClientService();
 
@@ -182,7 +182,7 @@ export function registerTools(server: McpServer): McpClientService {
   }
 
   logger.info("All tools registered.");
-  
+
   // Return the McpClientService instance for use in graceful shutdown
   return mcpClientService;
 }

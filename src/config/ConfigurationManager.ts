@@ -1,19 +1,18 @@
-﻿// Import config types for services as they are added
-import { ExampleServiceConfig, GeminiServiceConfig } from "../types/index.js"; // Import GeminiServiceConfig
-import { logger } from "../utils/logger.js";
-import { configureFilePathSecurity } from "../utils/filePathSecurity.js";
+// Import config types for services as they are added
 import * as path from "path";
+import { ExampleServiceConfig, GeminiServiceConfig } from "../types/index.js";
+import { configureFilePathSecurity } from "../utils/filePathSecurity.js";
+import { logger } from "../utils/logger.js";
+
 // Define the structure for all configurations managed
-// Note: GeminiServiceConfig itself now has an optional defaultModel
 interface ManagedConfigs {
   exampleService: Required<ExampleServiceConfig>;
-  geminiService: GeminiServiceConfig; // Use the interface directly, not Required<>
+  geminiService: GeminiServiceConfig;
   github: {
     apiToken: string;
   };
   allowedOutputPaths: string[];
   mcpConfig: {
-    // Add MCP config
     host: string;
     port: number;
     connectionToken: string;
@@ -87,7 +86,7 @@ export class ConfigurationManager {
   private validateRequiredEnvVars(): void {
     const requiredVars = [
       "GOOGLE_GEMINI_API_KEY",
-      "MCP_SERVER_HOST", // Add MCP required vars
+      "MCP_SERVER_HOST",
       "MCP_SERVER_PORT",
       "MCP_CONNECTION_TOKEN",
       "MCP_CLIENT_ID",
@@ -140,7 +139,6 @@ export class ConfigurationManager {
     return { ...this.config.exampleService };
   }
 
-  // Return type changed from Required<GeminiServiceConfig> to GeminiServiceConfig
   public getGeminiServiceConfig(): GeminiServiceConfig {
     // Return a copy to prevent accidental modification
     return { ...this.config.geminiService };
@@ -322,7 +320,7 @@ export class ConfigurationManager {
         }
       } catch (error) {
         logger.warn(
-          `[ConfigurationManager] Invalid image formats specified in GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS. Using default.`
+          "[ConfigurationManager] Invalid image formats specified in GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS. Using default."
         );
       }
     }
@@ -392,26 +390,32 @@ export class ConfigurationManager {
     logger.info("[ConfigurationManager] MCP configuration loaded.");
 
     // Load allowed output paths if provided
-    if (process.env.ALLOWED_OUTPUT_PATHS) {
-      const pathStrings = process.env.ALLOWED_OUTPUT_PATHS.split(",");
+    // Initialize to an empty array to ensure it's always string[]
+    this.config.allowedOutputPaths = [];
+    const allowedOutputPathsEnv = process.env.ALLOWED_OUTPUT_PATHS;
 
-      // Process each path, resolve to absolute path
-      for (const pathStr of pathStrings) {
-        const trimmedPath = pathStr.trim();
-        if (trimmedPath) {
-          const resolvedPath = path.resolve(trimmedPath);
-          this.config.allowedOutputPaths.push(resolvedPath);
-        }
-      }
+    if (allowedOutputPathsEnv && allowedOutputPathsEnv.trim().length > 0) {
+      const pathsArray = allowedOutputPathsEnv
+        .split(",")
+        .map((p) => p.trim()) // Trim whitespace from each path
+        .filter((p) => p.length > 0); // Filter out any empty strings resulting from split
 
-      if (this.config.allowedOutputPaths.length > 0) {
+      if (pathsArray.length > 0) {
+        this.config.allowedOutputPaths = pathsArray.map((p) => path.resolve(p)); // Resolve to absolute paths
         logger.info(
-          `[ConfigurationManager] Allowed output paths configured: ${this.config.allowedOutputPaths.join(", ")}`
+          `[ConfigurationManager] Allowed output paths configured: ${this.config.allowedOutputPaths.join(
+            ", "
+          )}`
+        );
+      } else {
+        // This case handles if ALLOWED_OUTPUT_PATHS was something like ",," or " , "
+        logger.warn(
+          "[ConfigurationManager] ALLOWED_OUTPUT_PATHS environment variable was provided but contained no valid paths after trimming. File writing might be restricted."
         );
       }
     } else {
       logger.warn(
-        "[ConfigurationManager] ALLOWED_OUTPUT_PATHS environment variable not set. File writing might be restricted or disabled."
+        "[ConfigurationManager] ALLOWED_OUTPUT_PATHS environment variable not set or is empty. File writing might be restricted or disabled."
       );
     }
   }

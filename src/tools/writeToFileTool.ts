@@ -59,11 +59,12 @@ export const writeToFileTool = (server: McpServer): void => {
         }
       }
 
-      // Write the file securely
+      // Write the file securely with overwrite=false by default
       await secureWriteFile(
         validatedArgs.filePath,
         contentToWrite,
-        allowedOutputPaths
+        allowedOutputPaths,
+        false // Do not overwrite existing files by default
       );
 
       // Return success response
@@ -98,6 +99,16 @@ export const writeToFileTool = (server: McpServer): void => {
         throw new McpError(
           ErrorCode.InvalidParams,
           `Security error: ${error.message}`
+        );
+      }
+
+      if (
+        error instanceof Error &&
+        error.message.includes("File already exists")
+      ) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `File already exists: ${error.message}`
         );
       }
 

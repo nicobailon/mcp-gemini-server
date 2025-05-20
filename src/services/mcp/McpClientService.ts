@@ -1,6 +1,8 @@
 import { logger } from "../../utils/index.js";
 import { spawn, ChildProcess } from "child_process";
 import EventSource from "eventsource";
+import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+
 // Define custom types for EventSource events since the eventsource package
 // doesn't export its own types
 interface ESMessageEvent {
@@ -44,6 +46,13 @@ export interface ToolDefinition {
   parametersSchema: Record<string, unknown>; // JSON Schema object
 }
 
+export interface ConnectionDetails {
+  type: "sse" | "stdio";
+  sseUrl?: string;
+  stdioCommand?: string;
+  stdioArgs?: string[];
+}
+
 /**
  * Service for connecting to external Model Context Protocol (MCP) servers.
  * Provides methods to establish different types of connections (SSE, stdio).
@@ -70,12 +79,131 @@ export class McpClientService {
   }
 
   /**
+   * Validates a server ID.
+   * @param serverId - The server ID to validate.
+   * @throws {McpError} Throws an error if the server ID is invalid.
+   */
+  private validateServerId(serverId: string): void {
+    if (!serverId || typeof serverId !== "string" || serverId.trim() === "") {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        "Server ID must be a non-empty string"
+      );
+    }
+  }
+
+  /**
+   * Checks if a connection exists for the given server ID.
+   * @param serverId - The server ID to check.
+   * @throws {McpError} Throws an error if the connection doesn't exist.
+   */
+  private validateConnectionExists(serverId: string): void {
+    if (
+      !this.activeSseConnections.has(serverId) &&
+      !this.activeStdioConnections.has(serverId)
+    ) {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        `Connection not found for serverId: ${serverId}`
+      );
+    }
+  }
+
+  /**
+   * Establishes a connection to an MCP server.
+   * @param serverId - The ID of the server to connect to.
+   * @param connectionDetails - The details for establishing the connection.
+   * @param messageHandler - Optional callback for handling received messages.
+   * @returns A promise that resolves to a connection ID when the connection is established.
+   * @throws {McpError} Throws an error if the parameters are invalid.
+   */
+  public async connect(
+    serverId: string,
+    connectionDetails: ConnectionDetails,
+    messageHandler?: (data: unknown) => void
+  ): Promise<string> {
+    // Validate serverId
+    this.validateServerId(serverId);
+
+    // Validate connectionDetails
+    if (!connectionDetails || typeof connectionDetails !== "object") {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        "Connection details must be an object"
+      );
+    }
+
+    // Validate connection type
+    if (
+      connectionDetails.type !== "sse" &&
+      connectionDetails.type !== "stdio"
+    ) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        "Connection type must be 'sse' or 'stdio'"
+      );
+    }
+
+    // Validate SSE connection details
+    if (connectionDetails.type === "sse") {
+      if (
+        !connectionDetails.sseUrl ||
+        typeof connectionDetails.sseUrl !== "string" ||
+        connectionDetails.sseUrl.trim() === ""
+      ) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "For SSE connections, sseUrl must be a non-empty string"
+        );
+      }
+
+      // Basic URL format validation
+      if (
+        !connectionDetails.sseUrl.startsWith("http://") &&
+        !connectionDetails.sseUrl.startsWith("https://")
+      ) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "sseUrl must be a valid URL format starting with http:// or https://"
+        );
+      }
+
+      return this.connectSse(connectionDetails.sseUrl, messageHandler);
+    }
+    // Validate stdio connection details
+    else if (connectionDetails.type === "stdio") {
+      if (
+        !connectionDetails.stdioCommand ||
+        typeof connectionDetails.stdioCommand !== "string" ||
+        connectionDetails.stdioCommand.trim() === ""
+      ) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "For stdio connections, stdioCommand must be a non-empty string"
+        );
+      }
+
+      return this.connectStdio(
+        connectionDetails.stdioCommand,
+        connectionDetails.stdioArgs || [],
+        messageHandler
+      );
+    }
+
+    // This should never be reached due to the type check above
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      "Invalid connection type specified"
+    );
+  }
+
+  /**
    * Establishes an SSE connection to the specified MCP server.
    * @param url - The URL of the MCP server to connect to.
    * @param messageHandler - Optional callback for handling received messages.
    * @returns A promise that resolves to a connection ID when the connection is established.
    */
-  public connectSse(
+  private connectSse(
     url: string,
     messageHandler?: (data: unknown) => void
   ): Promise<string> {
@@ -89,8 +217,8 @@ export class McpClientService {
         // Create EventSource for SSE connection
         const eventSource = new EventSource(url);
 
-        // Set up event handlers
-        eventSource.onopen = () => {
+        // Handler functions to store for proper cleanup
+        const onOpen = () => {
           logger.info(`SSE connection established to ${url}`);
           this.activeSseConnections.set(connectionId, {
             eventSource,
@@ -99,7 +227,7 @@ export class McpClientService {
           resolve(connectionId);
         };
 
-        eventSource.onmessage = ((event: ESMessageEvent) => {
+        const onMessage = ((event: ESMessageEvent) => {
           logger.debug(`SSE message received from ${url}:`, event.data);
           if (messageHandler) {
             try {
@@ -112,17 +240,29 @@ export class McpClientService {
           }
         }) as ESMessageHandler;
 
-        eventSource.onerror = ((error: ESErrorEvent) => {
-          logger.error(`SSE connection error for ${url}:`, error.message || 'Unknown error');
+        const onError = ((error: ESErrorEvent) => {
+          logger.error(
+            `SSE connection error for ${url}:`,
+            error.message || "Unknown error"
+          );
           if (!this.activeSseConnections.has(connectionId)) {
             // If we haven't resolved yet, this is a connection failure
-            reject(new Error(`Failed to establish SSE connection to ${url}: ${error.message || 'Unknown error'}`));
+            reject(
+              new Error(
+                `Failed to establish SSE connection to ${url}: ${error.message || "Unknown error"}`
+              )
+            );
           } else if (eventSource.readyState === EventSource.CLOSED) {
             // Connection was established but is now closed
             logger.info(`SSE connection ${connectionId} closed due to error.`);
             this.activeSseConnections.delete(connectionId);
           }
         }) as ESErrorHandler;
+
+        // Set up event handlers
+        eventSource.onopen = onOpen;
+        eventSource.onmessage = onMessage;
+        eventSource.onerror = onError;
       } catch (error) {
         logger.error(`Error creating SSE connection to ${url}:`, error);
         reject(error);
@@ -135,11 +275,24 @@ export class McpClientService {
    * @param connectionId - The ID of the connection to close.
    * @returns True if the connection was closed, false if it wasn't found.
    */
-  public closeSseConnection(connectionId: string): boolean {
+  private closeSseConnection(connectionId: string): boolean {
     const connection = this.activeSseConnections.get(connectionId);
     if (connection) {
-      connection.eventSource.close();
+      // Close the EventSource and remove listeners
+      const eventSource = connection.eventSource;
+
+      // Clean up event listeners by setting handlers to null
+      // (EventSource doesn't support removeEventListener)
+      eventSource.onopen = null;
+      eventSource.onmessage = null;
+      eventSource.onerror = null;
+
+      // Close the connection
+      eventSource.close();
+
+      // Remove from active connections
       this.activeSseConnections.delete(connectionId);
+
       logger.info(`SSE connection ${connectionId} closed.`);
       return true;
     }
@@ -156,7 +309,7 @@ export class McpClientService {
    * @param messageHandler - Optional callback for handling stdout data.
    * @returns A promise that resolves to a connection ID when the process is spawned.
    */
-  public connectStdio(
+  private connectStdio(
     command: string,
     args: string[] = [],
     messageHandler?: (data: unknown) => void
@@ -181,8 +334,8 @@ export class McpClientService {
         // Buffer to accumulate data chunks
         let buffer = "";
 
-        // Set up event handlers
-        childProcess.stdout.on("data", (data) => {
+        // Data handler function for stdout
+        const onStdoutData = (data: Buffer) => {
           // Append the new data to our buffer
           buffer += data.toString();
           logger.debug(
@@ -256,13 +409,15 @@ export class McpClientService {
               }
             }
           }
-        });
+        };
 
-        childProcess.stderr.on("data", (data) => {
+        // Error handler for stderr
+        const onStderrData = (data: Buffer) => {
           logger.warn(`Stdio stderr from ${command}:`, data.toString());
-        });
+        };
 
-        childProcess.on("error", (error) => {
+        // Error handler for the process
+        const onError = (error: Error) => {
           logger.error(`Stdio error for ${command}:`, error);
           if (this.activeStdioConnections.has(connectionId)) {
             this.activeStdioConnections.delete(connectionId);
@@ -288,9 +443,13 @@ export class McpClientService {
             }
           }
           reject(error);
-        });
+        };
 
-        childProcess.on("close", (code, signal) => {
+        // Close handler for the process
+        const onClose = (
+          code: number | null,
+          signal: NodeJS.Signals | null
+        ) => {
           logger.info(
             `Stdio process ${command} closed with code ${code} and signal ${signal}`
           );
@@ -317,7 +476,13 @@ export class McpClientService {
               this.pendingStdioRequests.delete(connectionId);
             }
           }
-        });
+        };
+
+        // Set up event handlers
+        childProcess.stdout.on("data", onStdoutData);
+        childProcess.stderr.on("data", onStderrData);
+        childProcess.on("error", onError);
+        childProcess.on("close", onClose);
 
         logger.info(`Stdio connection established for ${command}`);
         resolve(connectionId);
@@ -334,7 +499,7 @@ export class McpClientService {
    * @param data - The data to send.
    * @returns True if the data was sent, false if the connection wasn't found.
    */
-  public sendToStdio(connectionId: string, data: string | object): boolean {
+  private sendToStdio(connectionId: string, data: string | object): boolean {
     const connection = this.activeStdioConnections.get(connectionId);
     if (connection) {
       const dataStr = typeof data === "string" ? data : JSON.stringify(data);
@@ -359,14 +524,23 @@ export class McpClientService {
    * @param signal - Optional signal to send to the process. Default is 'SIGTERM'.
    * @returns True if the connection was closed, false if it wasn't found.
    */
-  public closeStdioConnection(
+  private closeStdioConnection(
     connectionId: string,
     signal: NodeJS.Signals = "SIGTERM"
   ): boolean {
     const connection = this.activeStdioConnections.get(connectionId);
     if (connection) {
+      // Remove all listeners to prevent memory leaks
+      connection.stdout.removeAllListeners();
+      connection.stderr.removeAllListeners();
+      connection.removeAllListeners();
+
+      // Kill the process
       connection.kill(signal);
+
+      // Remove from active connections
       this.activeStdioConnections.delete(connectionId);
+
       logger.info(
         `Stdio connection ${connectionId} closed with signal ${signal}.`
       );
@@ -396,15 +570,22 @@ export class McpClientService {
 
   /**
    * Lists all available tools from an MCP server.
-   * @param connectionId - The ID of the connection to query.
+   * @param serverId - The ID of the connection to query.
    * @returns A promise that resolves to an array of tool definitions.
+   * @throws {McpError} Throws an error if the parameters are invalid or the connection doesn't exist.
    */
-  public async listTools(connectionId: string): Promise<ToolDefinition[]> {
-    logger.info(`Listing tools for connection ${connectionId}`);
+  public async listTools(serverId: string): Promise<ToolDefinition[]> {
+    // Validate serverId
+    this.validateServerId(serverId);
+
+    // Validate connection exists
+    this.validateConnectionExists(serverId);
+
+    logger.info(`Listing tools for connection ${serverId}`);
 
     // Check if this is an SSE connection
-    if (this.activeSseConnections.has(connectionId)) {
-      const connection = this.activeSseConnections.get(connectionId)!;
+    if (this.activeSseConnections.has(serverId)) {
+      const connection = this.activeSseConnections.get(serverId)!;
       const requestId = uuidv4();
       const request: McpRequest = { id: requestId, method: "listTools" };
 
@@ -436,7 +617,7 @@ export class McpClientService {
         return mcpResponse.result as ToolDefinition[];
       } catch (error) {
         logger.error(
-          `Error listing tools for SSE connection ${connectionId}:`,
+          `Error listing tools for SSE connection ${serverId}:`,
           error
         );
         throw error;
@@ -444,70 +625,99 @@ export class McpClientService {
     }
 
     // Check if this is a stdio connection
-    else if (this.activeStdioConnections.has(connectionId)) {
+    else if (this.activeStdioConnections.has(serverId)) {
       const requestId = uuidv4();
       const request: McpRequest = { id: requestId, method: "listTools" };
 
       return new Promise<ToolDefinition[]>((resolve, reject) => {
         // Initialize the map for this connection if it doesn't exist
-        if (!this.pendingStdioRequests.has(connectionId)) {
-          this.pendingStdioRequests.set(connectionId, new Map());
+        if (!this.pendingStdioRequests.has(serverId)) {
+          this.pendingStdioRequests.set(serverId, new Map());
         }
 
         // Store the promise resolution functions
         this.pendingStdioRequests
-          .get(connectionId)!
+          .get(serverId)!
           .set(requestId, { resolve, reject });
 
         // Send the request
-        const sent = this.sendToStdio(connectionId, request);
+        const sent = this.sendToStdio(serverId, request);
 
         if (!sent) {
           // Clean up the pending request if sending fails
-          this.pendingStdioRequests.get(connectionId)!.delete(requestId);
+          this.pendingStdioRequests.get(serverId)!.delete(requestId);
 
           // If this was the last pending request, clean up the connection map
-          if (this.pendingStdioRequests.get(connectionId)!.size === 0) {
-            this.pendingStdioRequests.delete(connectionId);
+          if (this.pendingStdioRequests.get(serverId)!.size === 0) {
+            this.pendingStdioRequests.delete(serverId);
           }
 
           reject(
-            new Error(
-              `Failed to send request to stdio connection ${connectionId}`
-            )
+            new Error(`Failed to send request to stdio connection ${serverId}`)
           );
         }
       });
     }
 
-    // Neither SSE nor stdio connection found
-    else {
-      throw new Error(`No connection found with ID ${connectionId}`);
-    }
+    // This should never be reached due to the validateConnectionExists check above
+    throw new McpError(
+      ErrorCode.InvalidRequest,
+      `No connection found with ID ${serverId}`
+    );
   }
 
   /**
    * Calls a tool on an MCP server.
-   * @param connectionId - The ID of the connection to use.
+   * @param serverId - The ID of the connection to use.
    * @param toolName - The name of the tool to call.
-   * @param toolParameters - The parameters to pass to the tool.
+   * @param toolArgs - The arguments to pass to the tool.
    * @returns A promise that resolves to the tool's result.
+   * @throws {McpError} Throws an error if the parameters are invalid or the connection doesn't exist.
    */
   public async callTool(
-    connectionId: string,
+    serverId: string,
     toolName: string,
-    toolParameters: Record<string, unknown>
+    toolArgs: Record<string, unknown> | null | undefined
   ): Promise<unknown> {
-    logger.info(`Calling tool ${toolName} on connection ${connectionId}`);
+    // Validate serverId
+    this.validateServerId(serverId);
+
+    // Validate connection exists
+    this.validateConnectionExists(serverId);
+
+    // Validate toolName
+    if (!toolName || typeof toolName !== "string" || toolName.trim() === "") {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        "Tool name must be a non-empty string"
+      );
+    }
+
+    // Validate toolArgs (ensure it's an object if provided)
+    if (
+      toolArgs !== null &&
+      toolArgs !== undefined &&
+      typeof toolArgs !== "object"
+    ) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        "Tool arguments must be an object, null, or undefined"
+      );
+    }
+
+    // Normalize toolArgs to an empty object if null or undefined
+    const normalizedToolArgs: Record<string, unknown> = toolArgs || {};
+
+    logger.info(`Calling tool ${toolName} on connection ${serverId}`);
 
     // Check if this is an SSE connection
-    if (this.activeSseConnections.has(connectionId)) {
-      const connection = this.activeSseConnections.get(connectionId)!;
+    if (this.activeSseConnections.has(serverId)) {
+      const connection = this.activeSseConnections.get(serverId)!;
       const requestId = uuidv4();
       const request: McpRequest = {
         id: requestId,
         method: "callTool",
-        params: { toolName, arguments: toolParameters },
+        params: { toolName, arguments: normalizedToolArgs },
       };
 
       try {
@@ -538,7 +748,7 @@ export class McpClientService {
         return mcpResponse.result;
       } catch (error) {
         logger.error(
-          `Error calling tool ${toolName} on SSE connection ${connectionId}:`,
+          `Error calling tool ${toolName} on SSE connection ${serverId}:`,
           error
         );
         throw error;
@@ -546,50 +756,76 @@ export class McpClientService {
     }
 
     // Check if this is a stdio connection
-    else if (this.activeStdioConnections.has(connectionId)) {
+    else if (this.activeStdioConnections.has(serverId)) {
       const requestId = uuidv4();
       const request: McpRequest = {
         id: requestId,
         method: "callTool",
-        params: { toolName, arguments: toolParameters },
+        params: { toolName, arguments: normalizedToolArgs },
       };
 
       return new Promise((resolve, reject) => {
         // Initialize the map for this connection if it doesn't exist
-        if (!this.pendingStdioRequests.has(connectionId)) {
-          this.pendingStdioRequests.set(connectionId, new Map());
+        if (!this.pendingStdioRequests.has(serverId)) {
+          this.pendingStdioRequests.set(serverId, new Map());
         }
 
         // Store the promise resolution functions
         this.pendingStdioRequests
-          .get(connectionId)!
+          .get(serverId)!
           .set(requestId, { resolve, reject });
 
         // Send the request
-        const sent = this.sendToStdio(connectionId, request);
+        const sent = this.sendToStdio(serverId, request);
 
         if (!sent) {
           // Clean up the pending request if sending fails
-          this.pendingStdioRequests.get(connectionId)!.delete(requestId);
+          this.pendingStdioRequests.get(serverId)!.delete(requestId);
 
           // If this was the last pending request, clean up the connection map
-          if (this.pendingStdioRequests.get(connectionId)!.size === 0) {
-            this.pendingStdioRequests.delete(connectionId);
+          if (this.pendingStdioRequests.get(serverId)!.size === 0) {
+            this.pendingStdioRequests.delete(serverId);
           }
 
           reject(
-            new Error(
-              `Failed to send request to stdio connection ${connectionId}`
-            )
+            new Error(`Failed to send request to stdio connection ${serverId}`)
           );
         }
       });
     }
 
-    // Neither SSE nor stdio connection found
-    else {
-      throw new Error(`No connection found with ID ${connectionId}`);
+    // This should never be reached due to the validateConnectionExists check above
+    throw new McpError(
+      ErrorCode.InvalidRequest,
+      `No connection found with ID ${serverId}`
+    );
+  }
+
+  /**
+   * Disconnects from an MCP server.
+   * @param serverId - The ID of the connection to close.
+   * @returns True if the connection was closed, false if it wasn't found.
+   * @throws {McpError} Throws an error if the parameters are invalid.
+   */
+  public disconnect(serverId: string): boolean {
+    // Validate serverId
+    this.validateServerId(serverId);
+
+    // Check if this is an SSE connection
+    if (this.activeSseConnections.has(serverId)) {
+      return this.closeSseConnection(serverId);
     }
+
+    // Check if this is a stdio connection
+    else if (this.activeStdioConnections.has(serverId)) {
+      return this.closeStdioConnection(serverId);
+    }
+
+    // Connection not found
+    throw new McpError(
+      ErrorCode.InvalidRequest,
+      `Connection not found for serverId: ${serverId}`
+    );
   }
 
   /**
@@ -605,6 +841,22 @@ export class McpClientService {
     for (const connectionId of this.activeStdioConnections.keys()) {
       this.closeStdioConnection(connectionId);
     }
+
+    // Clean up all pending requests
+    for (const [
+      connectionId,
+      requestsMap,
+    ] of this.pendingStdioRequests.entries()) {
+      for (const [requestId, { reject }] of requestsMap.entries()) {
+        logger.warn(
+          `Rejecting pending request ${requestId} due to service shutdown`
+        );
+        reject(new Error("Connection closed due to service shutdown"));
+      }
+    }
+
+    // Clear the pending requests map
+    this.pendingStdioRequests.clear();
 
     logger.info("All MCP connections closed.");
   }

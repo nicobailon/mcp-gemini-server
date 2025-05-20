@@ -1,20 +1,22 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+
+import { ConfigurationManager } from "../config/ConfigurationManager.js";
+import { McpClientService } from "../services/mcp/McpClientService.js";
+import { logger } from "../utils/logger.js";
+import { secureWriteFile } from "../utils/fileUtils.js";
 import {
   TOOL_NAME,
   TOOL_DESCRIPTION,
   TOOL_PARAMS,
   McpCallServerToolParams,
 } from "./mcpCallServerToolToolParams.js";
-import { McpClientService } from "../services/mcp/McpClientService.js";
-import { logger } from "../utils/logger.js";
-import { secureWriteFile } from "../utils/fileUtils.js";
-import { ConfigurationManager } from "../config/ConfigurationManager.js";
 
 /**
  * Registers the mcpCallServerTool tool with the MCP server.
- * This tool allows calling tools on a connected MCP server and optionally writing the results to a file.
+ * This tool allows calling tools on a connected MCP server and optionally
+ * writing the results to a file.
  *
  * @param server - The MCP server instance
  * @param mcpClientService - The MCP client service instance
@@ -26,7 +28,7 @@ export function mcpCallServerToolTool(
   logger.info(`Registering tool: ${TOOL_NAME}`);
 
   // Create a schema object for tool registration
-  const TOOL_PARAMS_object = z.object(TOOL_PARAMS);
+  const toolParamsObject = z.object(TOOL_PARAMS);
 
   /**
    * Process a remote MCP tool call request
@@ -58,20 +60,22 @@ export function mcpCallServerToolTool(
       if (args.outputFilePath) {
         try {
           // Get allowed output paths from the configuration
-          const configManager = ConfigurationManager.getInstance();
-          const allowedPaths = configManager.getAllowedOutputPaths();
+          const allowedOutputPaths =
+            ConfigurationManager.getInstance().getAllowedOutputPaths();
 
-          if (allowedPaths.length === 0) {
+          if (!allowedOutputPaths || allowedOutputPaths.length === 0) {
             throw new Error(
-              "No allowed output paths configured. Set the ALLOWED_OUTPUT_PATHS environment variable."
+              "No allowed output paths configured. Set the " +
+                "ALLOWED_OUTPUT_PATHS environment variable."
             );
           }
 
-          // Write the result to the file
+          // Write the result to the file with overwrite=true for tool outputs
           await secureWriteFile(
             args.outputFilePath,
             JSON.stringify(result, null, 2),
-            allowedPaths
+            allowedOutputPaths,
+            true // Allow overwriting existing files for tool outputs
           );
 
           // Return a success message with the file path
@@ -91,10 +95,30 @@ export function mcpCallServerToolTool(
             ],
           };
         } catch (error) {
-          logger.error(`Error writing result to file: ${error instanceof Error ? error.message : String(error)}`, error);
+          logger.error(
+            `Error writing result to file: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+            error
+          );
+
+          // Specific handling for different error types
+          if (
+            error instanceof Error &&
+            error.message.includes("not within the allowed output")
+          ) {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              `Security error: ${error.message}`,
+              { path: args.outputFilePath }
+            );
+          }
+
           throw new McpError(
             ErrorCode.InvalidRequest,
-            `Failed to write output to file: ${error instanceof Error ? error.message : String(error)}`,
+            `Failed to write output to file: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
             { path: args.outputFilePath }
           );
         }
@@ -111,7 +135,9 @@ export function mcpCallServerToolTool(
       };
     } catch (error) {
       logger.error(
-        `Error calling remote tool ${args.toolName}: ${error instanceof Error ? error.message : String(error)}`,
+        `Error calling remote tool ${args.toolName}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
         error
       );
 
@@ -119,7 +145,11 @@ export function mcpCallServerToolTool(
       if (error instanceof McpError) {
         // Pass through MCP errors
         throw error;
-      } else if (error instanceof Error && error.message?.includes("No connection found")) {
+      } else if (
+        error instanceof Error &&
+        error.message &&
+        error.message.includes("No connection found")
+      ) {
         throw new McpError(
           ErrorCode.InvalidParams,
           `Invalid connection ID: ${args.connectionId}`,
@@ -129,7 +159,9 @@ export function mcpCallServerToolTool(
         // Generic error case
         throw new McpError(
           ErrorCode.InternalError,
-          `Failed to call remote tool ${args.toolName}: ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to call remote tool ${args.toolName}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
           { toolName: args.toolName }
         );
       }
@@ -140,7 +172,7 @@ export function mcpCallServerToolTool(
   server.tool(
     TOOL_NAME,
     TOOL_DESCRIPTION,
-    TOOL_PARAMS_object,
+    toolParamsObject,
     processCallToolRequest
   );
 

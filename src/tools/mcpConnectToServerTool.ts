@@ -1,15 +1,34 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
-import { z } from "zod";
 import {
   TOOL_NAME,
   TOOL_DESCRIPTION,
   TOOL_PARAMS,
   McpConnectToServerParams,
 } from "./mcpConnectToServerToolParams.js";
-import { McpClientService } from "../services/index.js";
+import { McpClientService, ConnectionDetails } from "../services/index.js";
 import { logger } from "../utils/index.js";
 import { ConfigurationManager } from "../config/ConfigurationManager.js";
+import { v4 as uuidv4 } from "uuid";
+
+// Define the specific connection detail types based on the Zod schemas
+interface StdioConnectionDetails {
+  transport: "stdio";
+  command: string;
+  args?: string[];
+  clientId?: string;
+  connectionToken?: string;
+}
+
+interface SseConnectionDetails {
+  transport: "sse";
+  url: string;
+  clientId?: string;
+  connectionToken?: string;
+}
+
+// Union type for the connection details
+type TransportConnectionDetails = StdioConnectionDetails | SseConnectionDetails;
 
 /**
  * Registers the mcpConnectToServerTool with the MCP server.
@@ -32,60 +51,41 @@ export const mcpConnectToServerTool = (
       // Extract transport and connection details
       const { transport, connectionDetails } = args;
 
-      // Get clientId and connectionToken from args or config
+      // Get clientId from args or config
       const clientId = connectionDetails.clientId || mcpConfig.clientId;
-      const connectionToken =
-        connectionDetails.connectionToken || mcpConfig.connectionToken;
 
       // Log the connection attempt with the selected client ID
       logger.info(
         `Establishing MCP connection using ${transport} transport with client ID: ${clientId}`
       );
 
-      let connectionId: string;
+      // Create a unique server ID for this connection
+      const serverId = uuidv4();
 
-      // Process based on transport type
-      if (transport === "stdio") {
-        // Type assertion to access stdio-specific fields
-        const stdioDetails = connectionDetails as {
-          transport: "stdio";
-          command: string;
-          args?: string[];
-          clientId?: string;
-          connectionToken?: string;
-        };
+      // Cast the connectionDetails to the proper type based on transport
+      const typedConnectionDetails =
+        connectionDetails as TransportConnectionDetails;
 
-        const { command, args: cmdArgs = [] } = stdioDetails;
+      // Prepare connection details object according to the ConnectionDetails interface
+      const connectionDetailsObject: ConnectionDetails = {
+        type: transport,
+        ...(transport === "stdio"
+          ? {
+              stdioCommand: (typedConnectionDetails as StdioConnectionDetails)
+                .command,
+              stdioArgs:
+                (typedConnectionDetails as StdioConnectionDetails).args || [],
+            }
+          : {
+              sseUrl: (typedConnectionDetails as SseConnectionDetails).url,
+            }),
+      };
 
-        // Log the connection details (without sensitive information)
-        logger.debug(
-          `Connecting to MCP server via stdio using command: ${command} with args: [${cmdArgs.join(", ")}]`
-        );
-        logger.debug(`Using clientId: ${clientId}`);
-
-        // Connect to the stdio server
-        // Note: clientId and connectionToken are logged for now as the current API doesn't support passing them directly
-        connectionId = await mcpClientService.connectStdio(command, cmdArgs);
-      } else {
-        // transport === "sse"
-        // Type assertion to access sse-specific fields
-        const sseDetails = connectionDetails as {
-          transport: "sse";
-          url: string;
-          clientId?: string;
-          connectionToken?: string;
-        };
-
-        const { url } = sseDetails;
-
-        // Log the connection details (without sensitive information)
-        logger.debug(`Connecting to MCP server via SSE at URL: ${url}`);
-        logger.debug(`Using clientId: ${clientId}`);
-
-        // Connect to the SSE server
-        // Note: clientId and connectionToken are logged for now as the current API doesn't support passing them directly
-        connectionId = await mcpClientService.connectSse(url);
-      }
+      // Connect to the server using the public connect method
+      const connectionId = await mcpClientService.connect(
+        serverId,
+        connectionDetailsObject
+      );
 
       // Format the successful output for MCP
       return {

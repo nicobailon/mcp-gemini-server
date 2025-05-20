@@ -36,7 +36,12 @@ export function mcpCallServerToolTool(
    */
   async function processCallToolRequest(
     args: McpCallServerToolParams
-  ): Promise<any> {
+  ): Promise<{
+    content: Array<{
+      type: string;
+      text: string;
+    }>;
+  }> {
     logger.info(
       `Calling remote tool ${args.toolName} on connection ${args.connectionId}`
     );
@@ -85,11 +90,11 @@ export function mcpCallServerToolTool(
               },
             ],
           };
-        } catch (error: any) {
-          logger.error(`Error writing result to file: ${error.message}`, error);
+        } catch (error) {
+          logger.error(`Error writing result to file: ${error instanceof Error ? error.message : String(error)}`, error);
           throw new McpError(
             ErrorCode.InvalidRequest,
-            `Failed to write output to file: ${error.message}`,
+            `Failed to write output to file: ${error instanceof Error ? error.message : String(error)}`,
             { path: args.outputFilePath }
           );
         }
@@ -104,9 +109,9 @@ export function mcpCallServerToolTool(
           },
         ],
       };
-    } catch (error: any) {
+    } catch (error) {
       logger.error(
-        `Error calling remote tool ${args.toolName}: ${error.message}`,
+        `Error calling remote tool ${args.toolName}: ${error instanceof Error ? error.message : String(error)}`,
         error
       );
 
@@ -114,7 +119,7 @@ export function mcpCallServerToolTool(
       if (error instanceof McpError) {
         // Pass through MCP errors
         throw error;
-      } else if (error.message?.includes("No connection found")) {
+      } else if (error instanceof Error && error.message?.includes("No connection found")) {
         throw new McpError(
           ErrorCode.InvalidParams,
           `Invalid connection ID: ${args.connectionId}`,
@@ -124,7 +129,7 @@ export function mcpCallServerToolTool(
         // Generic error case
         throw new McpError(
           ErrorCode.InternalError,
-          `Failed to call remote tool ${args.toolName}: ${error.message}`,
+          `Failed to call remote tool ${args.toolName}: ${error instanceof Error ? error.message : String(error)}`,
           { toolName: args.toolName }
         );
       }

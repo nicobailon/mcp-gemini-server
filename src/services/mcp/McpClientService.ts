@@ -25,19 +25,23 @@ import fetch from "node-fetch";
 export interface McpRequest {
   id: string;
   method: "listTools" | "callTool";
-  params?: any;
+  params?: Record<string, unknown>;
 }
 
 export interface McpResponse {
   id: string;
-  result?: any;
-  error?: any;
+  result?: unknown;
+  error?: {
+    code?: number;
+    message: string;
+    data?: unknown;
+  };
 }
 
 export interface ToolDefinition {
   name: string;
   description: string;
-  parametersSchema: any; // Or a more specific type if appropriate, like JSONSchema7
+  parametersSchema: Record<string, unknown>; // JSON Schema object
 }
 
 /**
@@ -73,7 +77,7 @@ export class McpClientService {
    */
   public connectSse(
     url: string,
-    messageHandler?: (data: any) => void
+    messageHandler?: (data: unknown) => void
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       logger.info(`Connecting to MCP server via SSE: ${url}`);
@@ -95,7 +99,7 @@ export class McpClientService {
           resolve(connectionId);
         };
 
-        eventSource.onmessage = ((event: any) => {
+        eventSource.onmessage = ((event: ESMessageEvent) => {
           logger.debug(`SSE message received from ${url}:`, event.data);
           if (messageHandler) {
             try {
@@ -106,19 +110,19 @@ export class McpClientService {
               messageHandler(event.data);
             }
           }
-        }) as any;
+        }) as ESMessageHandler;
 
-        eventSource.onerror = ((error: any) => {
-          logger.error(`SSE connection error for ${url}:`, error);
+        eventSource.onerror = ((error: ESErrorEvent) => {
+          logger.error(`SSE connection error for ${url}:`, error.message || 'Unknown error');
           if (!this.activeSseConnections.has(connectionId)) {
             // If we haven't resolved yet, this is a connection failure
-            reject(new Error(`Failed to establish SSE connection to ${url}`));
+            reject(new Error(`Failed to establish SSE connection to ${url}: ${error.message || 'Unknown error'}`));
           } else if (eventSource.readyState === EventSource.CLOSED) {
             // Connection was established but is now closed
             logger.info(`SSE connection ${connectionId} closed due to error.`);
             this.activeSseConnections.delete(connectionId);
           }
-        }) as any;
+        }) as ESErrorHandler;
       } catch (error) {
         logger.error(`Error creating SSE connection to ${url}:`, error);
         reject(error);
@@ -155,7 +159,7 @@ export class McpClientService {
   public connectStdio(
     command: string,
     args: string[] = [],
-    messageHandler?: (data: any) => void
+    messageHandler?: (data: unknown) => void
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       logger.info(
@@ -492,8 +496,8 @@ export class McpClientService {
   public async callTool(
     connectionId: string,
     toolName: string,
-    toolParameters: any
-  ): Promise<any> {
+    toolParameters: Record<string, unknown>
+  ): Promise<unknown> {
     logger.info(`Calling tool ${toolName} on connection ${connectionId}`);
 
     // Check if this is an SSE connection

@@ -57,13 +57,11 @@ export const mcpConnectToServerTool = (
 
         const { command, args: cmdArgs = [] } = stdioDetails;
 
-        // Log the full connection details for debugging
+        // Log the connection details (without sensitive information)
         logger.debug(
           `Connecting to MCP server via stdio using command: ${command} with args: [${cmdArgs.join(", ")}]`
         );
-        logger.debug(
-          `Using clientId: ${clientId} and connectionToken: ${connectionToken.slice(0, 3)}...`
-        );
+        logger.debug(`Using clientId: ${clientId}`);
 
         // Connect to the stdio server
         // Note: clientId and connectionToken are logged for now as the current API doesn't support passing them directly
@@ -80,11 +78,9 @@ export const mcpConnectToServerTool = (
 
         const { url } = sseDetails;
 
-        // Log the full connection details for debugging
+        // Log the connection details (without sensitive information)
         logger.debug(`Connecting to MCP server via SSE at URL: ${url}`);
-        logger.debug(
-          `Using clientId: ${clientId} and connectionToken: ${connectionToken.slice(0, 3)}...`
-        );
+        logger.debug(`Using clientId: ${clientId}`);
 
         // Connect to the SSE server
         // Note: clientId and connectionToken are logged for now as the current API doesn't support passing them directly

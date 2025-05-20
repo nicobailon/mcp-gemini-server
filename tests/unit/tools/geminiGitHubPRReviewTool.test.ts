@@ -2,7 +2,10 @@ import { describe, it, before, mock, afterEach } from "node:test";
 import assert from "node:assert";
 import { geminiGitHubPRReviewTool } from "../../../src/tools/geminiGitHubPRReviewTool.js";
 import { GitHubUrlParser } from "../../../src/services/gemini/GitHubUrlParser.js";
-import { createMockRequest, createMockResponse } from "../../utils/express-mocks.js";
+import {
+  createMockRequest,
+  createMockResponse,
+} from "../../utils/express-mocks.js";
 import { Request, Response } from "express";
 
 describe("geminiGitHubPRReviewTool", () => {
@@ -53,7 +56,7 @@ describe("geminiGitHubPRReviewTool", () => {
   afterEach(() => {
     mock.restoreAll();
     // Cast to any to access mock property
-    ((mockGeminiService.reviewGitHubPullRequest as any).mock).resetCalls();
+    (mockGeminiService.reviewGitHubPullRequest as any).mock.resetCalls();
     responseData = {};
     responseStatus = 200;
   });
@@ -67,13 +70,13 @@ describe("geminiGitHubPRReviewTool", () => {
         reviewFocus: "general",
       },
     });
-    
+
     mockResponse = createMockResponse({
-      json: function(data: any): Response {
+      json: function (data: any): Response {
         responseData = data;
         return this as Response;
       },
-      status: function(code: number): Response {
+      status: function (code: number): Response {
         responseStatus = code;
         return this as Response;
       },
@@ -93,7 +96,7 @@ describe("geminiGitHubPRReviewTool", () => {
     // Check that reviewGitHubPullRequest was called with the right parameters
     const mockFn = mockGeminiService.reviewGitHubPullRequest as any;
     assert.strictEqual(mockFn.mock.calls.length, 1);
-    
+
     const params = mockFn.mock.calls[0].arguments[0];
     assert.strictEqual(params.owner, "nicobailon");
     assert.strictEqual(params.repo, "mcp-gemini-server");
@@ -110,13 +113,13 @@ describe("geminiGitHubPRReviewTool", () => {
         reasoningEffort: "low",
       },
     });
-    
+
     mockResponse = createMockResponse({
-      json: function(data: any): Response {
+      json: function (data: any): Response {
         responseData = data;
         return this as Response;
       },
-      status: function(code: number): Response {
+      status: function (code: number): Response {
         responseStatus = code;
         return this as Response;
       },
@@ -150,13 +153,13 @@ describe("geminiGitHubPRReviewTool", () => {
         reviewFocus: "security",
       },
     });
-    
+
     mockResponse = createMockResponse({
-      json: function(data: any): Response {
+      json: function (data: any): Response {
         responseData = data;
         return this as Response;
       },
-      status: function(code: number): Response {
+      status: function (code: number): Response {
         responseStatus = code;
         return this as Response;
       },
@@ -189,13 +192,13 @@ describe("geminiGitHubPRReviewTool", () => {
         model: "gemini-flash-2.0",
       },
     });
-    
+
     mockResponse = createMockResponse({
-      json: function(data: any): Response {
+      json: function (data: any): Response {
         responseData = data;
         return this as Response;
       },
-      status: function(code: number): Response {
+      status: function (code: number): Response {
         responseStatus = code;
         return this as Response;
       },

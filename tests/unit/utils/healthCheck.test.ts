@@ -1,7 +1,12 @@
 import { describe, test, after } from "node:test";
 import { strict as assert } from "node:assert";
 import http from "node:http";
-import { getHealthStatus, setServerState, startHealthCheckServer, ServerState } from "../../../src/utils/healthCheck.js";
+import {
+  getHealthStatus,
+  setServerState,
+  startHealthCheckServer,
+  ServerState,
+} from "../../../src/utils/healthCheck.js";
 
 describe("Health Check", () => {
   let healthServer: http.Server;
@@ -21,14 +26,14 @@ describe("Health Check", () => {
   // Setup: Start health check server
   test("should initialize health check server", () => {
     setServerState(mockServerState);
-    
+
     // Set the port via environment variable for our test
     process.env.HEALTH_CHECK_PORT = testPort.toString();
-    
+
     healthServer = startHealthCheckServer();
-    
+
     assert.ok(healthServer, "Health check server should be initialized");
-    
+
     // Wait briefly for the server to start listening
     return new Promise<void>((resolve) => {
       setTimeout(() => {
@@ -40,31 +45,42 @@ describe("Health Check", () => {
   // Test health status function
   test("should return correct health status", () => {
     const status = getHealthStatus();
-    
+
     assert.equal(status.status, "running", "Status should be running");
     assert.ok(status.uptime >= 5, "Uptime should be at least 5 seconds");
-    assert.equal(status.transport, "MockTransport", "Transport should be MockTransport");
+    assert.equal(
+      status.transport,
+      "MockTransport",
+      "Transport should be MockTransport"
+    );
   });
 
   // Test health endpoint
   test("should respond to health endpoint", async () => {
     // Make HTTP request to health endpoint
     const response = await new Promise<http.IncomingMessage>((resolve) => {
-      const req = http.request({
-        hostname: "localhost",
-        port: testPort,
-        path: "/health",
-        method: "GET",
-      }, (res) => {
-        resolve(res);
-      });
-      
+      const req = http.request(
+        {
+          hostname: "localhost",
+          port: testPort,
+          path: "/health",
+          method: "GET",
+        },
+        (res) => {
+          resolve(res);
+        }
+      );
+
       req.end();
     });
-    
+
     // Check response status
-    assert.equal(response.statusCode, 200, "Health endpoint should return 200 OK");
-    
+    assert.equal(
+      response.statusCode,
+      200,
+      "Health endpoint should return 200 OK"
+    );
+
     // Check response content
     const data = await new Promise<string>((resolve) => {
       let body = "";
@@ -75,31 +91,46 @@ describe("Health Check", () => {
         resolve(body);
       });
     });
-    
+
     const healthData = JSON.parse(data);
-    assert.equal(healthData.status, "running", "Health check should report running");
+    assert.equal(
+      healthData.status,
+      "running",
+      "Health check should report running"
+    );
     assert.ok(healthData.uptime >= 0, "Uptime should be a number");
-    assert.equal(healthData.transport, "MockTransport", "Transport should be reported correctly");
+    assert.equal(
+      healthData.transport,
+      "MockTransport",
+      "Transport should be reported correctly"
+    );
   });
 
   // Test 404 for unknown paths
   test("should return 404 for unknown paths", async () => {
     // Make HTTP request to unknown path
     const response = await new Promise<http.IncomingMessage>((resolve) => {
-      const req = http.request({
-        hostname: "localhost",
-        port: testPort,
-        path: "/unknown",
-        method: "GET",
-      }, (res) => {
-        resolve(res);
-      });
-      
+      const req = http.request(
+        {
+          hostname: "localhost",
+          port: testPort,
+          path: "/unknown",
+          method: "GET",
+        },
+        (res) => {
+          resolve(res);
+        }
+      );
+
       req.end();
     });
-    
+
     // Check response status
-    assert.equal(response.statusCode, 404, "Unknown path should return 404 Not Found");
+    assert.equal(
+      response.statusCode,
+      404,
+      "Unknown path should return 404 Not Found"
+    );
   });
 
   // Cleanup: Close server after tests
@@ -107,7 +138,7 @@ describe("Health Check", () => {
     if (healthServer) {
       healthServer.close();
     }
-    
+
     // Restore the environment variable or delete it if it wasn't set before
     if (originalHealthCheckPort === undefined) {
       delete process.env.HEALTH_CHECK_PORT;

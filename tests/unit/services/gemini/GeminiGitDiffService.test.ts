@@ -99,7 +99,7 @@ describe("GeminiGitDiffService", () => {
       1024 * 1024,
       ["package-lock.json", "*.min.js"]
     );
-    
+
     // We need to mock gitdiff-parser.parse correctly since it's used by the parseGitDiff method
     // Intercept calls to gitdiff-parser.parse and return our mock
     mock.method(gitdiffParser, "parse", () => mockParsedDiff);

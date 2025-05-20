@@ -18,6 +18,12 @@ This server aims to simplify integration with Gemini models by providing a consi
 * **Object Detection:** Detect objects in images and return bounding box coordinates (`gemini_objectDetection`) with custom prompt additions and output format options.
 * **Visual Content Understanding:** Extract information from charts, diagrams, and other visual content (`gemini_contentUnderstanding`) with structured output options.
 * **Audio Transcription:** Transcribe audio files with optional timestamps and multilingual support (`gemini_audioTranscription`) for both small and large files.
+* **MCP Client:** Connect to and interact with external MCP servers.
+  * `mcpConnectToServer`: Establishes a connection to an external MCP server.
+  * `mcpListServerTools`: Lists available tools on a connected MCP server.
+  * `mcpCallServerTool`: Calls a function on a connected MCP server, with an option for file output.
+  * `mcpDisconnectFromServer`: Disconnects from an external MCP server.
+  * `writeToFile`: Writes content directly to files within allowed directories.
 
 
 ## Prerequisites
@@ -55,7 +61,8 @@ This server aims to simplify integration with Gemini models by providing a consi
           "env": {
             "GOOGLE_GEMINI_API_KEY": "YOUR_API_KEY",
             "GOOGLE_GEMINI_MODEL": "gemini-1.5-flash", // Optional: Set a default model
-            "GEMINI_SAFE_FILE_BASE_DIR": "/path/to/allowed/files" // Optional: Restrict file operations
+            "GEMINI_SAFE_FILE_BASE_DIR": "/path/to/allowed/files", // Optional: Restrict file operations
+            "ALLOWED_OUTPUT_PATHS": "/path/to/output1,/path/to/output2" // Optional: Comma-separated list of allowed output directories for mcpCallServerTool and writeToFileTool
           },
           "disabled": false,
           "autoApprove": []
@@ -73,6 +80,7 @@ The server uses environment variables for configuration, passed via the `env` ob
 
 * `GOOGLE_GEMINI_API_KEY` (**Required**): Your API key obtained from Google AI Studio.
 * `GOOGLE_GEMINI_MODEL` (*Optional*): Specifies a default Gemini model name (e.g., `gemini-1.5-flash`, `gemini-1.0-pro`). If set, tools that require a model name (like `gemini_generateContent`, `gemini_startChat`, etc.) will use this default when the `modelName` parameter is omitted in the tool call. This simplifies client calls when primarily using one model. If this environment variable is *not* set, the `modelName` parameter becomes required for those tools. See the [Google AI documentation](https://ai.google.dev/models/gemini) for available model names.
+* `ALLOWED_OUTPUT_PATHS` (*Optional*): A comma-separated list of absolute paths to directories where the `mcpCallServerTool` (with `outputToFile` parameter) and `writeToFileTool` are allowed to write files. If not set, file output will be disabled for these tools. This is a security measure to prevent arbitrary file writes.
 
 ## Available Tools
 
@@ -283,6 +291,41 @@ This server provides the following MCP tools. Parameter schemas are defined usin
     * Files over 20MB require a Google AI Studio API key and use the File API
     * The actual upper file size limit when using File API is determined by the Gemini API itself
     * Transcription quality may vary based on audio quality, background noise, and number of speakers
+
+### MCP Client Tools
+
+* **`mcpConnectToServer`**
+  * *Description:* Establishes a connection to an external MCP server.
+  * *Required Params:*
+    * `serverId` (string): A unique identifier for this server connection.
+    * `connectionType` (string enum: "sse" | "stdio"): The transport protocol to use.
+    * `sseUrl` (string, optional if `connectionType` is "stdio"): The URL for SSE connection.
+    * `stdioCommand` (string, optional if `connectionType` is "sse"): The command to run for stdio connection.
+    * `stdioArgs` (array of strings, optional): Arguments for the stdio command.
+    * `stdioEnv` (object, optional): Environment variables for the stdio command.
+* **`mcpListServerTools`**
+  * *Description:* Lists available tools on a connected MCP server.
+  * *Required Params:*
+    * `serverId` (string): The identifier of the connected server.
+* **`mcpCallServerTool`**
+  * *Description:* Calls a function on a connected MCP server.
+  * *Required Params:*
+    * `serverId` (string): The identifier of the connected server.
+    * `toolName` (string): The name of the tool to call on the remote server.
+    * `toolArgs` (object): The arguments to pass to the remote tool.
+  * *Optional Params:*
+    * `outputToFile` (string): If provided, the tool's output will be written to this file path. The path must be within one of the directories specified in the `ALLOWED_OUTPUT_PATHS` environment variable.
+* **`mcpDisconnectFromServer`**
+  * *Description:* Disconnects from an external MCP server.
+  * *Required Params:*
+    * `serverId` (string): The identifier of the server connection to terminate.
+* **`writeToFile`**
+  * *Description:* Writes content directly to a file.
+  * *Required Params:*
+    * `filePath` (string): The absolute path of the file to write to. Must be within one of the directories specified in the `ALLOWED_OUTPUT_PATHS` environment variable.
+    * `content` (string): The content to write to the file.
+  * *Optional Params:*
+    * `overwrite` (boolean, default: false): If true, overwrite the file if it already exists. Otherwise, an error will be thrown if the file exists.
 
 ## Usage Examples
 
@@ -627,6 +670,87 @@ The response will be a JSON string containing both the text response and which m
   "chosenModel": "gemini-2.5-pro"
 }
 ```
+
+**Example 8: Connecting to an External MCP Server (SSE)**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>mcpConnectToServer</tool_name>
+  <arguments>
+    {
+      "serverId": "my-external-server",
+      "connectionType": "sse",
+      "sseUrl": "http://localhost:8080/mcp"
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 9: Calling a Tool on an External MCP Server and Writing Output to File**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>mcpCallServerTool</tool_name>
+  <arguments>
+    {
+      "serverId": "my-external-server",
+      "toolName": "remote_tool_name",
+      "toolArgs": { "param1": "value1" },
+      "outputToFile": "/path/to/allowed/output/result.json"
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 10: Writing Content Directly to a File**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>writeToFile</tool_name>
+  <arguments>
+    {
+      "filePath": "/path/to/allowed/output/my_notes.txt",
+      "content": "This is some important content.",
+      "overwrite": true
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+## `mcp-gemini-server` and Gemini SDK's MCP Function Calling
+
+The official Google Gemini API documentation includes examples (such as for [function calling with MCP structure](https://ai.google.dev/gemini-api/docs/function-calling?example=weather#model_context_protocol_mcp)) that demonstrate how you can use the client-side Gemini SDK (e.g., in Python or Node.js) to interact with the Gemini API. In such scenarios, particularly for function calling, the client SDK itself can be used to structure requests and handle responses in a manner that aligns with MCP principles.
+
+The `mcp-gemini-server` project offers a complementary approach by providing a **fully implemented, standalone MCP server**. Instead of your client application directly using the Gemini SDK to format MCP-style messages for the Gemini API, your client application (which could be another LLM like Claude, a custom script, or any MCP-compatible system) would:
+
+1.  Connect to an instance of this `mcp-gemini-server`.
+2.  Call the pre-defined MCP tools exposed by this server, such as `gemini_functionCall`, `gemini_generateContent`, etc.
+
+This `mcp-gemini-server` then internally handles all the necessary interactions with the Google Gemini API, including structuring the requests, managing API keys, and processing responses, abstracting these details away from your MCP client.
+
+### Benefits of using `mcp-gemini-server`:
+
+*   **Abstraction & Simplicity:** Client applications don't need to integrate the Gemini SDK directly or manage the specifics of its API for MCP-style interactions. They simply make standard MCP tool calls.
+*   **Centralized Configuration:** API keys, default model choices, safety settings, and other configurations are managed centrally within the `mcp-gemini-server`.
+*   **Rich Toolset:** Provides a broad set of pre-defined MCP tools for various Gemini features (text generation, chat, file handling, image generation, etc.), not just function calling.
+*   **Interoperability:** Enables any MCP-compatible client to leverage Gemini's capabilities without needing native Gemini SDK support.
+
+### When to Choose Which Approach:
+
+*   **Direct SDK Usage (as in Google's MCP examples):**
+    *   Suitable if you are building a client application (e.g., in Python or Node.js) and want fine-grained control over the Gemini API interaction directly within that client.
+    *   Useful if you prefer to manage the Gemini SDK dependencies and logic within your client application and are primarily focused on function calling structured in an MCP-like way.
+*   **Using `mcp-gemini-server`:**
+    *   Ideal if you want to expose Gemini capabilities to an existing MCP-compatible ecosystem (e.g., another LLM, a workflow automation system).
+    *   Beneficial if you want to rapidly prototype or deploy Gemini features as tools without extensive client-side SDK integration.
+    *   Preferable if you need a wider range of Gemini features exposed as consistent MCP tools and want to centralize the Gemini API interaction point.
+
+### A Note on This Server's Own MCP Client Tools:
+
+The `mcp-gemini-server` also includes tools like `mcpConnectToServer`, `mcpListServerTools`, and `mcpCallServerTool`. These tools allow *this server* to act as an MCP *client* to *other external* MCP servers. This is a distinct capability from how an MCP client would connect *to* `mcp-gemini-server` to utilize Gemini features.
 
 ## Environment Variables
 

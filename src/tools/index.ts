@@ -1,7 +1,7 @@
 ﻿import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ConfigurationManager } from "../config/ConfigurationManager.js";
 import { logger } from "../utils/index.js";
-import { GeminiService } from "../services/index.js"; // Import GeminiService
+import { GeminiService, McpClientService } from "../services/index.js"; // Import GeminiService and McpClientService
 
 // Import tool registration functions
 import { exampleTool } from "./exampleTool.js";
@@ -34,18 +34,29 @@ import { geminiGitLocalDiffReviewTool } from "./geminiGitLocalDiffReviewTool.js"
 import { geminiGitLocalDiffStreamReviewTool } from "./geminiGitLocalDiffStreamReviewTool.js";
 import { geminiGitHubRepoReviewTool } from "./geminiGitHubRepoReviewTool.js";
 import { geminiGitHubPRReviewTool } from "./geminiGitHubPRReviewTool.js";
+// Import MCP tools
+import { mcpConnectToServerTool } from "./mcpConnectToServerTool.js";
+import { mcpDisconnectFromServerTool } from "./mcpDisconnectFromServerTool.js";
+import { mcpListServerToolsTool } from "./mcpListServerToolsTool.js";
+import { mcpCallServerToolTool } from "./mcpCallServerToolTool.js";
+// Import file utils tool
+import { writeToFileTool } from "./writeToFileTool.js";
 
 /**
  * Register all defined tools with the MCP server instance.
  * This function centralizes tool registration logic.
+ * @returns The McpClientService instance for managing MCP client connections
  */
-export function registerTools(server: McpServer): void {
+export function registerTools(server: McpServer): McpClientService {
   logger.info("Registering tools...");
   const configManager = ConfigurationManager.getInstance();
 
   // Create a single GeminiService instance
   // GeminiService gets its config directly from ConfigurationManager
   const geminiServiceInstance = new GeminiService();
+  
+  // Create McpClientService instance
+  const mcpClientService = new McpClientService();
 
   // Use a consistent approach to call all tools
   try {
@@ -154,6 +165,15 @@ export function registerTools(server: McpServer): void {
       {},
       geminiGitHubPRReviewTool as unknown as (args: any) => Promise<any>
     );
+
+    // Register MCP tools
+    mcpConnectToServerTool(server, mcpClientService);
+    mcpDisconnectFromServerTool(server, mcpClientService);
+    mcpListServerToolsTool(server, mcpClientService);
+    mcpCallServerToolTool(server, mcpClientService);
+
+    // Register file utility tools (these don't need mcpClientService)
+    registerTool(writeToFileTool, server);
   } catch (error: unknown) {
     logger.error(
       "Error registering tools:",
@@ -162,4 +182,7 @@ export function registerTools(server: McpServer): void {
   }
 
   logger.info("All tools registered.");
+  
+  // Return the McpClientService instance for use in graceful shutdown
+  return mcpClientService;
 }

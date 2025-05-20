@@ -12,6 +12,7 @@ export interface ServerState {
   } | null;
   server: any; // Could be more specific if server types are known
   healthCheckServer: http.Server | null;
+  mcpClientService: any | null; // Add McpClientService to server state
 }
 
 // Reference to the server state from server.ts
@@ -61,8 +62,8 @@ export const startHealthCheckServer = () => {
     }
   });
 
-  server.on('error', (error: NodeJS.ErrnoException) => {
-    if (error.code === 'EADDRINUSE') {
+  server.on("error", (error: NodeJS.ErrnoException) => {
+    if (error.code === "EADDRINUSE") {
       logger.error(`Health check server port ${port} is already in use`);
     } else {
       logger.error(`Health check server error: ${error.message}`);

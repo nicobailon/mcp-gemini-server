@@ -65,7 +65,11 @@ declare module "@modelcontextprotocol/sdk/server/mcp.js" {
   }
 
   export class McpServer {
-    constructor(options: { name: string; version: string; description: string });
+    constructor(options: {
+      name: string;
+      version: string;
+      description: string;
+    });
     connect(transport: Transport): Promise<void>;
     disconnect(): Promise<void>;
     registerTool(
@@ -73,7 +77,7 @@ declare module "@modelcontextprotocol/sdk/server/mcp.js" {
       handler: (args: any) => Promise<any>,
       schema: any
     ): void;
-    
+
     // Add the tool method that's being used in the codebase
     tool(
       name: string,
@@ -86,7 +90,7 @@ declare module "@modelcontextprotocol/sdk/server/mcp.js" {
 
 declare module "@modelcontextprotocol/sdk/server/ws.js" {
   import { Transport } from "@modelcontextprotocol/sdk/server/mcp.js";
-  
+
   export class WebSocketServerTransport implements Transport {
     constructor(options: { port: number });
     start(): Promise<void>;
@@ -97,7 +101,7 @@ declare module "@modelcontextprotocol/sdk/server/ws.js" {
 
 declare module "@modelcontextprotocol/sdk/server/stdio.js" {
   import { Transport } from "@modelcontextprotocol/sdk/server/mcp.js";
-  
+
   export class StdioServerTransport implements Transport {
     constructor();
     start(): Promise<void>;

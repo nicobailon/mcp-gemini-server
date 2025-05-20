@@ -7,14 +7,16 @@ import {
 } from "./utils/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { WebSocketServerTransport } from "@modelcontextprotocol/sdk/server/ws.js";
+import { McpClientService } from "./services/mcp/McpClientService.js";
 
 // Server state tracking
-let serverState: ServerState = {
+const serverState: ServerState = {
   isRunning: false,
   startTime: null,
   transport: null,
   server: null,
   healthCheckServer: null,
+  mcpClientService: null, // Add McpClientService to server state
 };
 
 // Share server state with the health check module
@@ -22,8 +24,9 @@ setServerState(serverState);
 
 const main = async () => {
   try {
-    const server = createServer();
+    const { server, mcpClientService } = createServer();
     serverState.server = server;
+    serverState.mcpClientService = mcpClientService; // Store the client service instance
     logger.info("Starting MCP server...");
 
     // Start health check server if enabled
@@ -67,6 +70,18 @@ const shutdown = async (signal: string) => {
 
   // Track if any shutdown process fails
   let hasError = false;
+
+  // Close all MCP client connections
+  if (serverState.mcpClientService) {
+    try {
+      logger.info("Closing all MCP client connections...");
+      (serverState.mcpClientService as McpClientService).closeAllConnections();
+      logger.info("MCP client connections closed.");
+    } catch (error) {
+      hasError = true;
+      logger.error("Error closing MCP client connections:", error);
+    }
+  }
 
   if (serverState.isRunning && serverState.server) {
     try {

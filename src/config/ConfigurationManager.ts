@@ -2,6 +2,7 @@
 import { ExampleServiceConfig, GeminiServiceConfig } from "../types/index.js"; // Import GeminiServiceConfig
 import { logger } from "../utils/logger.js";
 import { configureFilePathSecurity } from "../utils/filePathSecurity.js";
+import * as path from "path";
 // Define the structure for all configurations managed
 // Note: GeminiServiceConfig itself now has an optional defaultModel
 interface ManagedConfigs {
@@ -9,6 +10,16 @@ interface ManagedConfigs {
   geminiService: GeminiServiceConfig; // Use the interface directly, not Required<>
   github: {
     apiToken: string;
+  };
+  allowedOutputPaths: string[];
+  mcpConfig: {
+    // Add MCP config
+    host: string;
+    port: number;
+    connectionToken: string;
+    clientId: string;
+    logLevel?: "debug" | "info" | "warn" | "error";
+    transport?: "stdio" | "sse";
   };
   // Add other service config types here:
   // yourService: Required<YourServiceConfig>;
@@ -48,6 +59,17 @@ export class ConfigurationManager {
         // Default GitHub API token is empty; will be loaded from environment variable
         apiToken: "",
       },
+      allowedOutputPaths: [],
+      mcpConfig: {
+        // Initialize MCP config
+        host: "localhost",
+        port: 8080,
+        connectionToken: "", // Must be set via env
+        clientId: "gemini-sdk-client-default", // Must be set via env
+        logLevel: "info",
+        transport: "stdio",
+      },
+
       // Initialize other service configs with defaults:
       // yourService: {
       //   someSetting: 'default value',
@@ -63,7 +85,13 @@ export class ConfigurationManager {
   }
 
   private validateRequiredEnvVars(): void {
-    const requiredVars = ["GOOGLE_GEMINI_API_KEY"];
+    const requiredVars = [
+      "GOOGLE_GEMINI_API_KEY",
+      "MCP_SERVER_HOST", // Add MCP required vars
+      "MCP_SERVER_PORT",
+      "MCP_CONNECTION_TOKEN",
+      "MCP_CLIENT_ID",
+    ];
     const missingVars = requiredVars.filter((varName) => !process.env[varName]);
 
     if (missingVars.length > 0) {
@@ -118,6 +146,16 @@ export class ConfigurationManager {
     return { ...this.config.geminiService };
   }
 
+  // Getter for MCP Configuration
+  public getMcpConfig(): Required<ManagedConfigs["mcpConfig"]> {
+    // Return a copy to ensure type safety and prevent modification
+    // Cast to Required because we validate essential fields are set from env vars.
+    // Optional fields will have their defaults.
+    return { ...this.config.mcpConfig } as Required<
+      ManagedConfigs["mcpConfig"]
+    >;
+  }
+
   // Getter specifically for the default model name
   public getDefaultModelName(): string | undefined {
     return this.config.geminiService.defaultModel;
@@ -137,6 +175,15 @@ export class ConfigurationManager {
    */
   public getGitHubApiToken(): string | undefined {
     return this.config.github.apiToken || undefined;
+  }
+
+  /**
+   * Returns the list of allowed output paths for file writing
+   * @returns A copy of the configured allowed output paths array
+   */
+  public getAllowedOutputPaths(): string[] {
+    // Return a copy to prevent accidental modification
+    return [...this.config.allowedOutputPaths];
   }
 
   // Add getters for other service configs:
@@ -296,6 +343,76 @@ export class ConfigurationManager {
           `[ConfigurationManager] Invalid thinking budget '${process.env.GOOGLE_GEMINI_DEFAULT_THINKING_BUDGET}' specified. Must be between 0 and 24576. Not using default thinking budget.`
         );
       }
+    }
+
+    // Load MCP Configuration
+    if (process.env.MCP_SERVER_HOST) {
+      this.config.mcpConfig.host = process.env.MCP_SERVER_HOST;
+    }
+    if (process.env.MCP_SERVER_PORT) {
+      const port = parseInt(process.env.MCP_SERVER_PORT, 10);
+      if (!isNaN(port) && port > 0 && port < 65536) {
+        this.config.mcpConfig.port = port;
+      } else {
+        logger.warn(
+          `[ConfigurationManager] Invalid MCP_SERVER_PORT: '${process.env.MCP_SERVER_PORT}'. Using default ${this.config.mcpConfig.port}.`
+        );
+      }
+    }
+    if (process.env.MCP_CONNECTION_TOKEN) {
+      this.config.mcpConfig.connectionToken = process.env.MCP_CONNECTION_TOKEN;
+    }
+    if (process.env.MCP_CLIENT_ID) {
+      this.config.mcpConfig.clientId = process.env.MCP_CLIENT_ID;
+    }
+    if (process.env.MCP_LOG_LEVEL) {
+      const logLevel = process.env.MCP_LOG_LEVEL.toLowerCase();
+      if (["debug", "info", "warn", "error"].includes(logLevel)) {
+        this.config.mcpConfig.logLevel = logLevel as
+          | "debug"
+          | "info"
+          | "warn"
+          | "error";
+      } else {
+        logger.warn(
+          `[ConfigurationManager] Invalid MCP_LOG_LEVEL: '${process.env.MCP_LOG_LEVEL}'. Using default '${this.config.mcpConfig.logLevel}'.`
+        );
+      }
+    }
+    if (process.env.MCP_TRANSPORT) {
+      const transport = process.env.MCP_TRANSPORT.toLowerCase();
+      if (["stdio", "sse"].includes(transport)) {
+        this.config.mcpConfig.transport = transport as "stdio" | "sse";
+      } else {
+        logger.warn(
+          `[ConfigurationManager] Invalid MCP_TRANSPORT: '${process.env.MCP_TRANSPORT}'. Using default '${this.config.mcpConfig.transport}'.`
+        );
+      }
+    }
+    logger.info("[ConfigurationManager] MCP configuration loaded.");
+
+    // Load allowed output paths if provided
+    if (process.env.ALLOWED_OUTPUT_PATHS) {
+      const pathStrings = process.env.ALLOWED_OUTPUT_PATHS.split(",");
+
+      // Process each path, resolve to absolute path
+      for (const pathStr of pathStrings) {
+        const trimmedPath = pathStr.trim();
+        if (trimmedPath) {
+          const resolvedPath = path.resolve(trimmedPath);
+          this.config.allowedOutputPaths.push(resolvedPath);
+        }
+      }
+
+      if (this.config.allowedOutputPaths.length > 0) {
+        logger.info(
+          `[ConfigurationManager] Allowed output paths configured: ${this.config.allowedOutputPaths.join(", ")}`
+        );
+      }
+    } else {
+      logger.warn(
+        "[ConfigurationManager] ALLOWED_OUTPUT_PATHS environment variable not set. File writing might be restricted or disabled."
+      );
     }
   }
 }

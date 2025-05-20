@@ -661,20 +661,20 @@ export class GeminiService {
 
   /**
    * Reviews a GitHub repository and generates analysis using Gemini models.
-   * 
+   *
    * IMPORTANT: This method uses a special approach to analyze repository contents by
    * creating a diff against an empty tree. While effective for getting an overview of
    * the repository, be aware of these limitations:
-   * 
+   *
    * 1. Token Usage: This approach consumes a significant number of tokens, especially
    *    for large repositories, as it treats the entire repository as one large diff.
-   * 
+   *
    * 2. Performance Impact: For very large repositories, this may result in slow
    *    response times and potential timeout errors.
-   * 
+   *
    * 3. Cost Considerations: The token consumption directly impacts API costs.
    *    Consider using the maxFilesToInclude and excludePatterns options to limit scope.
-   * 
+   *
    * 4. Scale Issues: Repositories with many files or large files may exceed context
    *    limits of the model, resulting in incomplete analysis.
    *

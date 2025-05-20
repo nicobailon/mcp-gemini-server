@@ -23,7 +23,7 @@ describe("Thinking Budget Feature", () => {
   interface MockRequestConfig {
     thinkingConfig?: {
       thinkingBudget?: number;
-    }
+    };
   }
 
   // Mock GoogleGenAI
@@ -70,7 +70,7 @@ describe("Thinking Budget Feature", () => {
       // Get mock arguments safely with null checks
       const args = mockGenerateContentMethod.mock.calls[0];
       assert.ok(args, "Mock should have been called with arguments");
-      
+
       const requestConfig = args.arguments[0];
       assert.ok(requestConfig, "Request config should exist");
       assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");
@@ -115,7 +115,7 @@ describe("Thinking Budget Feature", () => {
         // Get mock arguments safely with null checks
         const args = mockGenerateContentMethod.mock.calls[0];
         assert.ok(args, "Mock should have been called with arguments");
-        
+
         const requestConfig = args.arguments[0];
         assert.ok(requestConfig, "Request config should exist");
         assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");
@@ -147,7 +147,7 @@ describe("Thinking Budget Feature", () => {
       // Get mock arguments safely with null checks
       const args = mockGenerateContentMethod.mock.calls[0];
       assert.ok(args, "Mock should have been called with arguments");
-      
+
       const requestConfig = args.arguments[0];
       assert.ok(requestConfig, "Request config should exist");
       assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");
@@ -184,7 +184,7 @@ describe("Thinking Budget Feature", () => {
       // Get mock arguments safely with null checks
       const args = mockGenerateContentMethod.mock.calls[0];
       assert.ok(args, "Mock should have been called with arguments");
-      
+
       const requestConfig = args.arguments[0];
       assert.ok(requestConfig, "Request config should exist");
       assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");
@@ -199,7 +199,9 @@ describe("Thinking Budget Feature", () => {
   describe("GeminiChatService", () => {
     // Mock for chat service with proper typing
     const mockChatGenerateContentMethod = mock.fn(
-      (_config?: MockRequestConfig): Promise<PartialGenerateContentResponse> => {
+      (
+        _config?: MockRequestConfig
+      ): Promise<PartialGenerateContentResponse> => {
         const response: PartialGenerateContentResponse = {
           candidates: [
             {
@@ -212,12 +214,14 @@ describe("Thinking Budget Feature", () => {
           ],
           promptFeedback: {},
         };
-        
+
         // Define the text property as a getter function
-        Object.defineProperty(response, 'text', {
-          get: function() { return "Mock chat response"; }
+        Object.defineProperty(response, "text", {
+          get: function () {
+            return "Mock chat response";
+          },
         });
-        
+
         return Promise.resolve(response);
       }
     );
@@ -259,7 +263,7 @@ describe("Thinking Budget Feature", () => {
       // Get mock arguments safely with null checks
       const args = mockChatGenerateContentMethod.mock.calls[0];
       assert.ok(args, "Mock should have been called with arguments");
-      
+
       const requestConfig = args.arguments[0];
       assert.ok(requestConfig, "Request config should exist");
       assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");
@@ -307,7 +311,7 @@ describe("Thinking Budget Feature", () => {
         // Get mock arguments safely with null checks
         const args = mockChatGenerateContentMethod.mock.calls[0];
         assert.ok(args, "Mock should have been called with arguments");
-        
+
         const requestConfig = args.arguments[0];
         assert.ok(requestConfig, "Request config should exist");
         assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");
@@ -350,7 +354,7 @@ describe("Thinking Budget Feature", () => {
       // Get mock arguments safely with null checks
       const args = mockChatGenerateContentMethod.mock.calls[0];
       assert.ok(args, "Mock should have been called with arguments");
-      
+
       const requestConfig = args.arguments[0];
       assert.ok(requestConfig, "Request config should exist");
       assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");

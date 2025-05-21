@@ -1,22 +1,16 @@
 ﻿import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
-import { z } from "zod"; // Import Zod for potential validation
-import {
-  TOOL_NAME,
-  TOOL_DESCRIPTION,
-  TOOL_PARAMS,
-} from "./exampleToolParams.js";
 import { ExampleService } from "../services/index.js";
 import { GeminiService } from "../services/index.js"; // Import GeminiService for type checking
 import { ExampleServiceConfig, ExampleServiceData } from "../types/index.js";
 import { ValidationError } from "../utils/errors.js";
 import { logger } from "../utils/index.js";
-
-// Define the type for the arguments object based on TOOL_PARAMS
-type ExampleToolArgs = {
-  name: string;
-  language?: "en" | "es" | "fr";
-};
+import {
+  TOOL_NAME,
+  TOOL_DESCRIPTION,
+  TOOL_PARAMS,
+  ExampleToolParams
+} from "./schemas/exampleToolParams.js";
 
 /**
  * Registers the exampleTool with the MCP server.
@@ -40,7 +34,7 @@ export const exampleTool = (
   const serviceInstance = new ExampleService(config);
 
   // Define the async function that handles the tool execution
-  const processExampleRequest = async (args: ExampleToolArgs) => {
+  const processExampleRequest = async (args: ExampleToolParams) => {
     logger.debug(`Received request with args: ${JSON.stringify(args)}`);
     try {
       // 1. Input Validation (Optional, Zod schema from params can handle basic types)

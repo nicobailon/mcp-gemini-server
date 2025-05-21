@@ -1,7 +1,7 @@
 // Import config types for services as they are added
 import * as path from "path";
 import { ExampleServiceConfig, GeminiServiceConfig } from "../types/index.js";
-import { configureFilePathSecurity } from "../utils/filePathSecurity.js";
+import { FileSecurityService } from "../utils/FileSecurityService.js";
 import { logger } from "../utils/logger.js";
 
 // Define the structure for all configurations managed
@@ -79,8 +79,8 @@ export class ConfigurationManager {
     this.validateRequiredEnvVars();
     this.loadEnvironmentOverrides();
 
-    // Configure file path security
-    configureFilePathSecurity();
+    // Initialize the FileSecurityService with environment configuration
+    FileSecurityService.configureFromEnvironment();
   }
 
   private validateRequiredEnvVars(): void {

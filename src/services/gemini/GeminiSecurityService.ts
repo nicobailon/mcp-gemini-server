@@ -1,20 +1,33 @@
 import * as path from "path";
 import { logger } from "../../utils/logger.js";
+import { FileSecurityService } from "../../utils/FileSecurityService.js";
+import { ValidationError } from "../../utils/errors.js";
 
 /**
  * Service for handling security-related operations for the Gemini service.
  * Primarily focuses on file path validation and secure base path management.
+ * Uses the centralized FileSecurityService for consistent path validation.
+ * 
+ * @deprecated Use FileSecurityService directly instead
  */
 export class GeminiSecurityService {
-  private secureBasePath?: string;
+  private fileSecurityService: FileSecurityService;
 
   /**
    * Creates a new instance of the GeminiSecurityService.
    * @param secureBasePath Optional base path to restrict file operations to
    */
   constructor(secureBasePath?: string) {
+    // Initialize with FileSecurityService
+    this.fileSecurityService = new FileSecurityService(
+      secureBasePath ? [secureBasePath] : undefined,
+      secureBasePath
+    );
+    
     if (secureBasePath) {
-      this.setSecureBasePath(secureBasePath);
+      logger.debug(`GeminiSecurityService initialized with base path: ${secureBasePath}`);
+    } else {
+      logger.debug(`GeminiSecurityService initialized with default base path`);
     }
   }
 
@@ -31,40 +44,17 @@ export class GeminiSecurityService {
    * @throws Error if the path is invalid or outside permitted boundaries
    */
   public validateFilePath(filePath: string, basePath?: string): string {
-    // Ensure path is absolute
-    if (!path.isAbsolute(filePath)) {
-      throw new Error("File path must be absolute");
-    }
-
-    // Normalize path to resolve any . or .. segments
-    const normalizedPath = path.normalize(filePath);
-
-    // Check for path traversal attempts
-    if (normalizedPath.includes("../") || normalizedPath.includes("..\\")) {
-      throw new Error("Path contains invalid traversal sequences");
-    }
-
-    // If basePath is specified, ensure the path is within that directory
-    if (basePath) {
-      const normalizedBasePath = path.normalize(basePath);
-      if (!normalizedPath.startsWith(normalizedBasePath)) {
-        throw new Error(
-          `File path must be within the allowed base directory: ${basePath}`
-        );
+    try {
+      return this.fileSecurityService.validateAndResolvePath(filePath, {
+        basePath: basePath
+      });
+    } catch (error) {
+      // Convert ValidationError to regular Error for backward compatibility
+      if (error instanceof ValidationError) {
+        throw new Error(error.message);
       }
+      throw error;
     }
-
-    // If class has a secureBasePath set, also check against that
-    if (
-      this.secureBasePath &&
-      !normalizedPath.startsWith(this.secureBasePath)
-    ) {
-      throw new Error(
-        "File path must be within the configured secure base directory"
-      );
-    }
-
-    return normalizedPath;
   }
 
   /**
@@ -74,19 +64,30 @@ export class GeminiSecurityService {
    * @param basePath The absolute path to restrict file operations to
    */
   public setSecureBasePath(basePath: string): void {
-    if (!path.isAbsolute(basePath)) {
-      throw new Error("Base path must be absolute");
+    try {
+      this.fileSecurityService.setSecureBasePath(basePath);
+      logger.debug(`Secure base path set to: ${basePath}`);
+    } catch (error) {
+      // Convert ValidationError to regular Error for backward compatibility
+      if (error instanceof ValidationError) {
+        throw new Error(error.message);
+      }
+      throw error;
     }
-
-    // Store the base path in a private field
-    this.secureBasePath = path.normalize(basePath);
-    logger.debug(`Secure base path set to: ${this.secureBasePath}`);
   }
 
   /**
    * Gets the current secure base directory if set
    */
   public getSecureBasePath(): string | undefined {
-    return this.secureBasePath;
+    return this.fileSecurityService.getSecureBasePath();
+  }
+  
+  /**
+   * Gets the underlying FileSecurityService instance
+   * This allows for a gradual transition to the new service
+   */
+  public getFileSecurityService(): FileSecurityService {
+    return this.fileSecurityService;
   }
 }

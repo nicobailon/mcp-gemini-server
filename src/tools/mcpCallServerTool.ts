@@ -5,7 +5,8 @@ import { z } from "zod";
 import { ConfigurationManager } from "../config/ConfigurationManager.js";
 import { McpClientService } from "../services/mcp/McpClientService.js";
 import { logger } from "../utils/logger.js";
-import { secureWriteFile } from "../utils/fileUtils.js";
+import { FileSecurityService } from "../utils/FileSecurityService.js";
+import { ValidationError } from "../utils/errors.js";
 import {
   TOOL_NAME,
   TOOL_DESCRIPTION,
@@ -26,6 +27,9 @@ export function mcpCallServerTool(
   mcpClientService: McpClientService
 ): void {
   logger.info(`Registering tool: ${TOOL_NAME}`);
+  
+  // Create a FileSecurityService instance for this tool
+  const fileSecurityService = new FileSecurityService();
 
   // Create a schema object for tool registration
   const toolParamsObject = z.object(TOOL_PARAMS);
@@ -69,13 +73,15 @@ export function mcpCallServerTool(
                 "ALLOWED_OUTPUT_PATHS environment variable."
             );
           }
+          
+          // Update the FileSecurityService with allowed paths
+          fileSecurityService.setAllowedDirectories(allowedOutputPaths);
 
-          // Use the overwriteFile parameter (defaults to true if not specified)
-          await secureWriteFile(
+          // Use the FileSecurityService with the overwriteFile parameter (defaults to true if not specified)
+          await fileSecurityService.secureWriteFile(
             args.outputFilePath,
             JSON.stringify(result, null, 2),
-            allowedOutputPaths,
-            args.overwriteFile !== undefined ? args.overwriteFile : true
+            { overwrite: args.overwriteFile !== undefined ? args.overwriteFile : true }
           );
 
           // Return a success message with the file path
@@ -102,34 +108,33 @@ export function mcpCallServerTool(
             error
           );
 
-          // Specific handling for different error types
-          if (
-            error instanceof Error &&
-            (error.message.includes("not within the allowed output") ||
-              error.message.includes("Security error:"))
-          ) {
-            throw new McpError(
-              ErrorCode.SecurityViolation,
-              `Security error: ${error.message}`,
-              { path: args.outputFilePath }
-            );
-          } else if (
-            error instanceof Error &&
-            error.message.includes("File already exists")
-          ) {
-            throw new McpError(ErrorCode.InvalidParams, `${error.message}`, {
-              path: args.outputFilePath,
-              overwrite: args.overwriteFile,
-            });
-          } else {
-            throw new McpError(
-              ErrorCode.FileSystemError,
-              `Failed to write output to file: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-              { path: args.outputFilePath }
-            );
+          // Handle ValidationError from FileSecurityService
+          if (error instanceof ValidationError) {
+            if (error.message.includes("File already exists")) {
+              throw new McpError(ErrorCode.InvalidParams, `${error.message}`, {
+                path: args.outputFilePath,
+                overwrite: args.overwriteFile,
+              });
+            }
+            
+            if (error.message.includes("Access denied") || 
+                error.message.includes("Security error")) {
+              throw new McpError(
+                ErrorCode.InvalidParams,
+                `Security error: ${error.message}`,
+                { path: args.outputFilePath }
+              );
+            }
           }
+          
+          // Generic file system errors
+          throw new McpError(
+            ErrorCode.InternalError,
+            `Failed to write output to file: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+            { path: args.outputFilePath }
+          );
         }
       }
 
@@ -153,11 +158,12 @@ export function mcpCallServerTool(
       // Handle specific error types based on error messages
       if (error instanceof McpError) {
         // Pass through MCP errors but add additional context for better debugging
-        throw new McpError(error.code, error.message, {
-          ...error.data,
+        // Create new data object with tool context
+        const contextData = {
           toolName: args.toolName,
-          connectionId: args.connectionId,
-        });
+          connectionId: args.connectionId
+        };
+        throw new McpError(error.code, error.message, contextData);
       } else if (
         error instanceof Error &&
         error.message &&
@@ -174,7 +180,7 @@ export function mcpCallServerTool(
         error.message.includes("HTTP error")
       ) {
         throw new McpError(
-          ErrorCode.NetworkError,
+          ErrorCode.InternalError,
           `Network error while calling tool ${args.toolName}: ${error.message}`,
           { toolName: args.toolName, connectionId: args.connectionId }
         );
@@ -184,7 +190,7 @@ export function mcpCallServerTool(
         error.message.includes("timeout")
       ) {
         throw new McpError(
-          ErrorCode.Timeout,
+          ErrorCode.InternalError,
           `Timeout while calling tool ${args.toolName}: ${error.message}`,
           { toolName: args.toolName, connectionId: args.connectionId }
         );

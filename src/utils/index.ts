@@ -2,6 +2,7 @@
 export * from "./logger.js";
 export * from "./errors.js";
 export * from "./filePathSecurity.js";
+export * from "./FileSecurityService.js";
 export * from "./RetryService.js";
 export * from "./healthCheck.js";
 export * from "./fileUtils.js";

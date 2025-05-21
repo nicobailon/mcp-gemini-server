@@ -7,16 +7,20 @@ import {
   TOOL_PARAMS,
   WriteToFileParams,
   writeToFileSchema,
-} from "./writeToFileToolParams.js";
-import { secureWriteFile } from "../utils/fileUtils.js";
+} from "./schemas/writeToFileParams.js";
+import { FileSecurityService } from "../utils/FileSecurityService.js";
 import { logger } from "../utils/logger.js";
 import { ConfigurationManager } from "../config/ConfigurationManager.js";
+import { ValidationError } from "../utils/errors.js";
 
 /**
  * Registers the writeToFile tool with the MCP server.
  * @param server - The McpServer instance.
  */
 export const writeToFileTool = (server: McpServer): void => {
+  // Create a FileSecurityService instance for this tool
+  const fileSecurityService = new FileSecurityService();
+  
   /**
    * Process a write to file request.
    * @param args - The parameters for the file write operation.
@@ -42,6 +46,9 @@ export const writeToFileTool = (server: McpServer): void => {
           "No allowed output paths configured. Cannot write file."
         );
       }
+      
+      // Update the FileSecurityService with allowed paths
+      fileSecurityService.setAllowedDirectories(allowedOutputPaths);
 
       // Handle base64 encoding if specified
       let contentToWrite = validatedArgs.content;
@@ -59,12 +66,11 @@ export const writeToFileTool = (server: McpServer): void => {
         }
       }
 
-      // Use the overwriteFile parameter from the args
-      await secureWriteFile(
+      // Use the new FileSecurityService with the overwriteFile parameter from the args
+      await fileSecurityService.secureWriteFile(
         validatedArgs.filePath,
         contentToWrite,
-        allowedOutputPaths,
-        validatedArgs.overwriteFile
+        { overwrite: validatedArgs.overwriteFile }
       );
 
       // Return success response
@@ -91,24 +97,26 @@ export const writeToFileTool = (server: McpServer): void => {
         throw error; // Re-throw if it's already an McpError
       }
 
-      // Map different error types to appropriate MCP errors
-      if (
-        error instanceof Error &&
-        error.message.includes("not within the allowed output")
-      ) {
+      // Handle ValidationError from FileSecurityService
+      if (error instanceof ValidationError) {
+        if (error.message.includes("File already exists")) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `File already exists: ${error.message}`
+          );
+        }
+        
+        if (error.message.includes("Access denied") || 
+            error.message.includes("Security error")) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `Security error: ${error.message}`
+          );
+        }
+        
         throw new McpError(
           ErrorCode.InvalidParams,
-          `Security error: ${error.message}`
-        );
-      }
-
-      if (
-        error instanceof Error &&
-        error.message.includes("File already exists")
-      ) {
-        throw new McpError(
-          ErrorCode.InvalidParams,
-          `File already exists: ${error.message}`
+          error.message
         );
       }
 

@@ -6,9 +6,9 @@ import {
   ErrorCode,
 } from "@modelcontextprotocol/sdk/types.js";
 import { v4 as uuidv4 } from "uuid";
-// Import node-fetch dynamically since v2 is CJS
-import type { Response, RequestInit } from "node-fetch";
-// We'll use the dynamic import later when we need fetch
+// Import node-fetch types only
+// We'll dynamically import the actual implementation later to handle CJS/ESM compatibility
+import type { Response, RequestInit, HeadersInit } from "node-fetch";
 
 // Define custom types for EventSource events since the eventsource package
 // doesn't export its own types
@@ -129,14 +129,13 @@ export class McpClientService {
       };
 
       // Dynamically import node-fetch (v2 is CommonJS)
-      const nodeFetch = await import('node-fetch');
+      const nodeFetch = await import("node-fetch");
       const fetch = nodeFetch.default;
 
       // Make the fetch request
       const response = await fetch(url, fetchOptions);
       clearTimeout(id);
-      // Cast the response to ensure correct typing
-      return response as Response;
+      return response;
     } catch (error) {
       clearTimeout(id);
       throw new SdkMcpError(
@@ -295,7 +294,11 @@ export class McpClientService {
         );
       }
 
-      return this.connectSse(connectionDetails.sseUrl, connectionDetails.connectionToken, messageHandler);
+      return this.connectSse(
+        connectionDetails.sseUrl,
+        connectionDetails.connectionToken,
+        messageHandler
+      );
     }
     // Validate stdio connection details
     else if (connectionDetails.type === "stdio") {
@@ -446,7 +449,7 @@ export class McpClientService {
    * @param connectionId - The ID of the connection to close.
    * @returns True if the connection was closed, false if it wasn't found.
    */
-  private closeSseConnection(connectionId: string): boolean {
+  public closeSseConnection(connectionId: string): boolean {
     const connection = this.activeSseConnections.get(connectionId);
     if (connection) {
       // Close the EventSource and remove listeners
@@ -539,13 +542,13 @@ export class McpClientService {
 
         // Prepare the environment for the child process
         const env = { ...process.env };
-        
+
         // Add connectionToken to environment if provided
         if (connectionToken) {
-          logger.debug('Adding connection token to stdio environment');
+          logger.debug("Adding connection token to stdio environment");
           env.MCP_CONNECTION_TOKEN = connectionToken;
         }
-        
+
         // Spawn the child process with environment
         const childProcess = spawn(command, args, {
           stdio: "pipe",
@@ -810,7 +813,10 @@ export class McpClientService {
         try {
           childProcess.stdin.write(dataStr + "\n");
         } catch (error) {
-          logger.error(`Error writing to stdin for connection ${connectionId}:`, error);
+          logger.error(
+            `Error writing to stdin for connection ${connectionId}:`,
+            error
+          );
           return false;
         }
       } else {
@@ -832,7 +838,7 @@ export class McpClientService {
    * @param signal - Optional signal to send to the process. Default is 'SIGTERM'.
    * @returns True if the connection was closed, false if it wasn't found.
    */
-  private closeStdioConnection(
+  public closeStdioConnection(
     connectionId: string,
     signal: NodeJS.Signals = "SIGTERM"
   ): boolean {

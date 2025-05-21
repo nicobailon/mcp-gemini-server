@@ -72,7 +72,8 @@ export const mcpConnectToServerTool = (
       const connectionDetailsObject: ConnectionDetails = {
         type: transport,
         // Include connectionToken if provided, otherwise use the default from config
-        connectionToken: typedConnectionDetails.connectionToken || mcpConfig.connectionToken,
+        connectionToken:
+          typedConnectionDetails.connectionToken || mcpConfig.connectionToken,
         ...(transport === "stdio"
           ? {
               stdioCommand: (typedConnectionDetails as StdioConnectionDetails)

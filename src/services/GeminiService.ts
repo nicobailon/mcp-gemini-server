@@ -92,7 +92,10 @@ export class GeminiService {
     }
 
     // Initialize specialized services
-    this.fileService = new GeminiFileService(this.genAI, this.fileSecurityService);
+    this.fileService = new GeminiFileService(
+      this.genAI,
+      this.fileSecurityService
+    );
     this.contentService = new GeminiContentService(
       this.genAI,
       this.defaultModelName,

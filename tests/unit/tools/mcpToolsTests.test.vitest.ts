@@ -1,6 +1,9 @@
 import { describe, it, beforeEach, expect, vi } from "vitest";
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { MockMcpClientService, MockFileSecurityService } from "../../../tests/utils/mock-types.js";
+import { McpClientService } from "../../../src/services/mcp/McpClientService.js";
+import { FileSecurityService } from "../../../src/utils/FileSecurityService.js";
 
 // Set up mocks before imports
 vi.mock("../../../src/utils/logger.js", () => ({

@@ -22,10 +22,7 @@ describe("GeminiChatService", () => {
   const defaultModel = "gemini-1.5-pro";
 
   // Mock the GoogleGenAI class
-  const mockGenerateContent = vi.fn<
-    any,
-    Promise<PartialGenerateContentResponse>
-  >();
+  const mockGenerateContent = vi.fn<any[], Promise<PartialGenerateContentResponse>>();
   const mockGoogleGenAI = {
     models: {
       generateContent: mockGenerateContent,

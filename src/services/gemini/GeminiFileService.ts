@@ -52,7 +52,8 @@ export class GeminiFileService {
     options?: { displayName?: string; mimeType?: string }
   ): Promise<FileMetadata> {
     // Validate file path (redundant if already validated in tool handler but safer)
-    const validatedPath = this.fileSecurityService.validateAndResolvePath(filePath);
+    const validatedPath =
+      this.fileSecurityService.validateAndResolvePath(filePath);
 
     // Check if file exists
     try {

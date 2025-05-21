@@ -20,6 +20,7 @@ describe("Health Check", () => {
     transport: { constructor: { name: "MockTransport" } },
     server: {},
     healthCheckServer: null,
+    mcpClientService: null,
   };
 
   // Setup: Start health check server

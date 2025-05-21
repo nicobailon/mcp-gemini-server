@@ -11,26 +11,22 @@ const TEST_UUID = "test-uuid-value";
 
 //
 
-// Create constants for EventSource states
-const CONNECTING = 0;
-const OPEN = 1;
-const CLOSED = 2;
+// Import mock types
+import { EVENT_SOURCE_STATES, MockEvent, MockEventSource } from "../../../../tests/utils/mock-types.js";
 
 // Setup mocks before tests - vi.mock calls are hoisted to top of file
 vi.mock("eventsource", () => {
   return {
-    default: vi.fn().mockImplementation(() => ({
-      close: vi.fn(),
-      readyState: CONNECTING,
-      onopen: null,
-      onmessage: null,
-      onerror: null,
-      CONNECTING,
-      OPEN,
-      CLOSED,
-    })),
+    default: vi.fn().mockImplementation((url, options) => {
+      const mockInstance = new MockEventSource(url, options);
+      mockEventSourceInstance = mockInstance;
+      return mockInstance;
+    }),
   };
 });
+
+// Store the mock instance for access in tests
+let mockEventSourceInstance: MockEventSource;
 
 // Mock uuid
 vi.mock("uuid", () => ({
@@ -38,34 +34,33 @@ vi.mock("uuid", () => ({
 }));
 
 // Mock child_process
-vi.mock("child_process", () => {
-  const mockStdout = {
-    on: vi.fn(),
-    removeAllListeners: vi.fn(),
-  };
+// Create a mock child process that can be accessed in tests
+export const mockStdout = {
+  on: vi.fn(),
+  removeAllListeners: vi.fn(),
+};
 
-  const mockStderr = {
-    on: vi.fn(),
-    removeAllListeners: vi.fn(),
-  };
+export const mockStderr = {
+  on: vi.fn(),
+  removeAllListeners: vi.fn(),
+};
 
-  const mockStdin = {
-    write: vi.fn(),
-  };
+export const mockStdin = {
+  write: vi.fn(),
+};
 
-  const mockChildProcess = {
-    stdout: mockStdout,
-    stderr: mockStderr,
-    stdin: mockStdin,
-    on: vi.fn(),
-    kill: vi.fn(),
-    removeAllListeners: vi.fn(),
-  };
+export const mockChildProcess = {
+  stdout: mockStdout,
+  stderr: mockStderr,
+  stdin: mockStdin,
+  on: vi.fn(),
+  kill: vi.fn(),
+  removeAllListeners: vi.fn(),
+};
 
-  return {
-    spawn: vi.fn().mockReturnValue(mockChildProcess),
-  };
-});
+vi.mock("child_process", () => ({
+  spawn: vi.fn().mockReturnValue(mockChildProcess),
+}));
 
 // Mock fetch
 vi.mock("node-fetch", () => ({
@@ -107,7 +102,12 @@ describe.skip("McpClientService", () => {
 
     // Initialize the mock variables
     EventSourceConstructor = vi.fn(() => mockEventSourceInstance);
+    // Use the exported mockChildProcess directly
     mockSpawn = vi.fn(() => mockChildProcess);
+    // Ensure child_process.spawn returns our mockChildProcess
+    const childProcess = require("child_process");
+    childProcess.spawn.mockReturnValue(mockChildProcess);
+    
     mockUuidv4 = vi.fn(() => TEST_UUID);
     mockFetch = vi.fn(() =>
       Promise.resolve({ ok: true, status: 200, json: vi.fn() })
@@ -161,13 +161,13 @@ describe.skip("McpClientService", () => {
     });
 
     it("should validate connection type properly", async () => {
-      // @ts-ignore - Testing invalid input
+      // Using type assertion to test invalid inputs
       await expect(
-        service.connect("server1", { type: "invalid" })
+        service.connect("server1", { type: "invalid" as any })
       ).rejects.toThrow(SdkMcpError);
-      // @ts-ignore - Testing invalid input
+      // Using type assertion to test invalid inputs
       await expect(
-        service.connect("server1", { type: "invalid" })
+        service.connect("server1", { type: "invalid" as any })
       ).rejects.toThrow(/Connection type must be 'sse' or 'stdio'/);
     });
 
@@ -203,11 +203,11 @@ describe.skip("McpClientService", () => {
       });
 
       // Simulate successful connection
-      const mockEventSource = (await import("eventsource")).default;
+      // Use the mockEventSourceInstance directly
       // Trigger the onopen callback for the created EventSource instance
-      const handler = mockEventSource.mock.calls[0][0];
+      const handler = mockEventSourceInstance;
       if (typeof handler.onopen === "function") {
-        handler.onopen({} as Event);
+        handler.onopen({} as MockEvent);
       }
 
       const connectionId = await connectPromise;
@@ -247,7 +247,7 @@ describe.skip("McpClientService", () => {
         "http://test-server.com/sse"
       );
       mockEventSourceInstance.onopen &&
-        mockEventSourceInstance.onopen({} as Event);
+        mockEventSourceInstance.onopen({} as MockEvent);
       const connectionId = await connectPromise;
 
       // Verify connection exists
@@ -294,7 +294,7 @@ describe.skip("McpClientService", () => {
         "http://test-server.com/sse"
       );
       mockEventSourceInstance.onopen &&
-        mockEventSourceInstance.onopen({} as Event);
+        mockEventSourceInstance.onopen({} as MockEvent);
       await connectPromise;
 
       // Verify connection exists (with current timestamp)
@@ -317,7 +317,7 @@ describe.skip("McpClientService", () => {
 
       // Trigger the onopen event to simulate successful connection
       mockEventSourceInstance.onopen &&
-        mockEventSourceInstance.onopen({} as Event);
+        mockEventSourceInstance.onopen({} as MockEvent);
 
       const connectionId = await connectPromise;
 
@@ -345,7 +345,7 @@ describe.skip("McpClientService", () => {
       );
       // Manually trigger the onopen callback to resolve the connection promise
       mockEventSourceInstance.onopen &&
-        mockEventSourceInstance.onopen({} as Event);
+        mockEventSourceInstance.onopen({} as MockEvent);
       await connectPromise;
 
       // Get the initial activity timestamp
@@ -386,7 +386,7 @@ describe.skip("McpClientService", () => {
       );
       // Manually trigger the onopen callback to resolve the connection promise
       mockEventSourceInstance.onopen &&
-        mockEventSourceInstance.onopen({} as Event);
+        mockEventSourceInstance.onopen({} as MockEvent);
       await connectPromise;
 
       // Store original timestamp and mock it
@@ -409,9 +409,9 @@ describe.skip("McpClientService", () => {
       const connectPromise = (service as any).connectSse(testUrl);
 
       // Trigger the onerror event before onopen
-      const errorEvent = { type: "error", message: "Connection failed" };
+      const errorEvent: MockEvent = { type: "error", message: "Connection failed" };
       mockEventSourceInstance.onerror &&
-        mockEventSourceInstance.onerror(errorEvent as Event);
+        mockEventSourceInstance.onerror(errorEvent);
 
       // Expect the promise to reject
       await expect(connectPromise).rejects.toThrow(SdkMcpError);
@@ -427,7 +427,7 @@ describe.skip("McpClientService", () => {
       // Successfully connect first
       const connectPromise = (service as any).connectSse(testUrl);
       mockEventSourceInstance.onopen &&
-        mockEventSourceInstance.onopen({} as Event);
+        mockEventSourceInstance.onopen({} as MockEvent);
       const connectionId = await connectPromise;
 
       // Verify connection exists before error
@@ -440,9 +440,9 @@ describe.skip("McpClientService", () => {
       mockEventSourceInstance.readyState = EVENT_SOURCE_STATES.CLOSED;
 
       // Trigger an error after successful connection
-      const errorEvent = { type: "error", message: "Connection lost" };
+      const errorEvent: MockEvent = { type: "error", message: "Connection lost" };
       mockEventSourceInstance.onerror &&
-        mockEventSourceInstance.onerror(errorEvent as Event);
+        mockEventSourceInstance.onerror(errorEvent);
 
       // Verify connection was removed
       expect((service as any).activeSseConnections.size).toBe(0);

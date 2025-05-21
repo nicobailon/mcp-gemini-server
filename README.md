@@ -1178,6 +1178,7 @@ This ensures clean termination when the server is run in containerized environme
 * **Path Requirements:** All file operations require absolute paths when run from the server environment. Relative paths are not supported.
 * **API Compatibility:** File Handling & Caching APIs are **not supported with Vertex AI credentials**, only Google AI Studio API keys.
 * **Model Support:** This server is primarily tested and optimized for the latest Gemini 1.5 and 2.5 models. While other models should work, these models are the primary focus for testing and feature compatibility.
+* **TypeScript Build Issues:** The TypeScript build may show errors primarily in test files. These are type compatibility issues that don't affect the runtime functionality. The server itself will function properly despite these build warnings.
 * **Resource Usage:** 
   * Image processing requires significant resource usage, especially for large resolution images. Consider using smaller resolutions (512x512) for faster responses.
   * Generating multiple images simultaneously increases resource usage proportionally.

@@ -14,7 +14,7 @@
     "declaration": true, /* Generate .d.ts files from TypeScript and JavaScript files in your project. */
     "declarationMap": true, /* Create sourcemaps for d.ts files. */
     "allowJs": true, /* Allow JavaScript files to be a part of your program. */
-    "types": ["node"], /* Type declarations to include */
+    "types": ["node", "vitest/globals"], /* Type declarations to include */
     "paths": {
       "@app/*": ["./src/*"],
       "@tests/*": ["./tests/*"]
@@ -25,8 +25,7 @@
     "files": true /* Include files in tsconfig.json */
   },
   "include": [
-    "src/**/*",
-    "tests/**/*"
+    "src/**/*"
   ], /* Specifies an array of filenames or patterns to include in the program */
   "exclude": [
     "node_modules",

@@ -34,7 +34,7 @@ export const exampleTool = (
   const serviceInstance = new ExampleService(config);
 
   // Define the async function that handles the tool execution
-  const processExampleRequest = async (args: ExampleToolParams) => {
+  const processExampleRequest = async (args: typeof ExampleToolParams) => {
     logger.debug(`Received request with args: ${JSON.stringify(args)}`);
     try {
       // 1. Input Validation (Optional, Zod schema from params can handle basic types)

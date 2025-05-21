@@ -32,14 +32,48 @@ import { ConfigurationManager } from "../../src/config/ConfigurationManager.js";
 // To mock the MCP server for testing
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
-// Test fixture for capturing tool processors
-type ToolProcessor = (...args: unknown[]) => Promise<unknown>;
-interface ToolProcessors {
-  connect: ToolProcessor;
-  listTools: ToolProcessor;
-  callServerTool: ToolProcessor;
-  disconnect: ToolProcessor;
-  writeToFile: ToolProcessor;
+// Import integration test types
+import { 
+  ToolProcessor, 
+  ToolProcessors, 
+  MockServerToolHandler,
+  ToolRegistrationFn
+} from "../utils/integration-types.js";
+
+// Define response types for easier type assertions
+interface ConnectionResponse {
+  connectionId: string;
+  status: string;
+  message: string;
+}
+
+interface ToolListResponse {
+  name: string;
+  description: string;
+  schema: unknown;
+}
+
+interface EchoToolResponse {
+  message: string;
+  timestamp: string;
+}
+
+interface AddToolResponse {
+  sum: number;
+  inputs: {
+    a: number;
+    b: number;
+  };
+}
+
+interface DisconnectResponse {
+  connectionId: string;
+  message: string;
+}
+
+interface FileWriteResponse {
+  message: string;
+  filePath: string;
 }
 
 // Helper functions to set up integration environment
@@ -96,10 +130,10 @@ function restoreConfigurationManager(): void {
 
 // Generic function to capture tool processor from tool registration
 function captureToolProcessor(
-  toolFn: (server: unknown, service?: unknown) => unknown,
+  toolFn: ToolRegistrationFn,
   mcpClientService: McpClientService
 ): ToolProcessor {
-  // Create a mock MCP server
+  // Create a mock MCP server with minimal implementation
   const mockMcpServer = {
     tool: (
       _name: string,
@@ -109,6 +143,10 @@ function captureToolProcessor(
     ) => {
       return processor;
     },
+    // Mock implementations for required McpServer methods
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    registerTool: vi.fn()
   } as unknown as McpServer;
 
   // Call the tool registration function to get the processor
@@ -567,6 +605,10 @@ describe("MCP Client Integration Tests", () => {
           _schema: unknown,
           processor: ToolProcessor
         ) => processor,
+        // Mock implementations for required McpServer methods
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        registerTool: vi.fn()
       } as unknown as McpServer;
 
       // Register the writeToFileTool and capture its processor

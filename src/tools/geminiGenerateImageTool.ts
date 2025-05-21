@@ -21,8 +21,7 @@ import { ImageGenerationResult } from "../types/index.js";
  */
 export const geminiGenerateImageTool = (server: McpServer): void => {
   // Get the GeminiService instance
-  const serviceInstance =
-    require("../services/index.js").GeminiService.getInstance();
+  const serviceInstance = new GeminiService();
   /**
    * Processes the request for the gemini_generateImage tool.
    * @param args - The arguments object matching GEMINI_GENERATE_IMAGE_PARAMS.

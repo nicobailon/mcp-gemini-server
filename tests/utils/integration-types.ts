@@ -7,7 +7,9 @@ import { McpClientService } from "../../src/services/mcp/McpClientService.js";
 /**
  * Tool processor function type
  */
-export type ToolProcessor = <T = any>(args: any) => Promise<{
+export type ToolProcessor = <T = any>(
+  args: any
+) => Promise<{
   content: Array<{
     text: string;
     type: string;
@@ -29,9 +31,15 @@ export interface ToolProcessors {
 /**
  * Mock server tool handler
  */
-export type MockServerToolHandler = (server: McpServer, mcpClientService: McpClientService) => void;
+export type MockServerToolHandler = (
+  server: McpServer,
+  mcpClientService: McpClientService
+) => void;
 
 /**
  * Tool registration function
  */
-export type ToolRegistrationFn = (server: McpServer, service: McpClientService) => unknown;
+export type ToolRegistrationFn = (
+  server: McpServer,
+  service: McpClientService
+) => unknown;

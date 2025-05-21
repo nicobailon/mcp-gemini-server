@@ -16,9 +16,9 @@ export interface ServerState {
 }
 
 // Make mcpClientService optional for tests
-export type TestServerState = Omit<ServerState, 'mcpClientService'> & {
+export type TestServerState = Omit<ServerState, "mcpClientService"> & {
   mcpClientService?: any | null;
-}
+};
 
 // Reference to the server state from server.ts
 // This will be set from server.ts
@@ -26,7 +26,7 @@ let serverStateRef: ServerState | null = null;
 
 export const setServerState = (state: ServerState | TestServerState) => {
   // For tests with TestServerState, add mcpClientService if not provided
-  if (!('mcpClientService' in state)) {
+  if (!("mcpClientService" in state)) {
     (state as ServerState).mcpClientService = null;
   }
   serverStateRef = state as ServerState;

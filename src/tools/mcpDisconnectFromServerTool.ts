@@ -27,18 +27,19 @@ export const mcpDisconnectFromServerTool = (
       `Received MCP disconnect request with args: ${JSON.stringify(args)}`
     );
     try {
-      // Check if the connection is an SSE connection
-      const sseClosed = mcpClientService.closeSseConnection(args.connectionId);
+      // Use the unified disconnect method which handles both SSE and stdio connections
+      const disconnected = mcpClientService.disconnect(args.connectionId);
 
-      if (sseClosed) {
-        logger.info(`SSE connection ${args.connectionId} closed successfully.`);
+      // Check if a connection was successfully closed
+      if (disconnected) {
+        logger.info(`Connection ${args.connectionId} closed successfully.`);
         return {
           content: [
             {
               type: "text" as const,
               text: JSON.stringify(
                 {
-                  message: "SSE Connection closed successfully.",
+                  message: "Connection closed successfully.",
                   connectionId: args.connectionId,
                 },
                 null,
@@ -49,33 +50,7 @@ export const mcpDisconnectFromServerTool = (
         };
       }
 
-      // If not an SSE connection, try to close stdio connection
-      const stdioClosed = mcpClientService.closeStdioConnection(
-        args.connectionId
-      );
-
-      if (stdioClosed) {
-        logger.info(
-          `Stdio connection ${args.connectionId} closed successfully.`
-        );
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  message: "Stdio Connection closed successfully.",
-                  connectionId: args.connectionId,
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
-      }
-
-      // If connection ID not found in either type
+      // If connection ID not found
       throw new McpError(
         ErrorCode.InvalidParams,
         `No active connection found with ID: ${args.connectionId}`

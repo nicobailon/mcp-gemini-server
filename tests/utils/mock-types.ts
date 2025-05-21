@@ -4,8 +4,7 @@
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpClientService } from "../../src/services/mcp/McpClientService.js";
-import { FileSecurityService } from "../../src/utils/FileSecurityService.js";
-import { vi, type Mock } from 'vitest';
+import { vi, type Mock } from "vitest";
 
 /**
  * Mock Event Source States for testing
@@ -41,11 +40,11 @@ export class MockEventSource {
   onopen: ((event: MockEvent) => void) | null = null;
   onmessage: ((event: MockEvent) => void) | null = null;
   onerror: ((event: MockEvent) => void) | null = null;
-  
-  constructor(url: string, options?: any) {
+
+  constructor(url: string, _options?: Record<string, unknown>) {
     this.url = url;
   }
-  
+
   close(): void {
     this.readyState = EVENT_SOURCE_STATES.CLOSED;
   }
@@ -55,9 +54,11 @@ export class MockEventSource {
  * Utility type for mocking a McpClientService
  */
 export type MockMcpClientService = {
-  [K in keyof McpClientService]: McpClientService[K] extends Function 
-    ? Mock 
-    : McpClientService[K]
+  [K in keyof McpClientService]: McpClientService[K] extends (
+    ...args: unknown[]
+  ) => unknown
+    ? Mock
+    : McpClientService[K];
 };
 
 /**
@@ -74,7 +75,7 @@ export function createMockMcpClientService(): MockMcpClientService {
     getLastActivityTimestamp: vi.fn(),
     closeSseConnection: vi.fn(),
     closeStdioConnection: vi.fn(),
-    closeAllConnections: vi.fn()
+    closeAllConnections: vi.fn(),
   } as unknown as MockMcpClientService;
 }
 
@@ -99,8 +100,8 @@ export type MockFileSecurityService = {
  */
 export function createMockFileSecurityService(): MockFileSecurityService {
   return {
-    allowedDirectories: ['/test/dir'],
-    DEFAULT_SAFE_BASE_DIR: '/test/dir',
+    allowedDirectories: ["/test/dir"],
+    DEFAULT_SAFE_BASE_DIR: "/test/dir",
     setSecureBasePath: vi.fn(),
     getSecureBasePath: vi.fn(),
     setAllowedDirectories: vi.fn(),
@@ -108,20 +109,20 @@ export function createMockFileSecurityService(): MockFileSecurityService {
     validateAndResolvePath: vi.fn(),
     isPathWithinAllowedDirs: vi.fn(),
     fullyResolvePath: vi.fn(),
-    secureWriteFile: vi.fn()
+    secureWriteFile: vi.fn(),
   };
 }
 
 /**
  * Tool handler function type for mcp server
  */
-export type ToolHandler = (server: McpServer, service?: any) => unknown;
+export type ToolHandler = (server: McpServer, service?: unknown) => unknown;
 
 /**
  * Utility function to create a mock tool function
  */
 export function createMockToolHandler(name: string): ToolHandler {
-  return vi.fn().mockImplementation((server: McpServer, service?: any) => {
+  return vi.fn().mockImplementation((server: McpServer, _service?: unknown) => {
     server.tool(name, `Mock ${name}`, {}, vi.fn());
     return { name, registered: true };
   });

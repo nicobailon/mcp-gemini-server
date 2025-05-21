@@ -5,14 +5,17 @@ import {
   ErrorCode,
 } from "@modelcontextprotocol/sdk/types.js";
 import { logger } from "../../../../src/utils/logger.js";
+import * as childProcessModule from "child_process";
 
 // Fixed UUID for testing
 const TEST_UUID = "test-uuid-value";
 
-//
-
 // Import mock types
-import { EVENT_SOURCE_STATES, MockEvent, MockEventSource } from "../../../../tests/utils/mock-types.js";
+import {
+  EVENT_SOURCE_STATES,
+  MockEvent,
+  MockEventSource,
+} from "../../../../tests/utils/mock-types.js";
 
 // Setup mocks before tests - vi.mock calls are hoisted to top of file
 vi.mock("eventsource", () => {
@@ -105,9 +108,10 @@ describe.skip("McpClientService", () => {
     // Use the exported mockChildProcess directly
     mockSpawn = vi.fn(() => mockChildProcess);
     // Ensure child_process.spawn returns our mockChildProcess
-    const childProcess = require("child_process");
+    // Use the already imported childProcessModule
+    const childProcess = childProcessModule as unknown as { spawn: jest.Mock };
     childProcess.spawn.mockReturnValue(mockChildProcess);
-    
+
     mockUuidv4 = vi.fn(() => TEST_UUID);
     mockFetch = vi.fn(() =>
       Promise.resolve({ ok: true, status: 200, json: vi.fn() })
@@ -150,11 +154,11 @@ describe.skip("McpClientService", () => {
     });
 
     it("should validate connection details properly", async () => {
-      // @ts-ignore - Testing invalid input
+      // @ts-expect-error - Testing invalid input for error handling
       await expect(service.connect("server1", null)).rejects.toThrow(
         SdkMcpError
       );
-      // @ts-ignore - Testing invalid input
+      // @ts-expect-error - Testing invalid input for error handling
       await expect(service.connect("server1", null)).rejects.toThrow(
         /Connection details must be an object/
       );
@@ -409,7 +413,10 @@ describe.skip("McpClientService", () => {
       const connectPromise = (service as any).connectSse(testUrl);
 
       // Trigger the onerror event before onopen
-      const errorEvent: MockEvent = { type: "error", message: "Connection failed" };
+      const errorEvent: MockEvent = {
+        type: "error",
+        message: "Connection failed",
+      };
       mockEventSourceInstance.onerror &&
         mockEventSourceInstance.onerror(errorEvent);
 
@@ -440,7 +447,10 @@ describe.skip("McpClientService", () => {
       mockEventSourceInstance.readyState = EVENT_SOURCE_STATES.CLOSED;
 
       // Trigger an error after successful connection
-      const errorEvent: MockEvent = { type: "error", message: "Connection lost" };
+      const errorEvent: MockEvent = {
+        type: "error",
+        message: "Connection lost",
+      };
       mockEventSourceInstance.onerror &&
         mockEventSourceInstance.onerror(errorEvent);
 

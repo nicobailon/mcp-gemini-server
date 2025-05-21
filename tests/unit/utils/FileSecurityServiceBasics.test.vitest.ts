@@ -91,7 +91,9 @@ describe("FileSecurityService Basic Operations", () => {
       // Act & Assert
       await expect(
         fileSecurityService.secureWriteFile(unsafePath, TEST_CONTENT)
-      ).rejects.toThrow(/Access denied: The file path must be within the allowed directories/);
+      ).rejects.toThrow(
+        /Access denied: The file path must be within the allowed directories/
+      );
 
       // Additional check that logger.warn was called (FileSecurityService uses warn, not error)
       expect(logger.warn).toHaveBeenCalled();
@@ -116,7 +118,9 @@ describe("FileSecurityService Basic Operations", () => {
       // Act & Assert
       await expect(
         fileSecurityService.secureWriteFile(traversalPath, TEST_CONTENT)
-      ).rejects.toThrow(/Access denied: The file path must be within the allowed directories/);
+      ).rejects.toThrow(
+        /Access denied: The file path must be within the allowed directories/
+      );
     });
 
     it("should use default path when no allowed paths are provided", async () => {
@@ -166,7 +170,10 @@ describe("FileSecurityService Basic Operations", () => {
       // Arrange
       const filePath = path.join(outsideDir, "allowed-outside-file.txt");
       const content = "multi-allowed content";
-      const fileSecurityService = new FileSecurityService([ALLOWED_DIR, outsideDir]);
+      const fileSecurityService = new FileSecurityService([
+        ALLOWED_DIR,
+        outsideDir,
+      ]);
 
       // Act
       await fileSecurityService.secureWriteFile(filePath, content);

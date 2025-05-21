@@ -33,11 +33,11 @@ import { ConfigurationManager } from "../../src/config/ConfigurationManager.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 // Import integration test types
-import { 
-  ToolProcessor, 
-  ToolProcessors, 
+import {
+  ToolProcessor,
+  ToolProcessors,
   MockServerToolHandler,
-  ToolRegistrationFn
+  ToolRegistrationFn,
 } from "../utils/integration-types.js";
 
 // Define response types for easier type assertions
@@ -146,7 +146,7 @@ function captureToolProcessor(
     // Mock implementations for required McpServer methods
     connect: vi.fn(),
     disconnect: vi.fn(),
-    registerTool: vi.fn()
+    registerTool: vi.fn(),
   } as unknown as McpServer;
 
   // Call the tool registration function to get the processor
@@ -608,7 +608,7 @@ describe("MCP Client Integration Tests", () => {
         // Mock implementations for required McpServer methods
         connect: vi.fn(),
         disconnect: vi.fn(),
-        registerTool: vi.fn()
+        registerTool: vi.fn(),
       } as unknown as McpServer;
 
       // Register the writeToFileTool and capture its processor

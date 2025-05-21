@@ -1,16 +1,62 @@
-import { describe, it, beforeEach, afterEach, expect, vi } from "vitest";
+import { describe, it, beforeEach, expect, vi } from "vitest";
 import { GeminiChatService } from "../../../../src/services/gemini/GeminiChatService.js";
 import {
   GeminiApiError,
   ValidationError as GeminiValidationError,
 } from "../../../../src/utils/errors.js";
-import { ZodError } from "zod";
 
 // Import necessary types
-import type { GenerateContentResponse } from "@google/genai";
+import type {
+  GenerateContentResponse,
+  GenerationConfig,
+  Content,
+  SafetySetting,
+  GoogleGenAI,
+} from "@google/genai";
 
-// Create a partial type for testing purposes
-type PartialGenerateContentResponse = Partial<GenerateContentResponse>;
+// Import the ChatSession type from our service
+import { ChatSession } from "../../../../src/services/gemini/GeminiTypes.js";
+import { FinishReason } from "../../../../src/types/googleGenAITypes.js";
+
+// Helper type for accessing private properties in tests
+type GeminiChatServiceTestAccess = {
+  chatSessions: Map<string, ChatSession>;
+};
+
+// Define a partial version of GenerateContentResponse for mocking
+interface PartialGenerateContentResponse
+  extends Partial<GenerateContentResponse> {
+  response?: {
+    candidates?: Array<{
+      content?: {
+        role?: string;
+        parts?: Array<{
+          text?: string;
+          functionCall?: Record<string, unknown>;
+        }>;
+      };
+      finishReason?: FinishReason;
+    }>;
+    promptFeedback?: {
+      blockReason?: string;
+    };
+  };
+  model?: string;
+  contents?: Array<Content>;
+  generationConfig?: GenerationConfig;
+  safetySettings?: Array<SafetySetting>;
+  candidates?: Array<{
+    content?: {
+      role?: string;
+      parts?: Array<{
+        text?: string;
+        functionCall?: Record<string, unknown>;
+      }>;
+    };
+    finishReason?: FinishReason;
+  }>;
+  text?: string;
+}
 
 // Mock uuid
 vi.mock("uuid", () => ({
@@ -22,19 +68,36 @@ describe("GeminiChatService", () => {
   const defaultModel = "gemini-1.5-pro";
 
   // Mock the GoogleGenAI class
-  const mockGenerateContent = vi.fn<any[], Promise<PartialGenerateContentResponse>>();
+  const mockGenerateContent = vi
+    .fn()
+    .mockResolvedValue({} as PartialGenerateContentResponse);
   const mockGoogleGenAI = {
     models: {
       generateContent: mockGenerateContent,
+      getGenerativeModel: vi.fn().mockReturnValue({
+        generateContent: mockGenerateContent,
+      }),
+      // Mock the required internal methods
+      apiClient: {} as unknown,
+      generateContentInternal: vi.fn(),
+      generateContentStreamInternal: vi.fn(),
+      generateImagesInternal: vi.fn(),
     },
-  };
+    // Add other required properties for GoogleGenAI
+    apiClient: {} as unknown,
+    vertexai: {} as unknown,
+    live: {} as unknown,
+    chats: {} as unknown,
+    upload: {} as unknown,
+    caching: {} as unknown,
+  } as unknown as GoogleGenAI;
 
   beforeEach(() => {
     // Reset mocks before each test
     vi.clearAllMocks();
 
     // Initialize chat service with mocked dependencies
-    chatService = new GeminiChatService(mockGoogleGenAI as any, defaultModel);
+    chatService = new GeminiChatService(mockGoogleGenAI, defaultModel);
   });
 
   describe("startChatSession", () => {
@@ -43,9 +106,10 @@ describe("GeminiChatService", () => {
 
       expect(sessionId).toBe("test-session-id");
 
-      // Get the session from private map using any assertion
-      const sessions = (chatService as any).chatSessions;
-      const session = sessions.get("test-session-id");
+      // Get the session from private map using proper type assertion
+      const sessions = (chatService as unknown as GeminiChatServiceTestAccess)
+        .chatSessions;
+      const session = sessions.get("test-session-id") as ChatSession;
 
       expect(session.model).toBe(defaultModel);
       expect(session.history).toEqual([]);
@@ -60,9 +124,10 @@ describe("GeminiChatService", () => {
 
       expect(sessionId).toBe("test-session-id");
 
-      // Get the session from private map using any assertion
-      const sessions = (chatService as any).chatSessions;
-      const session = sessions.get("test-session-id");
+      // Get the session from private map with proper type assertion
+      const sessions = (chatService as unknown as GeminiChatServiceTestAccess)
+        .chatSessions;
+      const session = sessions.get("test-session-id") as ChatSession;
 
       expect(session.model).toBe(customModel);
     });
@@ -73,11 +138,12 @@ describe("GeminiChatService", () => {
         { role: "model", parts: [{ text: "Hi there" }] },
       ];
 
-      const sessionId = chatService.startChatSession({ history });
+      chatService.startChatSession({ history });
 
-      // Get the session from private map using any assertion
-      const sessions = (chatService as any).chatSessions;
-      const session = sessions.get("test-session-id");
+      // Get the session from private map with proper type assertion
+      const sessions = (chatService as unknown as GeminiChatServiceTestAccess)
+        .chatSessions;
+      const session = sessions.get("test-session-id") as ChatSession;
 
       expect(session.history).toEqual(history);
       expect(session.config.history).toEqual(history);
@@ -86,11 +152,12 @@ describe("GeminiChatService", () => {
     it("should convert string systemInstruction to Content object", () => {
       const systemInstruction = "You are a helpful assistant";
 
-      const sessionId = chatService.startChatSession({ systemInstruction });
+      chatService.startChatSession({ systemInstruction });
 
-      // Get the session from private map using any assertion
-      const sessions = (chatService as any).chatSessions;
-      const session = sessions.get("test-session-id");
+      // Get the session from private map with proper type assertion
+      const sessions = (chatService as unknown as GeminiChatServiceTestAccess)
+        .chatSessions;
+      const session = sessions.get("test-session-id") as ChatSession;
 
       expect(session.config.systemInstruction).toEqual({
         parts: [{ text: systemInstruction }],
@@ -99,7 +166,9 @@ describe("GeminiChatService", () => {
 
     it("should throw when no model name is available", () => {
       // Create a service with no default model
-      const noDefaultService = new GeminiChatService(mockGoogleGenAI as any);
+      const noDefaultService = new GeminiChatService(
+        mockGoogleGenAI as GoogleGenAI
+      );
 
       expect(() => noDefaultService.startChatSession({})).toThrow(
         GeminiApiError
@@ -138,14 +207,18 @@ describe("GeminiChatService", () => {
 
       // Verify generateContent was called with correct params
       expect(mockGenerateContent).toHaveBeenCalledTimes(1);
-      const requestConfig = mockGenerateContent.mock.calls[0][0];
+      const requestConfig = (
+        mockGenerateContent.mock.calls[0] as unknown[]
+      )[0] as Record<string, unknown>;
       expect(requestConfig.model).toBe(defaultModel);
       expect(requestConfig.contents).toBeDefined();
 
       // Just verify the message exists somewhere in the contents
-      const userContent = requestConfig.contents.find(
-        (content: any) =>
-          content.role === "user" && content.parts[0].text === "Hi there"
+      const contents = requestConfig.contents as Array<Record<string, unknown>>;
+      const userContent = contents.find(
+        (content: Record<string, unknown>) =>
+          content.role === "user" &&
+          (content.parts as Array<{ text?: string }>)?.[0]?.text === "Hi there"
       );
       expect(userContent).toBeDefined();
 
@@ -153,8 +226,9 @@ describe("GeminiChatService", () => {
       expect(response).toEqual(mockResponse);
 
       // Check that history was updated in the session
-      const sessions = (chatService as any).chatSessions;
-      const session = sessions.get("test-session-id");
+      const sessions = (chatService as unknown as GeminiChatServiceTestAccess)
+        .chatSessions;
+      const session = sessions.get("test-session-id") as ChatSession;
       expect(session.history.length).toBe(2); // User + model response
     });
 
@@ -191,11 +265,13 @@ describe("GeminiChatService", () => {
         sessionId: "test-session-id",
         message: "Hi there",
         generationConfig,
-        safetySettings: safetySettings as any,
+        safetySettings: safetySettings as SafetySetting[],
       });
 
       // Verify configuration was applied
-      const requestConfig = mockGenerateContent.mock.calls[0][0];
+      const requestConfig = (
+        mockGenerateContent.mock.calls[0] as unknown[]
+      )[0] as Record<string, unknown>;
       expect(requestConfig.generationConfig).toEqual(generationConfig);
       expect(requestConfig.safetySettings).toEqual(safetySettings);
     });
@@ -229,23 +305,31 @@ describe("GeminiChatService", () => {
 
       // Verify generateContent was called with correct params
       expect(mockGenerateContent).toHaveBeenCalledTimes(1);
-      const requestConfig = mockGenerateContent.mock.calls[0][0];
+      const requestConfig = (
+        mockGenerateContent.mock.calls[0] as unknown[]
+      )[0] as Record<string, unknown>;
 
       // Verify content contains function response
-      const functionResponseContent = requestConfig.contents.find(
-        (c: any) => c.role === "function"
+      const contents = requestConfig.contents as Array<Record<string, unknown>>;
+      const functionResponseContent = contents.find(
+        (c: Record<string, unknown>) => c.role === "function"
       );
       expect(functionResponseContent).toBeDefined();
-      expect(functionResponseContent.parts[0].functionResponse.name).toBe(
-        "testFunction"
-      );
+      const parts = (functionResponseContent as Record<string, unknown>)
+        .parts as Array<Record<string, unknown>>;
+      const functionResponse = parts[0].functionResponse as Record<
+        string,
+        unknown
+      >;
+      expect(functionResponse.name).toBe("testFunction");
 
       // Verify response
       expect(response).toEqual(mockResponse);
 
       // Check that history was updated in the session
-      const sessions = (chatService as any).chatSessions;
-      const session = sessions.get("test-session-id");
+      const sessions = (chatService as unknown as GeminiChatServiceTestAccess)
+        .chatSessions;
+      const session = sessions.get("test-session-id") as ChatSession;
       expect(session.history.length).toBe(2); // Function call + model response
     });
 
@@ -273,7 +357,7 @@ describe("GeminiChatService", () => {
         chatService.routeMessage({
           message: "", // Empty message
           models: [], // Empty models array
-        } as any)
+        } as Parameters<typeof chatService.routeMessage>[0])
       ).rejects.toThrow(GeminiValidationError);
     });
 
@@ -304,12 +388,20 @@ describe("GeminiChatService", () => {
 
       // Verify routing was done with the first model
       expect(mockGenerateContent).toHaveBeenCalledTimes(2);
-      const routingConfig = mockGenerateContent.mock.calls[0][0];
+      const routingConfig = (
+        mockGenerateContent.mock.calls[0] as unknown[]
+      )[0] as Record<string, unknown>;
       expect(routingConfig.model).toBe("gemini-1.5-pro");
-      expect(routingConfig.contents[0].parts[0].text).toContain("router");
+      const routingContents = routingConfig.contents as Array<
+        Record<string, unknown>
+      >;
+      const parts = routingContents[0].parts as Array<Record<string, unknown>>;
+      expect(parts[0].text).toContain("router");
 
       // Verify final request used the chosen model
-      const messageConfig = mockGenerateContent.mock.calls[1][0];
+      const messageConfig = (
+        mockGenerateContent.mock.calls[1] as unknown[]
+      )[0] as Record<string, unknown>;
       expect(messageConfig.model).toBe("gemini-1.5-flash");
 
       // Verify result contains both response and chosen model
@@ -344,7 +436,9 @@ describe("GeminiChatService", () => {
       });
 
       // Verify final request used the default model
-      const messageConfig = mockGenerateContent.mock.calls[1][0];
+      const messageConfig = (
+        mockGenerateContent.mock.calls[1] as unknown[]
+      )[0] as Record<string, unknown>;
       expect(messageConfig.model).toBe("gemini-1.5-pro");
       expect(result.chosenModel).toBe("gemini-1.5-pro");
     });
@@ -392,8 +486,14 @@ describe("GeminiChatService", () => {
       });
 
       // Verify routing was done with the custom prompt
-      const routingConfig = mockGenerateContent.mock.calls[0][0];
-      const promptText = routingConfig.contents[0].parts[0].text;
+      const routingConfig = (
+        mockGenerateContent.mock.calls[0] as unknown[]
+      )[0] as Record<string, unknown>;
+      const routingContents = routingConfig.contents as Array<
+        Record<string, unknown>
+      >;
+      const parts = routingContents[0].parts as Array<Record<string, unknown>>;
+      const promptText = parts[0].text;
       expect(promptText).toContain(customPrompt);
     });
 
@@ -418,14 +518,30 @@ describe("GeminiChatService", () => {
       });
 
       // Verify system instruction was added to routing request
-      const routingConfig = mockGenerateContent.mock.calls[0][0];
-      expect(routingConfig.contents[0].role).toBe("system");
-      expect(routingConfig.contents[0].parts[0].text).toBe(systemInstruction);
+      const routingConfig = (
+        mockGenerateContent.mock.calls[0] as unknown[]
+      )[0] as Record<string, unknown>;
+      const routingContents = routingConfig.contents as Array<
+        Record<string, unknown>
+      >;
+      expect(routingContents[0].role).toBe("system");
+      const routingParts = routingContents[0].parts as Array<
+        Record<string, unknown>
+      >;
+      expect(routingParts[0].text).toBe(systemInstruction);
 
       // Verify system instruction was added to content request
-      const messageConfig = mockGenerateContent.mock.calls[1][0];
-      expect(messageConfig.contents[0].role).toBe("system");
-      expect(messageConfig.contents[0].parts[0].text).toBe(systemInstruction);
+      const messageConfig = (
+        mockGenerateContent.mock.calls[1] as unknown[]
+      )[0] as Record<string, unknown>;
+      const messageContents = messageConfig.contents as Array<
+        Record<string, unknown>
+      >;
+      expect(messageContents[0].role).toBe("system");
+      const messageParts = messageContents[0].parts as Array<
+        Record<string, unknown>
+      >;
+      expect(messageParts[0].text).toBe(systemInstruction);
     });
   });
 });

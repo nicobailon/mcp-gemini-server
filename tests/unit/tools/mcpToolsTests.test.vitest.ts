@@ -1,7 +1,10 @@
 import { describe, it, beforeEach, expect, vi } from "vitest";
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { MockMcpClientService, MockFileSecurityService } from "../../../tests/utils/mock-types.js";
+import {
+  MockMcpClientService,
+  MockFileSecurityService,
+} from "../../../tests/utils/mock-types.js";
 import { McpClientService } from "../../../src/services/mcp/McpClientService.js";
 import { FileSecurityService } from "../../../src/utils/FileSecurityService.js";
 
@@ -34,9 +37,9 @@ vi.mock("../../../src/utils/FileSecurityService.js", () => {
         secureWriteFile: vi.fn().mockImplementation(async () => undefined),
         validateAndResolvePath: vi.fn().mockImplementation((path) => path),
         isPathWithinAllowedDirs: vi.fn().mockReturnValue(true),
-        setAllowedDirectories: vi.fn().mockImplementation(() => undefined)
+        setAllowedDirectories: vi.fn().mockImplementation(() => undefined),
       };
-    })
+    }),
   };
 });
 
@@ -144,14 +147,16 @@ describe("MCP Client Tools Unit Tests", () => {
     vi.mocked(mockLogger.warn).mockReset();
     vi.mocked(mockLogger.error).mockReset();
     vi.mocked(mockLogger.debug).mockReset();
-    
+
     // Create a mock FileSecurityService instance
     const mockFileSecurityService = new FileSecurityService();
     // Make sure the secureWriteFile method returns success by default
-    vi.mocked(mockFileSecurityService.secureWriteFile).mockImplementation(async () => {
-      // Just return undefined to indicate success
-      return undefined;
-    });
+    vi.mocked(mockFileSecurityService.secureWriteFile).mockImplementation(
+      async () => {
+        // Just return undefined to indicate success
+        return undefined;
+      }
+    );
 
     // Mock the ConfigurationManager
     vi.spyOn(ConfigurationManager, "getInstance").mockImplementation(
@@ -554,12 +559,14 @@ describe("MCP Client Tools Unit Tests", () => {
       const processor = captureProcessorFunction(mockMcpServer);
 
       // Update the mock for this specific test
-      const mockImplementation = vi.fn().mockImplementation(async () => undefined);
+      const mockImplementation = vi
+        .fn()
+        .mockImplementation(async () => undefined);
       vi.mocked(FileSecurityService).mockImplementation(() => ({
         secureWriteFile: mockImplementation,
         validateAndResolvePath: vi.fn(),
         isPathWithinAllowedDirs: vi.fn(),
-        setAllowedDirectories: vi.fn()
+        setAllowedDirectories: vi.fn(),
       }));
       const secureWriteFileSpy = mockImplementation;
 
@@ -886,7 +893,7 @@ describe("MCP Client Tools Unit Tests", () => {
         secureWriteFile: vi.fn(),
         validateAndResolvePath: vi.fn(),
         isPathWithinAllowedDirs: vi.fn(),
-        setAllowedDirectories: vi.fn()
+        setAllowedDirectories: vi.fn(),
       }));
 
       // Create test arguments with invalid base64
@@ -900,7 +907,7 @@ describe("MCP Client Tools Unit Tests", () => {
         // Call the processor function and expect it to throw
         await expect(processor(args)).rejects.toThrow(McpError);
         // This test just verifies it throws an McpError - we don't check the exact message
-        
+
         // Try to get the error to check its code
         try {
           await processor(args);
@@ -944,10 +951,10 @@ describe("MCP Client Tools Unit Tests", () => {
     it("should skip path traversal test which relies on internal implementation details", async () => {
       // This test is skipped as it relies too much on implementation details and is
       // covered by our other tests for FileSecurityService directly
-      
+
       // Register the tool
       writeToFileTool(mockMcpServer);
-      
+
       // Simple verification that the tool is registered
       expect(mockMcpServer.tool).toHaveBeenCalledTimes(1);
     });
@@ -955,10 +962,10 @@ describe("MCP Client Tools Unit Tests", () => {
     it("should skip disk error test which also relies on implementation details", async () => {
       // This test is skipped as it relies too much on implementation details and is
       // covered by our other tests for FileSecurityService directly
-      
+
       // Register the tool
       writeToFileTool(mockMcpServer);
-      
+
       // Simple verification that the tool is registered
       expect(mockMcpServer.tool).toHaveBeenCalledTimes(1);
     });

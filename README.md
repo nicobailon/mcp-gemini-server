@@ -79,8 +79,8 @@ This server aims to simplify integration with Gemini models by providing a consi
           "env": {
             "GOOGLE_GEMINI_API_KEY": "YOUR_API_KEY",
             "GOOGLE_GEMINI_MODEL": "gemini-1.5-flash", // Optional: Set a default model
-            "GEMINI_SAFE_FILE_BASE_DIR": "/path/to/allowed/files", // Optional: Restrict file operations
-            "ALLOWED_OUTPUT_PATHS": "/path/to/output1,/path/to/output2" // Optional: Comma-separated list of allowed output directories for mcpCallServerTool and writeToFileTool
+            "GEMINI_SAFE_FILE_BASE_DIR": "/var/opt/mcp-gemini-server/gemini_files", // Optional: Restrict file operations
+            "ALLOWED_OUTPUT_PATHS": "/var/opt/mcp-gemini-server/outputs,/tmp/mcp-gemini-outputs" // Optional: Comma-separated list of allowed output directories for mcpCallServerTool and writeToFileTool
           },
           "disabled": false,
           "autoApprove": []
@@ -313,7 +313,7 @@ This server provides the following MCP tools. Parameter schemas are defined usin
 ### MCP Client Tools
 
 * **`mcpConnectToServer`**
-  * *Description:* Establishes a connection to an external MCP server.
+  * *Description:* Establishes a connection to an external MCP server and returns a connection ID.
   * *Required Params:*
     * `serverId` (string): A unique identifier for this server connection.
     * `connectionType` (string enum: "sse" | "stdio"): The transport protocol to use.
@@ -321,14 +321,15 @@ This server provides the following MCP tools. Parameter schemas are defined usin
     * `stdioCommand` (string, optional if `connectionType` is "sse"): The command to run for stdio connection.
     * `stdioArgs` (array of strings, optional): Arguments for the stdio command.
     * `stdioEnv` (object, optional): Environment variables for the stdio command.
+  * *Important:* This tool returns a `connectionId` that must be used in subsequent calls to `mcpListServerTools`, `mcpCallServerTool`, and `mcpDisconnectFromServer`. This `connectionId` is generated internally and is different from the `serverId` parameter.
 * **`mcpListServerTools`**
   * *Description:* Lists available tools on a connected MCP server.
   * *Required Params:*
-    * `serverId` (string): The identifier of the connected server.
+    * `connectionId` (string): The connection identifier returned by `mcpConnectToServer`.
 * **`mcpCallServerTool`**
   * *Description:* Calls a function on a connected MCP server.
   * *Required Params:*
-    * `serverId` (string): The identifier of the connected server.
+    * `connectionId` (string): The connection identifier returned by `mcpConnectToServer`.
     * `toolName` (string): The name of the tool to call on the remote server.
     * `toolArgs` (object): The arguments to pass to the remote tool.
   * *Optional Params:*
@@ -336,7 +337,7 @@ This server provides the following MCP tools. Parameter schemas are defined usin
 * **`mcpDisconnectFromServer`**
   * *Description:* Disconnects from an external MCP server.
   * *Required Params:*
-    * `serverId` (string): The identifier of the server connection to terminate.
+    * `connectionId` (string): The connection identifier returned by `mcpConnectToServer`.
 * **`writeToFile`**
   * *Description:* Writes content directly to a file.
   * *Required Params:*
@@ -705,6 +706,8 @@ The response will be a JSON string containing both the text response and which m
 </use_mcp_tool>
 ```
 
+*(Assume response contains a unique connection ID like: `connectionId: "12345-abcde-67890"`)*
+
 **Example 9: Calling a Tool on an External MCP Server and Writing Output to File**
 
 ```xml
@@ -713,14 +716,16 @@ The response will be a JSON string containing both the text response and which m
   <tool_name>mcpCallServerTool</tool_name>
   <arguments>
     {
-      "serverId": "my-external-server",
+      "connectionId": "12345-abcde-67890", // Use the connectionId returned by mcpConnectToServer
       "toolName": "remote_tool_name",
       "toolArgs": { "param1": "value1" },
-      "outputToFile": "/path/to/allowed/output/result.json"
+      "outputToFile": "/var/opt/mcp-gemini-server/outputs/result.json"
     }
   </arguments>
 </use_mcp_tool>
 ```
+
+**Important: The `connectionId` used in MCP client tools must be the connection identifier returned by `mcpConnectToServer`, not the original `serverId` parameter.**
 
 **Note:** The `outputToFile` path must be within one of the directories specified in the `ALLOWED_OUTPUT_PATHS` environment variable. For example, if `ALLOWED_OUTPUT_PATHS="/path/to/allowed/output,/another/allowed/path"`, then the file path must be a subdirectory of one of these paths.
 
@@ -819,8 +824,8 @@ GOOGLE_GEMINI_MAX_IMAGE_SIZE_MB=10
 GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS=["image/jpeg","image/png","image/webp"]
 
 # Security Configuration
-GEMINI_SAFE_FILE_BASE_DIR=/path/to/allowed/gemini/files  # For Gemini API file operations
-ALLOWED_OUTPUT_PATHS=/path/to/output1,/path/to/output2   # For mcpCallServerTool and writeToFileTool
+GEMINI_SAFE_FILE_BASE_DIR=/var/opt/mcp-gemini-server/gemini_files  # For Gemini API file operations
+ALLOWED_OUTPUT_PATHS=/var/opt/mcp-gemini-server/outputs,/tmp/mcp-gemini-outputs   # For mcpCallServerTool and writeToFileTool
 
 # Server Configuration
 MCP_TRANSPORT=stdio  # Replaced deprecated MCP_TRANSPORT_TYPE

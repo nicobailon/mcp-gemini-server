@@ -79,7 +79,10 @@ export class ConfigurationManager {
     this.validateRequiredEnvVars();
     this.loadEnvironmentOverrides();
 
-    // Initialize the FileSecurityService with environment configuration
+    // Initialize and validate FileSecurityService configuration from environment
+    // This performs an initial validation of the configured file security paths
+    // but doesn't store an instance - services will create their own instances as needed.
+    // This call is primarily for early validation and logging of path configurations.
     FileSecurityService.configureFromEnvironment();
   }
 

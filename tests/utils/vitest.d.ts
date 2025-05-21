@@ -3,7 +3,7 @@
  * This helps to ensure we have proper types for our tests
  */
 
-declare module 'vitest' {
+declare module "vitest" {
   interface Mock<T = any> {
     <This, Args extends any[] = any[], Return = any>(
       this: This,

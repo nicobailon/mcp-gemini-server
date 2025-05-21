@@ -11,6 +11,7 @@ import {
 import { Part } from "@google/genai";
 import { TypeOf } from "zod";
 import { logger } from "../utils/index.js";
+import { ImagePart, SafetySetting } from "../services/gemini/GeminiTypes.js";
 
 // Utility function to efficiently handle large base64 strings
 async function* streamBase64Data(
@@ -52,8 +53,7 @@ async function* streamBase64Data(
  */
 export function geminiObjectDetectionTool(server: McpServer) {
   // Get the GeminiService instance
-  const serviceInstance =
-    require("../services/index.js").GeminiService.getInstance();
+  const serviceInstance = new GeminiService();
   const toolName = TOOL_NAME_OBJECT_DETECTION;
   const toolDescription = TOOL_DESCRIPTION_OBJECT_DETECTION;
 
@@ -80,7 +80,7 @@ export function geminiObjectDetectionTool(server: McpServer) {
       }
 
       // Convert image input to Part object based on type
-      let imagePart: Part;
+      let imagePart: Part & { inlineData?: { data: string; mimeType: string } };
       try {
         // Handle URL type
         if (args.image.type === "url") {
@@ -133,10 +133,10 @@ export function geminiObjectDetectionTool(server: McpServer) {
 
       // Call the service with converted image part
       const result = await serviceInstance.detectObjects(
-        imagePart,
+        imagePart as ImagePart,
         args.promptAddition,
         args.modelName,
-        args.safetySettings
+        args.safetySettings as SafetySetting[]
       );
 
       // Return in the format expected by McpServer

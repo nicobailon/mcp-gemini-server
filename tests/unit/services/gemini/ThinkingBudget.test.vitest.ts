@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, expect, vi } from "vitest";
 import { GeminiContentService } from "../../../../src/services/gemini/GeminiContentService.js";
-import { GeminiSecurityService } from "../../../../src/services/gemini/GeminiSecurityService.js";
+import { FileSecurityService } from "../../../../src/utils/FileSecurityService.js";
 import { GeminiChatService } from "../../../../src/services/gemini/GeminiChatService.js";
 import { GenerateContentResponse } from "@google/genai";
 import { FinishReason } from "../../../../src/types/googleGenAITypes.js";
@@ -50,7 +50,7 @@ describe("Thinking Budget Feature", () => {
       const service = new GeminiContentService(
         mockGenAI as any,
         "gemini-1.5-pro",
-        new GeminiSecurityService()
+        new FileSecurityService()
       );
 
       // Act
@@ -81,7 +81,7 @@ describe("Thinking Budget Feature", () => {
       const service = new GeminiContentService(
         mockGenAI as any,
         "gemini-1.5-pro",
-        new GeminiSecurityService()
+        new FileSecurityService()
       );
 
       // Test different reasoning effort values
@@ -126,7 +126,7 @@ describe("Thinking Budget Feature", () => {
       const service = new GeminiContentService(
         mockGenAI as any,
         "gemini-1.5-pro",
-        new GeminiSecurityService(),
+        new FileSecurityService(),
         defaultThinkingBudget
       );
 
@@ -156,7 +156,7 @@ describe("Thinking Budget Feature", () => {
       const service = new GeminiContentService(
         mockGenAI as any,
         "gemini-1.5-pro",
-        new GeminiSecurityService(),
+        new FileSecurityService(),
         defaultThinkingBudget
       );
 

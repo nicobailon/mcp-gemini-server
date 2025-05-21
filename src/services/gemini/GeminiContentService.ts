@@ -6,7 +6,7 @@ import {
 } from "../../utils/geminiErrors.js";
 import { logger } from "../../utils/logger.js";
 import { FileMetadata } from "../../types/index.js";
-import { GeminiSecurityService } from "./GeminiSecurityService.js";
+import { FileSecurityService } from "../../utils/FileSecurityService.js";
 import {
   Content,
   GenerationConfig,
@@ -71,25 +71,26 @@ export class GeminiContentService {
   private genAI: GoogleGenAI;
   private defaultModelName?: string;
   private defaultThinkingBudget?: number;
-  private securityService: GeminiSecurityService;
+  private fileSecurityService: FileSecurityService;
   private retryService: RetryService;
 
   /**
    * Creates a new instance of the GeminiContentService.
    * @param genAI The GoogleGenAI instance to use for API calls
    * @param defaultModelName Optional default model name to use if not specified in method calls
-   * @param securityService Optional security service for file path validation (a new instance is created if not provided)
+   * @param fileSecurityService Optional security service for file path validation (a new instance is created if not provided)
+   * @param defaultThinkingBudget Optional default budget for reasoning (thinking) tokens
    */
   constructor(
     genAI: GoogleGenAI,
     defaultModelName?: string,
-    securityService?: GeminiSecurityService,
+    fileSecurityService?: FileSecurityService,
     defaultThinkingBudget?: number
   ) {
     this.genAI = genAI;
     this.defaultModelName = defaultModelName;
     this.defaultThinkingBudget = defaultThinkingBudget;
-    this.securityService = securityService || new GeminiSecurityService();
+    this.fileSecurityService = fileSecurityService || new FileSecurityService();
     this.retryService = new RetryService(DEFAULT_RETRY_OPTIONS);
   }
 

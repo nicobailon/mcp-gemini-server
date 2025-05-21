@@ -56,6 +56,7 @@ export interface ConnectionDetails {
   sseUrl?: string;
   stdioCommand?: string;
   stdioArgs?: string[];
+  connectionToken?: string;
 }
 
 // Re-export SDK McpError under the local name used throughout this file
@@ -229,10 +230,12 @@ export class McpClientService {
 
   /**
    * Establishes a connection to an MCP server.
-   * @param serverId - The ID of the server to connect to.
+   * @param serverId - A unique identifier provided by the caller to reference this server connection.
+   *                   Note: This is NOT used as the internal connection tracking ID.
    * @param connectionDetails - The details for establishing the connection.
    * @param messageHandler - Optional callback for handling received messages.
-   * @returns A promise that resolves to a connection ID when the connection is established.
+   * @returns A promise that resolves to a connection ID (different from serverId) when the connection is established.
+   *          This returned connectionId should be used for all subsequent interactions with this connection.
    * @throws {McpError} Throws an error if the parameters are invalid.
    */
   public async connect(
@@ -286,7 +289,7 @@ export class McpClientService {
         );
       }
 
-      return this.connectSse(connectionDetails.sseUrl, messageHandler);
+      return this.connectSse(connectionDetails.sseUrl, connectionDetails.connectionToken, messageHandler);
     }
     // Validate stdio connection details
     else if (connectionDetails.type === "stdio") {
@@ -304,6 +307,7 @@ export class McpClientService {
       return this.connectStdio(
         connectionDetails.stdioCommand,
         connectionDetails.stdioArgs || [],
+        connectionDetails.connectionToken,
         messageHandler
       );
     }
@@ -318,18 +322,21 @@ export class McpClientService {
   /**
    * Establishes an SSE connection to the specified MCP server.
    * @param url - The URL of the MCP server to connect to.
+   * @param connectionToken - Optional token for authentication with the server.
    * @param messageHandler - Optional callback for handling received messages.
    * @returns A promise that resolves to a connection ID when the connection is established.
    */
   private connectSse(
     url: string,
+    connectionToken?: string,
     messageHandler?: (data: unknown) => void
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       logger.info(`Connecting to MCP server via SSE: ${url}`);
 
       try {
-        // Create a unique ID for this connection
+        // Generate a unique connectionId for internal tracking
+        // This will be different from the serverId passed to the connect() method
         const connectionId = uuidv4();
 
         // Create a timeout for the connection attempt
@@ -342,8 +349,17 @@ export class McpClientService {
           );
         }, McpClientService.DEFAULT_REQUEST_TIMEOUT_MS);
 
-        // Create EventSource for SSE connection
-        const eventSource = new EventSource(url);
+        // Add connectionToken to headers if provided
+        const options: EventSource.EventSourceInitDict = {};
+        if (connectionToken) {
+          logger.debug(`Adding connection token to SSE request`);
+          options.headers = {
+            Authorization: `Bearer ${connectionToken}`,
+          };
+        }
+
+        // Create EventSource for SSE connection with options
+        const eventSource = new EventSource(url, options);
 
         // Handler functions to store for proper cleanup
         const onOpen = () => {
@@ -485,12 +501,14 @@ export class McpClientService {
    * Establishes a stdio connection using the specified command.
    * @param command - The command to execute for stdio connection.
    * @param args - Arguments to pass to the command.
+   * @param connectionToken - Optional token for authentication with the server.
    * @param messageHandler - Optional callback for handling stdout data.
    * @returns A promise that resolves to a connection ID when the process is spawned.
    */
   private connectStdio(
     command: string,
     args: string[] = [],
+    connectionToken?: string,
     messageHandler?: (data: unknown) => void
   ): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -499,7 +517,8 @@ export class McpClientService {
       );
 
       try {
-        // Create a unique ID for this connection
+        // Generate a unique connectionId for internal tracking
+        // This will be different from the serverId passed to the connect() method
         const connectionId = uuidv4();
 
         // Create a timeout for the connection establishment
@@ -512,9 +531,19 @@ export class McpClientService {
           );
         }, McpClientService.DEFAULT_REQUEST_TIMEOUT_MS);
 
-        // Spawn the child process
+        // Prepare the environment for the child process
+        const env = { ...process.env };
+        
+        // Add connectionToken to environment if provided
+        if (connectionToken) {
+          logger.debug('Adding connection token to stdio environment');
+          env.MCP_CONNECTION_TOKEN = connectionToken;
+        }
+        
+        // Spawn the child process with environment
         const childProcess = spawn(command, args, {
           stdio: "pipe",
+          env: env,
         });
 
         // Store the connection with timestamp
@@ -772,7 +801,12 @@ export class McpClientService {
       }
 
       if (childProcess.stdin) {
-        childProcess.stdin.write(dataStr + "\n");
+        try {
+          childProcess.stdin.write(dataStr + "\n");
+        } catch (error) {
+          logger.error(`Error writing to stdin for connection ${connectionId}:`, error);
+          return false;
+        }
       } else {
         logger.error(`Stdio connection ${connectionId} has no stdin`);
         return false;

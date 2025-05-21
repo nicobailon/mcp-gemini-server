@@ -1,5 +1,22 @@
 # MCP Gemini Server
 
+## Table of Contents
+- [Overview](#overview)
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Installation & Setup](#installation--setup)
+- [Configuration](#configuration)
+- [Available Tools](#available-tools)
+- [Usage Examples](#usage-examples)
+- [MCP Gemini Server and Gemini SDK's MCP Function Calling](#mcp-gemini-server-and-gemini-sdks-mcp-function-calling)
+- [Environment Variables](#environment-variables)
+- [Error Handling](#error-handling)
+- [Development and Testing](#development-and-testing)
+- [Contributing](#contributing)
+- [Code Review Tools](#code-review-tools)
+- [Server Features](#server-features)
+- [Known Issues](#known-issues)
+
 ## Overview
 
 This project provides a dedicated MCP (Model Context Protocol) server that wraps the `@google/genai` SDK (v0.10.0). It exposes Google's Gemini model capabilities as standard MCP tools, allowing other LLMs (like Claude) or MCP-compatible systems to leverage Gemini's features as a backend workhorse.
@@ -704,6 +721,8 @@ The response will be a JSON string containing both the text response and which m
 </use_mcp_tool>
 ```
 
+**Note:** The `outputToFile` path must be within one of the directories specified in the `ALLOWED_OUTPUT_PATHS` environment variable. For example, if `ALLOWED_OUTPUT_PATHS="/path/to/allowed/output,/another/allowed/path"`, then the file path must be a subdirectory of one of these paths.
+
 **Example 10: Writing Content Directly to a File**
 
 ```xml
@@ -719,6 +738,8 @@ The response will be a JSON string containing both the text response and which m
   </arguments>
 </use_mcp_tool>
 ```
+
+**Note:** Like with `mcpCallServerTool`, the `filePath` must be within one of the directories specified in the `ALLOWED_OUTPUT_PATHS` environment variable. This is a critical security feature to prevent unauthorized file writes.
 
 ## `mcp-gemini-server` and Gemini SDK's MCP Function Calling
 
@@ -766,8 +787,17 @@ The `mcp-gemini-server` also includes tools like `mcpConnectToServer`, `mcpListS
 - `GEMINI_SAFE_FILE_BASE_DIR`: Restricts file operations to a specific directory for security (defaults to current working directory)
 
 ### Optional - Server Configuration:
-- `MCP_TRANSPORT_TYPE`: Transport to use for MCP server (options: `stdio`, `ws`; default: `stdio`)
-- `MCP_WS_PORT`: Port for WebSocket transport when using `ws` transport type (default: `8080`)
+- `MCP_TRANSPORT`: Transport to use for MCP server (options: `stdio`, `sse`, `streaming`; default: `stdio`)
+  - IMPORTANT: SSE (Server-Sent Events) is NOT deprecated and remains a critical component of the MCP protocol
+  - SSE is particularly valuable for bidirectional communication, enabling features like dynamic tool updates and sampling
+  - Each transport type has specific valid use cases within the MCP ecosystem
+- `MCP_SERVER_PORT`: Port for network transports when using `sse` or `streaming` (default: `8080`)
+- `MCP_CONNECTION_TOKEN`: Token that clients need to provide when connecting to this server
+- `MCP_CLIENT_ID`: Default ID used when this server acts as a client to other MCP servers 
+
+### Optional - Legacy Server Configuration (Deprecated):
+- `MCP_TRANSPORT_TYPE`: Deprecated - Use `MCP_TRANSPORT` instead
+- `MCP_WS_PORT`: Deprecated - Use `MCP_SERVER_PORT` instead
 - `ENABLE_HEALTH_CHECK`: Enable health check server (options: `true`, `false`; default: `true`)
 - `HEALTH_CHECK_PORT`: Port for health check HTTP server (default: `3000`)
 

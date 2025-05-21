@@ -5,5 +5,4 @@ export * from "./filePathSecurity.js";
 export * from "./FileSecurityService.js";
 export * from "./RetryService.js";
 export * from "./healthCheck.js";
-export * from "./fileUtils.js";
 // export * from './contextSanitizer.js'; // Add other utils here

@@ -328,7 +328,7 @@ export class ConfigurationManager {
         }
       } catch (error) {
         logger.warn(
-          "[ConfigurationManager] Invalid image formats specified in GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS. Using default."
+          `[ConfigurationManager] Invalid image formats specified in GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS: '${process.env.GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS}'. Using default.`
         );
       }
     }

@@ -29,7 +29,7 @@ import {
 import { GeminiChatService } from "./gemini/GeminiChatService.js";
 import { GeminiContentService } from "./gemini/GeminiContentService.js";
 import { GeminiCacheService } from "./gemini/GeminiCacheService.js";
-import { GeminiSecurityService } from "./gemini/GeminiSecurityService.js";
+import { FileSecurityService } from "../utils/FileSecurityService.js";
 import {
   ChatSession,
   Content,
@@ -57,7 +57,7 @@ export class GeminiService {
   private chatService: GeminiChatService;
   private contentService: GeminiContentService;
   private cacheService: GeminiCacheService;
-  private securityService: GeminiSecurityService;
+  private fileSecurityService: FileSecurityService;
   private gitDiffService: GeminiGitDiffService;
   private gitHubApiService: GitHubApiService;
 
@@ -73,28 +73,30 @@ export class GeminiService {
     this.genAI = new GoogleGenAI({ apiKey: config.apiKey });
     this.defaultModelName = config.defaultModel;
 
-    // Initialize security service first as it's used by other services
-    this.securityService = new GeminiSecurityService();
-
+    // Initialize file security service first as it's used by other services
     // Set secure base path if configured
     const secureBasePath = configManager.getSecureFileBasePath();
     if (secureBasePath) {
-      this.securityService.setSecureBasePath(secureBasePath);
+      this.fileSecurityService = new FileSecurityService(
+        [secureBasePath],
+        secureBasePath
+      );
       logger.info(
         `GeminiService initialized with secure file base path: ${secureBasePath}`
       );
     } else {
+      this.fileSecurityService = new FileSecurityService();
       logger.warn(
         "GeminiService initialized without a secure file base path. File operations will require explicit path validation."
       );
     }
 
     // Initialize specialized services
-    this.fileService = new GeminiFileService(this.genAI, this.securityService);
+    this.fileService = new GeminiFileService(this.genAI, this.fileSecurityService);
     this.contentService = new GeminiContentService(
       this.genAI,
       this.defaultModelName,
-      this.securityService,
+      this.fileSecurityService,
       config.defaultThinkingBudget
     );
     this.chatService = new GeminiChatService(this.genAI, this.defaultModelName);
@@ -184,7 +186,17 @@ export class GeminiService {
    * @throws Error if the path is invalid or outside permitted boundaries
    */
   public validateFilePath(filePath: string, basePath?: string): string {
-    return this.securityService.validateFilePath(filePath, basePath);
+    try {
+      return this.fileSecurityService.validateAndResolvePath(filePath, {
+        basePath: basePath,
+      });
+    } catch (error) {
+      // Convert ValidationError to Error for backward compatibility
+      if (error instanceof Error) {
+        throw new Error(error.message);
+      }
+      throw error;
+    }
   }
 
   /**
@@ -194,7 +206,7 @@ export class GeminiService {
    * @param basePath The absolute path to restrict file operations to
    */
   public setSecureBasePath(basePath: string): void {
-    this.securityService.setSecureBasePath(basePath);
+    this.fileSecurityService.setSecureBasePath(basePath);
   }
 
   /**
@@ -490,7 +502,7 @@ export class GeminiService {
    * Gets the current secure base directory if set
    */
   public getSecureBasePath(): string | undefined {
-    return this.securityService.getSecureBasePath();
+    return this.fileSecurityService.getSecureBasePath();
   }
 
   /**

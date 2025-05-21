@@ -60,6 +60,8 @@ export const mcpConnectToServerTool = (
       );
 
       // Create a unique server ID for this connection
+      // Note: McpClientService.connect() will generate a different connectionId internally
+      // and return that to us. That returned connectionId is what we'll expose to the user.
       const serverId = uuidv4();
 
       // Cast the connectionDetails to the proper type based on transport
@@ -69,6 +71,8 @@ export const mcpConnectToServerTool = (
       // Prepare connection details object according to the ConnectionDetails interface
       const connectionDetailsObject: ConnectionDetails = {
         type: transport,
+        // Include connectionToken if provided, otherwise use the default from config
+        connectionToken: typedConnectionDetails.connectionToken || mcpConfig.connectionToken,
         ...(transport === "stdio"
           ? {
               stdioCommand: (typedConnectionDetails as StdioConnectionDetails)
@@ -88,6 +92,8 @@ export const mcpConnectToServerTool = (
       );
 
       // Format the successful output for MCP
+      // The connectionId returned by mcpClientService.connect() is the ID that
+      // should be used for all subsequent operations with this connection
       return {
         content: [
           {

@@ -8,7 +8,7 @@ import {
   GeminiInvalidParameterError,
 } from "../../utils/errors.js";
 import { logger } from "../../utils/logger.js";
-import { GeminiSecurityService } from "./GeminiSecurityService.js";
+import { FileSecurityService } from "../../utils/FileSecurityService.js";
 import { FileId } from "./GeminiTypes.js";
 
 /**
@@ -27,16 +27,16 @@ export interface ListFilesResponseType {
  */
 export class GeminiFileService {
   private genAI: GoogleGenAI;
-  private securityService: GeminiSecurityService;
+  private fileSecurityService: FileSecurityService;
 
   /**
    * Creates a new instance of the GeminiFileService.
    * @param genAI The GoogleGenAI instance to use for API calls
-   * @param securityService The security service for file path validation
+   * @param fileSecurityService The security service for file path validation
    */
-  constructor(genAI: GoogleGenAI, securityService: GeminiSecurityService) {
+  constructor(genAI: GoogleGenAI, fileSecurityService: FileSecurityService) {
     this.genAI = genAI;
-    this.securityService = securityService;
+    this.fileSecurityService = fileSecurityService;
   }
 
   /**
@@ -52,7 +52,7 @@ export class GeminiFileService {
     options?: { displayName?: string; mimeType?: string }
   ): Promise<FileMetadata> {
     // Validate file path (redundant if already validated in tool handler but safer)
-    const validatedPath = this.securityService.validateFilePath(filePath);
+    const validatedPath = this.fileSecurityService.validateAndResolvePath(filePath);
 
     // Check if file exists
     try {

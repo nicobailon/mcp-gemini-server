@@ -19,6 +19,14 @@ export const TOOL_PARAMS = {
     .optional()
     .default("utf8")
     .describe("Encoding of the content. Defaults to utf8."),
+
+  overwriteFile: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      "Optional. If true, will overwrite the file if it already exists. Defaults to false."
+    ),
 };
 
 // Create a complete Zod object schema for type inference

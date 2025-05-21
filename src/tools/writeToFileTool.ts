@@ -59,12 +59,12 @@ export const writeToFileTool = (server: McpServer): void => {
         }
       }
 
-      // Write the file securely with overwrite=false by default
+      // Use the overwriteFile parameter from the args
       await secureWriteFile(
         validatedArgs.filePath,
         contentToWrite,
         allowedOutputPaths,
-        false // Do not overwrite existing files by default
+        validatedArgs.overwriteFile
       );
 
       // Return success response

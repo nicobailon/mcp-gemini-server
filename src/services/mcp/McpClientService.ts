@@ -1,7 +1,10 @@
 import { logger } from "../../utils/index.js";
 import { spawn, ChildProcess } from "child_process";
 import EventSource from "eventsource";
-import { McpError as SdkMcpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import {
+  McpError as SdkMcpError,
+  ErrorCode,
+} from "@modelcontextprotocol/sdk/types.js";
 import { v4 as uuidv4 } from "uuid";
 import fetch from "node-fetch";
 
@@ -67,9 +70,19 @@ export class McpClientService {
   // Maps to store active connections
   private activeSseConnections: Map<
     string,
-    { eventSource: EventSource; baseUrl: string }
+    {
+      eventSource: EventSource;
+      baseUrl: string;
+      lastActivityTimestamp: number; // Track when connection was last used
+    }
   >;
-  private activeStdioConnections: Map<string, ChildProcess>;
+  private activeStdioConnections: Map<
+    string,
+    {
+      process: ChildProcess;
+      lastActivityTimestamp: number; // Track when connection was last used
+    }
+  >;
   private pendingStdioRequests: Map<
     string, // connectionId
     Map<
@@ -81,10 +94,106 @@ export class McpClientService {
     > // requestId -> handlers
   > = new Map();
 
+  // Configuration values
+  private static readonly DEFAULT_REQUEST_TIMEOUT_MS = 30000; // 30 seconds
+  private static readonly DEFAULT_CONNECTION_MAX_IDLE_MS = 600000; // 10 minutes
+  private static readonly CONNECTION_CLEANUP_INTERVAL_MS = 300000; // Check every 5 minutes
+
+  /**
+   * Helper method to fetch with timeout
+   * @param url - The URL to fetch
+   * @param options - Fetch options
+   * @param timeoutMs - Timeout in milliseconds
+   * @param timeoutMessage - Message to include in timeout error
+   * @returns The fetch response
+   * @throws {SdkMcpError} - If the request times out
+   */
+  private async fetchWithTimeout(
+    url: string,
+    options: RequestInit,
+    timeoutMs = McpClientService.DEFAULT_REQUEST_TIMEOUT_MS,
+    timeoutMessage = "Request timed out"
+  ): Promise<Response> {
+    // Create controller for aborting the fetch
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    
+    try {
+      // Add the signal to the options
+      const fetchOptions = {
+        ...options,
+        signal: controller.signal
+      };
+      
+      // Make the fetch request
+      const response = await fetch(url, fetchOptions);
+      clearTimeout(id);
+      // Cast the response to ensure correct typing
+      return response as Response;
+    } catch (error) {
+      clearTimeout(id);
+      throw new SdkMcpError(
+        ErrorCode.InternalError,
+        `${timeoutMessage} after ${timeoutMs}ms`
+      );
+    }
+  }
+
+  // Cleanup timer reference
+  private cleanupIntervalId?: NodeJS.Timeout;
+
   constructor() {
     this.activeSseConnections = new Map();
     this.activeStdioConnections = new Map();
     logger.info("McpClientService initialized.");
+
+    // Start the connection cleanup interval
+    this.cleanupIntervalId = setInterval(
+      () => this.cleanupStaleConnections(),
+      McpClientService.CONNECTION_CLEANUP_INTERVAL_MS
+    );
+  }
+
+  /**
+   * Cleans up stale connections that haven't been used for a while
+   * @private
+   */
+  private cleanupStaleConnections(): void {
+    const now = Date.now();
+    const maxIdleTime = McpClientService.DEFAULT_CONNECTION_MAX_IDLE_MS;
+    let closedCount = 0;
+
+    // Check SSE connections
+    for (const [
+      connectionId,
+      { lastActivityTimestamp },
+    ] of this.activeSseConnections.entries()) {
+      if (now - lastActivityTimestamp > maxIdleTime) {
+        logger.info(
+          `Closing stale SSE connection ${connectionId} (idle for ${Math.floor((now - lastActivityTimestamp) / 1000)} seconds)`
+        );
+        this.closeSseConnection(connectionId);
+        closedCount++;
+      }
+    }
+
+    // Check stdio connections
+    for (const [
+      connectionId,
+      { lastActivityTimestamp },
+    ] of this.activeStdioConnections.entries()) {
+      if (now - lastActivityTimestamp > maxIdleTime) {
+        logger.info(
+          `Closing stale stdio connection ${connectionId} (idle for ${Math.floor((now - lastActivityTimestamp) / 1000)} seconds)`
+        );
+        this.closeStdioConnection(connectionId);
+        closedCount++;
+      }
+    }
+
+    if (closedCount > 0) {
+      logger.info(`Cleaned up ${closedCount} stale connections`);
+    }
   }
 
   /**
@@ -223,21 +332,42 @@ export class McpClientService {
         // Create a unique ID for this connection
         const connectionId = uuidv4();
 
+        // Create a timeout for the connection attempt
+        const connectionTimeout = setTimeout(() => {
+          reject(
+            new SdkMcpError(
+              ErrorCode.InternalError,
+              `Connection timeout while attempting to connect to ${url}`
+            )
+          );
+        }, McpClientService.DEFAULT_REQUEST_TIMEOUT_MS);
+
         // Create EventSource for SSE connection
         const eventSource = new EventSource(url);
 
         // Handler functions to store for proper cleanup
         const onOpen = () => {
+          // Clear the connection timeout
+          clearTimeout(connectionTimeout);
+
           logger.info(`SSE connection established to ${url}`);
           this.activeSseConnections.set(connectionId, {
             eventSource,
             baseUrl: url,
+            lastActivityTimestamp: Date.now(),
           });
           resolve(connectionId);
         };
 
         const onMessage = ((event: ESMessageEvent) => {
           logger.debug(`SSE message received from ${url}:`, event.data);
+
+          // Update the last activity timestamp
+          const connection = this.activeSseConnections.get(connectionId);
+          if (connection) {
+            connection.lastActivityTimestamp = Date.now();
+          }
+
           if (messageHandler) {
             try {
               const parsedData = JSON.parse(event.data);
@@ -250,10 +380,14 @@ export class McpClientService {
         }) as ESMessageHandler;
 
         const onError = ((error: ESErrorEvent) => {
+          // Clear the connection timeout if it's still pending
+          clearTimeout(connectionTimeout);
+
           logger.error(
             `SSE connection error for ${url}:`,
             error.message || "Unknown error"
           );
+
           if (!this.activeSseConnections.has(connectionId)) {
             // If we haven't resolved yet, this is a connection failure
             reject(
@@ -266,6 +400,11 @@ export class McpClientService {
             // Connection was established but is now closed
             logger.info(`SSE connection ${connectionId} closed due to error.`);
             this.activeSseConnections.delete(connectionId);
+          } else {
+            // Connection is still open but had an error
+            logger.warn(
+              `SSE connection ${connectionId} had an error but is still open. Monitoring for further issues.`
+            );
           }
         }) as ESErrorHandler;
 
@@ -303,6 +442,9 @@ export class McpClientService {
       // Remove from active connections
       this.activeSseConnections.delete(connectionId);
 
+      // Clean up any pending requests for this connection (this shouldn't generally happen for SSE)
+      this.cleanupPendingRequestsForConnection(connectionId);
+
       logger.info(`SSE connection ${connectionId} closed.`);
       return true;
     }
@@ -310,6 +452,33 @@ export class McpClientService {
       `Attempted to close non-existent SSE connection: ${connectionId}`
     );
     return false;
+  }
+
+  /**
+   * Helper method to clean up pending requests for a connection
+   * @param connectionId - The ID of the connection to clean up pending requests for
+   */
+  private cleanupPendingRequestsForConnection(connectionId: string): void {
+    // If there are any pending requests for this connection, reject them all
+    if (this.pendingStdioRequests.has(connectionId)) {
+      const pendingRequests = this.pendingStdioRequests.get(connectionId)!;
+      for (const [
+        requestId,
+        { reject: rejectRequest },
+      ] of pendingRequests.entries()) {
+        logger.warn(
+          `Rejecting pending request ${requestId} due to connection cleanup`
+        );
+        rejectRequest(
+          new McpError(
+            ErrorCode.InternalError,
+            `Connection closed during cleanup before response was received`
+          )
+        );
+      }
+      // Clean up the map entry
+      this.pendingStdioRequests.delete(connectionId);
+    }
   }
 
   /**
@@ -333,19 +502,45 @@ export class McpClientService {
         // Create a unique ID for this connection
         const connectionId = uuidv4();
 
+        // Create a timeout for the connection establishment
+        const connectionTimeout = setTimeout(() => {
+          reject(
+            new SdkMcpError(
+              ErrorCode.InternalError,
+              `Timeout while establishing stdio connection for command: ${command}`
+            )
+          );
+        }, McpClientService.DEFAULT_REQUEST_TIMEOUT_MS);
+
         // Spawn the child process
         const childProcess = spawn(command, args, {
-          stdio: ["pipe", "pipe", "pipe"],
+          stdio: "pipe"
         });
 
-        // Store the connection
-        this.activeStdioConnections.set(connectionId, childProcess);
+        // Store the connection with timestamp
+        this.activeStdioConnections.set(connectionId, {
+          process: childProcess,
+          lastActivityTimestamp: Date.now(),
+        });
 
         // Buffer to accumulate data chunks
         let buffer = "";
 
+        // We'll mark connection as established when the process is ready
+        const connectionEstablished = () => {
+          clearTimeout(connectionTimeout);
+          logger.info(`Stdio connection established for ${command}`);
+          resolve(connectionId);
+        };
+
         // Data handler function for stdout
         const onStdoutData = (data: Buffer) => {
+          // Update the last activity timestamp to prevent cleanup
+          const connection = this.activeStdioConnections.get(connectionId);
+          if (connection) {
+            connection.lastActivityTimestamp = Date.now();
+          }
+
           // Append the new data to our buffer
           buffer += data.toString();
           logger.debug(
@@ -379,6 +574,7 @@ export class McpClientService {
                 ] of this.pendingStdioRequests.entries()) {
                   if (requestsMap.has(parsedData.id)) {
                     const { resolve, reject } = requestsMap.get(parsedData.id)!;
+
                     requestsMap.delete(parsedData.id);
 
                     // If this was the last pending request, clean up the connection map
@@ -391,7 +587,8 @@ export class McpClientService {
                     if (parsedData.error) {
                       reject(
                         new SdkMcpError(
-                          (parsedData.error.code as unknown as ErrorCode) || ErrorCode.InternalError,
+                          (parsedData.error.code as unknown as ErrorCode) ||
+                            ErrorCode.InternalError,
                           parsedData.error.message || "Tool execution error",
                           parsedData.error.data
                         )
@@ -459,11 +656,20 @@ export class McpClientService {
 
         // Error handler for stderr
         const onStderrData = (data: Buffer) => {
+          // Update the last activity timestamp to prevent cleanup
+          const connection = this.activeStdioConnections.get(connectionId);
+          if (connection) {
+            connection.lastActivityTimestamp = Date.now();
+          }
+
           logger.warn(`Stdio stderr from ${command}:`, data.toString());
         };
 
         // Error handler for the process
         const onError = (error: Error) => {
+          // Clear the connection timeout
+          clearTimeout(connectionTimeout);
+
           logger.error(`Stdio error for ${command}:`, error);
           if (this.activeStdioConnections.has(connectionId)) {
             this.activeStdioConnections.delete(connectionId);
@@ -497,6 +703,9 @@ export class McpClientService {
           code: number | null,
           signal: NodeJS.Signals | null
         ) => {
+          // Clear the connection timeout if process closes before we establish connection
+          clearTimeout(connectionTimeout);
+
           logger.info(
             `Stdio process ${command} closed with code ${code} and signal ${signal}`
           );
@@ -532,8 +741,8 @@ export class McpClientService {
         childProcess.on("error", onError);
         childProcess.on("close", onClose);
 
-        logger.info(`Stdio connection established for ${command}`);
-        resolve(connectionId);
+        // The connection is established immediately after we set up event handlers
+        connectionEstablished();
       } catch (error) {
         logger.error(`Error creating stdio connection for ${command}:`, error);
         reject(error);
@@ -550,9 +759,25 @@ export class McpClientService {
   private sendToStdio(connectionId: string, data: string | object): boolean {
     const connection = this.activeStdioConnections.get(connectionId);
     if (connection) {
+      const childProcess = connection.process;
+
+      // Update the last activity timestamp
+      connection.lastActivityTimestamp = Date.now();
+
+      // Safety check for data size to prevent buffer overflow
       const dataStr = typeof data === "string" ? data : JSON.stringify(data);
-      if (connection.stdin) {
-        connection.stdin.write(dataStr + "\n");
+
+      // Limit data size to 1MB to prevent abuse
+      const MAX_DATA_SIZE = 1024 * 1024; // 1MB
+      if (dataStr.length > MAX_DATA_SIZE) {
+        logger.error(
+          `Data to send to stdio connection ${connectionId} exceeds size limit (${dataStr.length} > ${MAX_DATA_SIZE})`
+        );
+        return false;
+      }
+
+      if (childProcess.stdin) {
+        childProcess.stdin.write(dataStr + "\n");
       } else {
         logger.error(`Stdio connection ${connectionId} has no stdin`);
         return false;
@@ -578,16 +803,21 @@ export class McpClientService {
   ): boolean {
     const connection = this.activeStdioConnections.get(connectionId);
     if (connection) {
+      const childProcess = connection.process;
+
       // Remove all listeners to prevent memory leaks
-      connection.stdout?.removeAllListeners();
-      connection.stderr?.removeAllListeners();
-      connection.removeAllListeners();
+      childProcess.stdout?.removeAllListeners();
+      childProcess.stderr?.removeAllListeners();
+      childProcess.removeAllListeners();
 
       // Kill the process
-      connection.kill(signal);
+      childProcess.kill(signal);
 
       // Remove from active connections
       this.activeStdioConnections.delete(connectionId);
+
+      // Clean up any pending requests for this connection
+      this.cleanupPendingRequestsForConnection(connectionId);
 
       logger.info(
         `Stdio connection ${connectionId} closed with signal ${signal}.`
@@ -617,6 +847,25 @@ export class McpClientService {
   }
 
   /**
+   * Gets the last activity timestamp for a connection
+   * @param connectionId - The ID of the connection to check
+   * @returns The last activity timestamp in milliseconds since the epoch, or undefined if the connection doesn't exist
+   */
+  public getLastActivityTimestamp(connectionId: string): number | undefined {
+    const sseConnection = this.activeSseConnections.get(connectionId);
+    if (sseConnection) {
+      return sseConnection.lastActivityTimestamp;
+    }
+
+    const stdioConnection = this.activeStdioConnections.get(connectionId);
+    if (stdioConnection) {
+      return stdioConnection.lastActivityTimestamp;
+    }
+
+    return undefined;
+  }
+
+  /**
    * Lists all available tools from an MCP server.
    * @param serverId - The ID of the connection to query.
    * @returns A promise that resolves to an array of tool definitions.
@@ -641,14 +890,22 @@ export class McpClientService {
         // Create URL for the MCP request
         const mcpRequestUrl = new URL(connection.baseUrl);
 
-        // Make the request
-        const response = await fetch(mcpRequestUrl.toString(), {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
+        // Update the connection's last activity timestamp
+        connection.lastActivityTimestamp = Date.now();
+
+        // Make the request with timeout
+        const response = await this.fetchWithTimeout(
+          mcpRequestUrl.toString(),
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(request),
           },
-          body: JSON.stringify(request),
-        });
+          McpClientService.DEFAULT_REQUEST_TIMEOUT_MS,
+          "Request timed out"
+        );
 
         if (!response.ok) {
           throw new McpError(
@@ -661,7 +918,8 @@ export class McpClientService {
 
         if (mcpResponse.error) {
           throw new SdkMcpError(
-            (mcpResponse.error.code as unknown as ErrorCode) || ErrorCode.InternalError,
+            (mcpResponse.error.code as unknown as ErrorCode) ||
+              ErrorCode.InternalError,
             `MCP error: ${mcpResponse.error.message}`,
             mcpResponse.error.data
           );
@@ -707,12 +965,42 @@ export class McpClientService {
         }
 
         // Store the promise resolution functions
-        this.pendingStdioRequests
-          .get(serverId)!
-          .set(requestId, {
-            resolve: resolve as unknown as (value: Record<string, unknown> | Array<unknown>) => void,
-            reject: reject as (reason: Error | McpError) => void,
-          });
+        this.pendingStdioRequests.get(serverId)!.set(requestId, {
+          resolve: resolve as unknown as (
+            value: Record<string, unknown> | Array<unknown>
+          ) => void,
+          reject: reject as (reason: Error | McpError) => void,
+        });
+
+        // Set up a timeout to automatically reject this request if it takes too long
+        setTimeout(() => {
+          // If the request is still pending, reject it
+          if (
+            this.pendingStdioRequests.has(serverId) &&
+            this.pendingStdioRequests.get(serverId)!.has(requestId)
+          ) {
+            // Get the reject function
+            const { reject: rejectRequest } = this.pendingStdioRequests
+              .get(serverId)!
+              .get(requestId)!;
+
+            // Delete the request
+            this.pendingStdioRequests.get(serverId)!.delete(requestId);
+
+            // If this was the last pending request, clean up the connection map
+            if (this.pendingStdioRequests.get(serverId)!.size === 0) {
+              this.pendingStdioRequests.delete(serverId);
+            }
+
+            // Reject the request with a timeout error
+            rejectRequest(
+              new SdkMcpError(
+                ErrorCode.InternalError,
+                "Request timed out waiting for response"
+              )
+            );
+          }
+        }, McpClientService.DEFAULT_REQUEST_TIMEOUT_MS);
 
         // Send the request
         const sent = this.sendToStdio(serverId, request);
@@ -798,14 +1086,22 @@ export class McpClientService {
         // Create URL for the MCP request
         const mcpRequestUrl = new URL(connection.baseUrl);
 
-        // Make the request
-        const response = await fetch(mcpRequestUrl.toString(), {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
+        // Update the connection's last activity timestamp
+        connection.lastActivityTimestamp = Date.now();
+
+        // Make the request with timeout
+        const response = await this.fetchWithTimeout(
+          mcpRequestUrl.toString(),
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(request),
           },
-          body: JSON.stringify(request),
-        });
+          McpClientService.DEFAULT_REQUEST_TIMEOUT_MS,
+          "Request timed out"
+        );
 
         if (!response.ok) {
           throw new McpError(
@@ -818,7 +1114,8 @@ export class McpClientService {
 
         if (mcpResponse.error) {
           throw new SdkMcpError(
-            (mcpResponse.error.code as unknown as ErrorCode) || ErrorCode.InternalError,
+            (mcpResponse.error.code as unknown as ErrorCode) ||
+              ErrorCode.InternalError,
             `MCP error: ${mcpResponse.error.message}`,
             mcpResponse.error.data
           );
@@ -871,12 +1168,42 @@ export class McpClientService {
         }
 
         // Store the promise resolution functions
-        this.pendingStdioRequests
-          .get(serverId)!
-          .set(requestId, {
-            resolve: resolve as unknown as (value: Record<string, unknown> | Array<unknown>) => void,
-            reject: reject as (reason: Error | McpError) => void,
-          });
+        this.pendingStdioRequests.get(serverId)!.set(requestId, {
+          resolve: resolve as unknown as (
+            value: Record<string, unknown> | Array<unknown>
+          ) => void,
+          reject: reject as (reason: Error | McpError) => void,
+        });
+
+        // Set up a timeout to automatically reject this request if it takes too long
+        setTimeout(() => {
+          // If the request is still pending, reject it
+          if (
+            this.pendingStdioRequests.has(serverId) &&
+            this.pendingStdioRequests.get(serverId)!.has(requestId)
+          ) {
+            // Get the reject function
+            const { reject: rejectRequest } = this.pendingStdioRequests
+              .get(serverId)!
+              .get(requestId)!;
+
+            // Delete the request
+            this.pendingStdioRequests.get(serverId)!.delete(requestId);
+
+            // If this was the last pending request, clean up the connection map
+            if (this.pendingStdioRequests.get(serverId)!.size === 0) {
+              this.pendingStdioRequests.delete(serverId);
+            }
+
+            // Reject the request with a timeout error
+            rejectRequest(
+              new SdkMcpError(
+                ErrorCode.InternalError,
+                "Request timed out waiting for response"
+              )
+            );
+          }
+        }, McpClientService.DEFAULT_REQUEST_TIMEOUT_MS);
 
         // Send the request
         const sent = this.sendToStdio(serverId, request);
@@ -957,6 +1284,12 @@ export class McpClientService {
 
     // Clear the pending requests map
     this.pendingStdioRequests.clear();
+
+    // Clear the cleanup interval
+    if (this.cleanupIntervalId) {
+      clearInterval(this.cleanupIntervalId);
+      this.cleanupIntervalId = undefined;
+    }
 
     logger.info("All MCP connections closed.");
   }

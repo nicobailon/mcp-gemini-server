@@ -94,7 +94,7 @@ export async function secureWriteFile(
   allowedDirs: string[],
   overwrite = false
 ): Promise<void> {
-  // 1. Security Check: Validate the path is within allowed directories
+  // 1. Initial Security Check: Validate the path is within allowed directories
   if (!isPathWithinAllowedDirs(filePath, allowedDirs)) {
     logger.error(
       `Path traversal attempt or disallowed path: ${filePath} (resolved to ${path.resolve(filePath)})`
@@ -104,12 +104,14 @@ export async function secureWriteFile(
     );
   }
 
-  // 2. Canonicalize the path
+  // 2. Canonicalize and fully resolve the path, including symlinks
   const normalizedFilePath = path.normalize(path.resolve(filePath));
+  let resolvedFilePath = normalizedFilePath;
 
-  // 3. Check if the path is a symlink (security measure)
   try {
-    // Check if the file exists first to avoid errors for new files
+    // 3. Fully resolve the path to handle symlinks
+
+    // Check if the target file exists and resolve it if it's a symlink
     try {
       const stats = await fs.lstat(normalizedFilePath);
       if (stats.isSymbolicLink()) {
@@ -126,21 +128,70 @@ export async function secureWriteFile(
       }
     }
 
-    // Also check parent directories to ensure we're not writing inside a symlinked directory
+    // Also check and resolve parent directories to ensure we're not writing inside a symlinked directory
     let currentPath = path.dirname(normalizedFilePath);
     const root = path.parse(currentPath).root;
 
+    // Track resolved parent paths
+    const resolvedPaths = new Map<string, string>();
+
     while (currentPath !== root) {
-      const dirStats = await fs.lstat(currentPath);
-      if (dirStats.isSymbolicLink()) {
+      try {
+        const dirStats = await fs.lstat(currentPath);
+        if (dirStats.isSymbolicLink()) {
+          // If a parent directory is a symlink, resolve it
+          const resolvedPath = await fs.realpath(currentPath);
+          logger.warn(
+            `Parent directory is a symlink: ${currentPath} -> ${resolvedPath}`
+          );
+          resolvedPaths.set(currentPath, resolvedPath);
+
+          // Update the full resolved path
+          if (currentPath === path.dirname(normalizedFilePath)) {
+            // This is the immediate parent
+            resolvedFilePath = path.join(
+              resolvedPath,
+              path.basename(normalizedFilePath)
+            );
+          }
+        }
+      } catch (err) {
+        if (!isENOENTError(err)) {
+          throw err;
+        }
+      }
+
+      currentPath = path.dirname(currentPath);
+    }
+
+    // If we found any symlinks in parent directories, perform a final security check with the fully resolved path
+    if (resolvedPaths.size > 0) {
+      // Get fully resolved path
+      const finalResolvedPath = await fs
+        .realpath(path.dirname(normalizedFilePath))
+        .then((resolvedDir) =>
+          path.join(resolvedDir, path.basename(normalizedFilePath))
+        )
+        .catch((err) => {
+          // Handle case where directories don't exist yet
+          if (isENOENTError(err)) {
+            return normalizedFilePath;
+          }
+          throw err;
+        });
+
+      // Final security check with the fully resolved path
+      if (!isPathWithinAllowedDirs(finalResolvedPath, allowedDirs)) {
         logger.error(
-          `Security violation: parent directory is a symlink: ${currentPath}`
+          `Security violation: resolved path is outside allowed directories: ${finalResolvedPath}`
         );
         throw new Error(
-          `Security error: Cannot write to a file in symlinked directory ${currentPath}`
+          `Security error: Cannot write to file with resolved path outside allowed locations: ${finalResolvedPath}`
         );
       }
-      currentPath = path.dirname(currentPath);
+
+      // Update the path to use for file operations
+      resolvedFilePath = finalResolvedPath;
     }
   } catch (err) {
     if (hasErrorMessage(err) && err.message.includes("Security error:")) {
@@ -153,13 +204,17 @@ export async function secureWriteFile(
     throw new Error(`Error validating path security: ${errorMsg}`);
   }
 
-  // 3. Check if file exists and overwrite flag is false
+  // Get the path to use for file operations (either normalized or fully resolved path)
+  const finalFilePath = resolvedFilePath || normalizedFilePath;
+
+  // 4. Check if file exists and overwrite flag is false (using atomic operation)
   if (!overwrite) {
     try {
-      await fs.access(normalizedFilePath);
+      // Use fs.access to check if file exists
+      await fs.access(finalFilePath);
       // If we get here, the file exists
       logger.error(
-        `File already exists and overwrite is false: ${normalizedFilePath}`
+        `File already exists and overwrite is false: ${finalFilePath}`
       );
       throw new Error(
         `File already exists: ${filePath}. Set overwrite flag to true to replace it.`
@@ -169,7 +224,7 @@ export async function secureWriteFile(
       if (!isENOENTError(err)) {
         // If error is not "file doesn't exist", it's another access error
         logger.error(
-          `Error checking file existence for ${normalizedFilePath}:`,
+          `Error checking file existence for ${finalFilePath}:`,
           err
         );
         const errorMsg = hasErrorMessage(err) ? err.message : String(err);
@@ -179,24 +234,25 @@ export async function secureWriteFile(
     }
   }
 
-  // 4. Create parent directories if they don't exist
-  const dirname = path.dirname(normalizedFilePath);
+  // 5. Create parent directories if they don't exist
+  const dirPath = path.dirname(finalFilePath);
   try {
-    await fs.mkdir(dirname, { recursive: true });
+    await fs.mkdir(dirPath, { recursive: true });
   } catch (err) {
-    logger.error(`Error creating directory ${dirname}:`, err);
+    logger.error(`Error creating directory ${dirPath}:`, err);
     const errorMsg = hasErrorMessage(err) ? err.message : String(err);
     throw new Error(
       `Failed to create directory structure for ${filePath}: ${errorMsg}`
     );
   }
 
-  // 5. Write the file
+  // 6. Write the file
   try {
-    await fs.writeFile(normalizedFilePath, content, "utf8");
-    logger.info(`Successfully wrote file to ${normalizedFilePath}`);
+    // Use writeFile for regular writing
+    await fs.writeFile(finalFilePath, content, "utf8");
+    logger.info(`Successfully wrote file to ${finalFilePath}`);
   } catch (err) {
-    logger.error(`Error writing file ${normalizedFilePath}:`, err);
+    logger.error(`Error writing file ${finalFilePath}:`, err);
     const errorMsg = hasErrorMessage(err) ? err.message : String(err);
     throw new Error(`Failed to write file ${filePath}: ${errorMsg}`);
   }

@@ -3,6 +3,34 @@ import * as path from "path";
 import { logger } from "./logger.js";
 
 /**
+ * Type guard to check if an error is an ENOENT (file not found) error
+ * @param err - The error to check
+ * @returns True if the error is an ENOENT error
+ */
+function isENOENTError(err: unknown): boolean {
+  return (
+    err !== null &&
+    typeof err === "object" &&
+    "code" in err &&
+    err.code === "ENOENT"
+  );
+}
+
+/**
+ * Type guard to check if an error has a message property
+ * @param err - The error to check
+ * @returns True if the error has a message property
+ */
+function hasErrorMessage(err: unknown): err is { message: string } {
+  return (
+    err !== null &&
+    typeof err === "object" &&
+    "message" in err &&
+    typeof err.message === "string"
+  );
+}
+
+/**
  * Checks if a given file path is within any of the allowed directories.
  *
  * @param filePath - The relative or absolute path to check.
@@ -90,10 +118,10 @@ export async function secureWriteFile(
         );
         throw new Error(`Security error: Cannot write to symlink ${filePath}`);
       }
-    } catch (err: any) {
+    } catch (err) {
       // If file doesn't exist (ENOENT), that's fine - we'll create it
       // Only continue throwing if it's not a "file not found" error
-      if (err.code !== "ENOENT") {
+      if (!isENOENTError(err)) {
         throw err;
       }
     }
@@ -114,14 +142,15 @@ export async function secureWriteFile(
       }
       currentPath = path.dirname(currentPath);
     }
-  } catch (err: any) {
-    if (err.message && err.message.includes("Security error:")) {
+  } catch (err) {
+    if (hasErrorMessage(err) && err.message.includes("Security error:")) {
       // Re-throw our custom security errors
       throw err;
     }
     // For other errors related to symlink checking, provide a clearer error message
-    logger.error(`Error checking for symlinks: ${err.message}`, err);
-    throw new Error(`Error validating path security: ${err.message}`);
+    const errorMsg = hasErrorMessage(err) ? err.message : String(err);
+    logger.error(`Error checking for symlinks: ${errorMsg}`, err);
+    throw new Error(`Error validating path security: ${errorMsg}`);
   }
 
   // 3. Check if file exists and overwrite flag is false
@@ -135,15 +164,16 @@ export async function secureWriteFile(
       throw new Error(
         `File already exists: ${filePath}. Set overwrite flag to true to replace it.`
       );
-    } catch (err: any) {
+    } catch (err) {
       // File doesn't exist or other access error - this is what we want for creating new files
-      if (err.code !== "ENOENT") {
+      if (!isENOENTError(err)) {
         // If error is not "file doesn't exist", it's another access error
         logger.error(
           `Error checking file existence for ${normalizedFilePath}:`,
           err
         );
-        throw new Error(`Error checking file access: ${err.message}`);
+        const errorMsg = hasErrorMessage(err) ? err.message : String(err);
+        throw new Error(`Error checking file access: ${errorMsg}`);
       }
       // If err.code === 'ENOENT', the file doesn't exist, which is fine for creating a new file
     }
@@ -153,10 +183,11 @@ export async function secureWriteFile(
   const dirname = path.dirname(normalizedFilePath);
   try {
     await fs.mkdir(dirname, { recursive: true });
-  } catch (err: any) {
+  } catch (err) {
     logger.error(`Error creating directory ${dirname}:`, err);
+    const errorMsg = hasErrorMessage(err) ? err.message : String(err);
     throw new Error(
-      `Failed to create directory structure for ${filePath}: ${err.message}`
+      `Failed to create directory structure for ${filePath}: ${errorMsg}`
     );
   }
 
@@ -164,8 +195,9 @@ export async function secureWriteFile(
   try {
     await fs.writeFile(normalizedFilePath, content, "utf8");
     logger.info(`Successfully wrote file to ${normalizedFilePath}`);
-  } catch (err: any) {
+  } catch (err) {
     logger.error(`Error writing file ${normalizedFilePath}:`, err);
-    throw new Error(`Failed to write file ${filePath}: ${err.message}`);
+    const errorMsg = hasErrorMessage(err) ? err.message : String(err);
+    throw new Error(`Failed to write file ${filePath}: ${errorMsg}`);
   }
 }

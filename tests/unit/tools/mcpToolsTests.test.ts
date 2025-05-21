@@ -5,14 +5,14 @@ import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 // Import the tools to be tested
 import { mcpConnectToServerTool } from "../../../src/tools/mcpConnectToServerTool.js";
 import { mcpListServerToolsTool } from "../../../src/tools/mcpListServerToolsTool.js";
-import { mcpCallServerToolTool } from "../../../src/tools/mcpCallServerToolTool.js";
+import { mcpCallServerTool } from "../../../src/tools/mcpCallServerTool.js";
 import { mcpDisconnectFromServerTool } from "../../../src/tools/mcpDisconnectFromServerTool.js";
 import { writeToFileTool } from "../../../src/tools/writeToFileTool.js";
 
 // Import relevant constants/types for testing
 import { TOOL_NAME as CONNECT_TOOL_NAME } from "../../../src/tools/mcpConnectToServerToolParams.js";
 import { TOOL_NAME as LIST_TOOLS_TOOL_NAME } from "../../../src/tools/mcpListServerToolsToolParams.js";
-import { TOOL_NAME as CALL_TOOL_TOOL_NAME } from "../../../src/tools/mcpCallServerToolToolParams.js";
+import { TOOL_NAME as CALL_TOOL_TOOL_NAME } from "../../../src/tools/mcpCallServerToolParams.js";
 import { TOOL_NAME as DISCONNECT_TOOL_NAME } from "../../../src/tools/mcpDisconnectFromServerToolParams.js";
 import { TOOL_NAME as WRITE_FILE_TOOL_NAME } from "../../../src/tools/writeToFileToolParams.js";
 
@@ -357,10 +357,10 @@ describe("MCP Client Tools Unit Tests", () => {
     });
   });
   
-  describe("mcpCallServerToolTool", () => {
+  describe("mcpCallServerTool", () => {
     it("should register the tool with the MCP server", () => {
       // Register the tool
-      mcpCallServerToolTool(mockMcpServer, mockMcpClientService);
+      mcpCallServerTool(mockMcpServer, mockMcpClientService);
       
       // Verify registration
       assert.strictEqual(mockMcpServer.tool.mock.callCount(), 1);
@@ -373,7 +373,7 @@ describe("MCP Client Tools Unit Tests", () => {
     
     it("should call a tool on a remote server", async () => {
       // Register the tool
-      mcpCallServerToolTool(mockMcpServer, mockMcpClientService);
+      mcpCallServerTool(mockMcpServer, mockMcpClientService);
       
       // Capture the processor function
       const processor = captureProcessorFunction(mockMcpServer);
@@ -407,7 +407,7 @@ describe("MCP Client Tools Unit Tests", () => {
     
     it("should write output to file when outputFilePath is provided", async () => {
       // Register the tool
-      mcpCallServerToolTool(mockMcpServer, mockMcpClientService);
+      mcpCallServerTool(mockMcpServer, mockMcpClientService);
       
       // Capture the processor function
       const processor = captureProcessorFunction(mockMcpServer);
@@ -450,7 +450,7 @@ describe("MCP Client Tools Unit Tests", () => {
     
     it("should throw error when no allowed output paths are configured", async () => {
       // Register the tool
-      mcpCallServerToolTool(mockMcpServer, mockMcpClientService);
+      mcpCallServerTool(mockMcpServer, mockMcpClientService);
       
       // Capture the processor function
       const processor = captureProcessorFunction(mockMcpServer);
@@ -480,7 +480,7 @@ describe("MCP Client Tools Unit Tests", () => {
     
     it("should handle secureWriteFile errors", async () => {
       // Register the tool
-      mcpCallServerToolTool(mockMcpServer, mockMcpClientService);
+      mcpCallServerTool(mockMcpServer, mockMcpClientService);
       
       // Capture the processor function
       const processor = captureProcessorFunction(mockMcpServer);
@@ -512,7 +512,7 @@ describe("MCP Client Tools Unit Tests", () => {
     
     it("should handle non-existent connection", async () => {
       // Register the tool
-      mcpCallServerToolTool(mockMcpServer, mockMcpClientService);
+      mcpCallServerTool(mockMcpServer, mockMcpClientService);
       
       // Capture the processor function
       const processor = captureProcessorFunction(mockMcpServer);

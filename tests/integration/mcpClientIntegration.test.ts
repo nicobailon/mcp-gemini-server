@@ -11,7 +11,7 @@ import { McpClientService } from '../../src/services/mcp/McpClientService.js';
 // Import tool processors for direct invocation
 import { mcpConnectToServerTool } from '../../src/tools/mcpConnectToServerTool.js';
 import { mcpListServerToolsTool } from '../../src/tools/mcpListServerToolsTool.js';
-import { mcpCallServerToolTool } from '../../src/tools/mcpCallServerToolTool.js';
+import { mcpCallServerTool } from '../../src/tools/mcpCallServerTool.js';
 import { mcpDisconnectFromServerTool } from '../../src/tools/mcpDisconnectFromServerTool.js';
 import { writeToFileTool } from '../../src/tools/writeToFileTool.js';
 
@@ -200,7 +200,7 @@ describe('MCP Client Integration Tests', () => {
     processors = {
       connect: captureToolProcessor(mcpConnectToServerTool, mcpClientService),
       listTools: captureToolProcessor(mcpListServerToolsTool, mcpClientService),
-      callServerTool: captureToolProcessor(mcpCallServerToolTool, mcpClientService),
+      callServerTool: captureToolProcessor(mcpCallServerTool, mcpClientService),
       disconnect: captureToolProcessor(mcpDisconnectFromServerTool, mcpClientService),
       writeToFile: captureToolProcessor(writeToFileTool, mcpClientService),
     };

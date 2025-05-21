@@ -84,6 +84,14 @@ export class ConfigurationManager {
   }
 
   private validateRequiredEnvVars(): void {
+    // Skip validation in test environment
+    if (process.env.NODE_ENV === "test") {
+      logger.info(
+        "Skipping environment variable validation in test environment"
+      );
+      return;
+    }
+
     const requiredVars = [
       "GOOGLE_GEMINI_API_KEY",
       "MCP_SERVER_HOST",

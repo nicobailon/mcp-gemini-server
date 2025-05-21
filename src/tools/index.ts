@@ -38,7 +38,7 @@ import { geminiGitHubPRReviewTool } from "./geminiGitHubPRReviewTool.js";
 import { mcpConnectToServerTool } from "./mcpConnectToServerTool.js";
 import { mcpDisconnectFromServerTool } from "./mcpDisconnectFromServerTool.js";
 import { mcpListServerToolsTool } from "./mcpListServerToolsTool.js";
-import { mcpCallServerToolTool } from "./mcpCallServerToolTool.js";
+import { mcpCallServerTool } from "./mcpCallServerTool.js";
 // Import file utils tool
 import { writeToFileTool } from "./writeToFileTool.js";
 
@@ -170,7 +170,7 @@ export function registerTools(server: McpServer): McpClientService {
     mcpConnectToServerTool(server, mcpClientService);
     mcpDisconnectFromServerTool(server, mcpClientService);
     mcpListServerToolsTool(server, mcpClientService);
-    mcpCallServerToolTool(server, mcpClientService);
+    mcpCallServerTool(server, mcpClientService);
 
     // Register file utility tools (these don't need mcpClientService)
     registerTool(writeToFileTool, server);

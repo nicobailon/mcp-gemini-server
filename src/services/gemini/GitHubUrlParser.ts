@@ -8,35 +8,35 @@ export class GitHubUrlParser {
    * Example: https://github.com/nicobailon/mcp-gemini-server
    */
   private static repoUrlPattern =
-    /^https?:\/\/github\.com\/([^\/]+)\/([^\/]+)\/?$/;
+    /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/?$/;
 
   /**
    * Branch URL format
    * Example: https://github.com/nicobailon/mcp-gemini-server/tree/feature/add-reasoning-effort-option
    */
   private static branchUrlPattern =
-    /^https?:\/\/github\.com\/([^\/]+)\/([^\/]+)\/tree\/([^\/]+(?:\/[^\/]+)*)\/?$/;
+    /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+(?:\/[^/]+)*)\/?$/;
 
   /**
    * Pull request URL format
    * Example: https://github.com/nicobailon/mcp-gemini-server/pull/2
    */
   private static prUrlPattern =
-    /^https?:\/\/github\.com\/([^\/]+)\/([^\/]+)\/pull\/(\d+)\/?$/;
+    /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/;
 
   /**
    * Pull request files URL format
    * Example: https://github.com/nicobailon/mcp-gemini-server/pull/2/files
    */
   private static prFilesUrlPattern =
-    /^https?:\/\/github\.com\/([^\/]+)\/([^\/]+)\/pull\/(\d+)\/files\/?$/;
+    /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)\/files\/?$/;
 
   /**
    * Issue URL format
    * Example: https://github.com/nicobailon/mcp-gemini-server/issues/5
    */
   private static issueUrlPattern =
-    /^https?:\/\/github\.com\/([^\/]+)\/([^\/]+)\/issues\/(\d+)\/?$/;
+    /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)\/?$/;
 
   /**
    * Parse a GitHub URL to extract repository, branch, PR, or issue information

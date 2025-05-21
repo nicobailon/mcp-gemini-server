@@ -1,5 +1,3 @@
-/// <reference path="../types/modelcontextprotocol-sdk.d.ts" />
-
 import { Request, Response } from "express";
 import { Tool } from "@modelcontextprotocol/sdk";
 import { logger } from "../utils/logger.js";

@@ -1,14 +1,24 @@
-﻿// Import config types for services as they are added
-import { ExampleServiceConfig, GeminiServiceConfig } from "../types/index.js"; // Import GeminiServiceConfig
+// Import config types for services as they are added
+import * as path from "path";
+import { ExampleServiceConfig, GeminiServiceConfig } from "../types/index.js";
+import { FileSecurityService } from "../utils/FileSecurityService.js";
 import { logger } from "../utils/logger.js";
-import { configureFilePathSecurity } from "../utils/filePathSecurity.js";
+
 // Define the structure for all configurations managed
-// Note: GeminiServiceConfig itself now has an optional defaultModel
 interface ManagedConfigs {
   exampleService: Required<ExampleServiceConfig>;
-  geminiService: GeminiServiceConfig; // Use the interface directly, not Required<>
+  geminiService: GeminiServiceConfig;
   github: {
     apiToken: string;
+  };
+  allowedOutputPaths: string[];
+  mcpConfig: {
+    host: string;
+    port: number;
+    connectionToken: string;
+    clientId: string;
+    logLevel?: "debug" | "info" | "warn" | "error";
+    transport?: "stdio" | "sse";
   };
   // Add other service config types here:
   // yourService: Required<YourServiceConfig>;
@@ -48,6 +58,17 @@ export class ConfigurationManager {
         // Default GitHub API token is empty; will be loaded from environment variable
         apiToken: "",
       },
+      allowedOutputPaths: [],
+      mcpConfig: {
+        // Initialize MCP config
+        host: "localhost",
+        port: 8080,
+        connectionToken: "", // Must be set via env
+        clientId: "gemini-sdk-client-default", // Must be set via env
+        logLevel: "info",
+        transport: "stdio",
+      },
+
       // Initialize other service configs with defaults:
       // yourService: {
       //   someSetting: 'default value',
@@ -58,12 +79,29 @@ export class ConfigurationManager {
     this.validateRequiredEnvVars();
     this.loadEnvironmentOverrides();
 
-    // Configure file path security
-    configureFilePathSecurity();
+    // Initialize and validate FileSecurityService configuration from environment
+    // This performs an initial validation of the configured file security paths
+    // but doesn't store an instance - services will create their own instances as needed.
+    // This call is primarily for early validation and logging of path configurations.
+    FileSecurityService.configureFromEnvironment();
   }
 
   private validateRequiredEnvVars(): void {
-    const requiredVars = ["GOOGLE_GEMINI_API_KEY"];
+    // Skip validation in test environment
+    if (process.env.NODE_ENV === "test") {
+      logger.info(
+        "Skipping environment variable validation in test environment"
+      );
+      return;
+    }
+
+    const requiredVars = [
+      "GOOGLE_GEMINI_API_KEY",
+      "MCP_SERVER_HOST",
+      "MCP_SERVER_PORT",
+      "MCP_CONNECTION_TOKEN",
+      "MCP_CLIENT_ID",
+    ];
     const missingVars = requiredVars.filter((varName) => !process.env[varName]);
 
     if (missingVars.length > 0) {
@@ -112,10 +150,19 @@ export class ConfigurationManager {
     return { ...this.config.exampleService };
   }
 
-  // Return type changed from Required<GeminiServiceConfig> to GeminiServiceConfig
   public getGeminiServiceConfig(): GeminiServiceConfig {
     // Return a copy to prevent accidental modification
     return { ...this.config.geminiService };
+  }
+
+  // Getter for MCP Configuration
+  public getMcpConfig(): Required<ManagedConfigs["mcpConfig"]> {
+    // Return a copy to ensure type safety and prevent modification
+    // Cast to Required because we validate essential fields are set from env vars.
+    // Optional fields will have their defaults.
+    return { ...this.config.mcpConfig } as Required<
+      ManagedConfigs["mcpConfig"]
+    >;
   }
 
   // Getter specifically for the default model name
@@ -137,6 +184,15 @@ export class ConfigurationManager {
    */
   public getGitHubApiToken(): string | undefined {
     return this.config.github.apiToken || undefined;
+  }
+
+  /**
+   * Returns the list of allowed output paths for file writing
+   * @returns A copy of the configured allowed output paths array
+   */
+  public getAllowedOutputPaths(): string[] {
+    // Return a copy to prevent accidental modification
+    return [...this.config.allowedOutputPaths];
   }
 
   // Add getters for other service configs:
@@ -275,7 +331,7 @@ export class ConfigurationManager {
         }
       } catch (error) {
         logger.warn(
-          `[ConfigurationManager] Invalid image formats specified in GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS. Using default.`
+          `[ConfigurationManager] Invalid image formats specified in GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS: '${process.env.GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS}'. Using default.`
         );
       }
     }
@@ -296,6 +352,82 @@ export class ConfigurationManager {
           `[ConfigurationManager] Invalid thinking budget '${process.env.GOOGLE_GEMINI_DEFAULT_THINKING_BUDGET}' specified. Must be between 0 and 24576. Not using default thinking budget.`
         );
       }
+    }
+
+    // Load MCP Configuration
+    if (process.env.MCP_SERVER_HOST) {
+      this.config.mcpConfig.host = process.env.MCP_SERVER_HOST;
+    }
+    if (process.env.MCP_SERVER_PORT) {
+      const port = parseInt(process.env.MCP_SERVER_PORT, 10);
+      if (!isNaN(port) && port > 0 && port < 65536) {
+        this.config.mcpConfig.port = port;
+      } else {
+        logger.warn(
+          `[ConfigurationManager] Invalid MCP_SERVER_PORT: '${process.env.MCP_SERVER_PORT}'. Using default ${this.config.mcpConfig.port}.`
+        );
+      }
+    }
+    if (process.env.MCP_CONNECTION_TOKEN) {
+      this.config.mcpConfig.connectionToken = process.env.MCP_CONNECTION_TOKEN;
+    }
+    if (process.env.MCP_CLIENT_ID) {
+      this.config.mcpConfig.clientId = process.env.MCP_CLIENT_ID;
+    }
+    if (process.env.MCP_LOG_LEVEL) {
+      const logLevel = process.env.MCP_LOG_LEVEL.toLowerCase();
+      if (["debug", "info", "warn", "error"].includes(logLevel)) {
+        this.config.mcpConfig.logLevel = logLevel as
+          | "debug"
+          | "info"
+          | "warn"
+          | "error";
+      } else {
+        logger.warn(
+          `[ConfigurationManager] Invalid MCP_LOG_LEVEL: '${process.env.MCP_LOG_LEVEL}'. Using default '${this.config.mcpConfig.logLevel}'.`
+        );
+      }
+    }
+    if (process.env.MCP_TRANSPORT) {
+      const transport = process.env.MCP_TRANSPORT.toLowerCase();
+      if (["stdio", "sse"].includes(transport)) {
+        this.config.mcpConfig.transport = transport as "stdio" | "sse";
+      } else {
+        logger.warn(
+          `[ConfigurationManager] Invalid MCP_TRANSPORT: '${process.env.MCP_TRANSPORT}'. Using default '${this.config.mcpConfig.transport}'.`
+        );
+      }
+    }
+    logger.info("[ConfigurationManager] MCP configuration loaded.");
+
+    // Load allowed output paths if provided
+    // Initialize to an empty array to ensure it's always string[]
+    this.config.allowedOutputPaths = [];
+    const allowedOutputPathsEnv = process.env.ALLOWED_OUTPUT_PATHS;
+
+    if (allowedOutputPathsEnv && allowedOutputPathsEnv.trim().length > 0) {
+      const pathsArray = allowedOutputPathsEnv
+        .split(",")
+        .map((p) => p.trim()) // Trim whitespace from each path
+        .filter((p) => p.length > 0); // Filter out any empty strings resulting from split
+
+      if (pathsArray.length > 0) {
+        this.config.allowedOutputPaths = pathsArray.map((p) => path.resolve(p)); // Resolve to absolute paths
+        logger.info(
+          `[ConfigurationManager] Allowed output paths configured: ${this.config.allowedOutputPaths.join(
+            ", "
+          )}`
+        );
+      } else {
+        // This case handles if ALLOWED_OUTPUT_PATHS was something like ",," or " , "
+        logger.warn(
+          "[ConfigurationManager] ALLOWED_OUTPUT_PATHS environment variable was provided but contained no valid paths after trimming. File writing might be restricted."
+        );
+      }
+    } else {
+      logger.warn(
+        "[ConfigurationManager] ALLOWED_OUTPUT_PATHS environment variable not set or is empty. File writing might be restricted or disabled."
+      );
     }
   }
 }

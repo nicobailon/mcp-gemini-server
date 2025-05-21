@@ -1,10 +1,10 @@
-import { Request, Response } from 'express';
-import { ParamsDictionary } from 'express-serve-static-core';
-import { ParsedQs } from 'qs';
+import { Request, Response } from "express";
+import { ParamsDictionary } from "express-serve-static-core";
+import { ParsedQs } from "qs";
 
 /**
  * Creates a mock Express Request object for testing
- * 
+ *
  * @param options Object containing request properties to mock
  * @returns A mock Express Request object
  */
@@ -12,23 +12,25 @@ export function createMockRequest<
   P = ParamsDictionary,
   ResBody = any,
   ReqBody = any,
-  ReqQuery = ParsedQs
->(options: Partial<Request<P, ResBody, ReqBody, ReqQuery>> = {}): Request<P, ResBody, ReqBody, ReqQuery> {
+  ReqQuery = ParsedQs,
+>(
+  options: Partial<Request<P, ResBody, ReqBody, ReqQuery>> = {}
+): Request<P, ResBody, ReqBody, ReqQuery> {
   // Create a base mock request with common methods and properties
   const mockRequest = {
     app: {},
-    baseUrl: '',
+    baseUrl: "",
     body: {},
     cookies: {},
     fresh: false,
-    hostname: 'localhost',
-    ip: '127.0.0.1',
+    hostname: "localhost",
+    ip: "127.0.0.1",
     ips: [],
-    method: 'GET',
-    originalUrl: '',
+    method: "GET",
+    originalUrl: "",
     params: {},
-    path: '/',
-    protocol: 'http',
+    path: "/",
+    protocol: "http",
     query: {},
     route: {},
     secure: false,
@@ -40,11 +42,11 @@ export function createMockRequest<
     acceptsCharsets: () => [],
     acceptsEncodings: () => [],
     acceptsLanguages: () => [],
-    get: () => '',
-    header: () => '',
+    get: () => "",
+    header: () => "",
     is: () => false,
     range: () => [],
-    ...options
+    ...options,
   } as Request<P, ResBody, ReqBody, ReqQuery>;
 
   return mockRequest;
@@ -52,11 +54,13 @@ export function createMockRequest<
 
 /**
  * Creates a mock Express Response object for testing
- * 
+ *
  * @param options Object containing response properties to mock
  * @returns A mock Express Response object
  */
-export function createMockResponse<ResBody = any>(options: Partial<Response<ResBody>> = {}): Response<ResBody> {
+export function createMockResponse<ResBody = any>(
+  options: Partial<Response<ResBody>> = {}
+): Response<ResBody> {
   // Create response behaviors
   let statusCode = 200;
   let responseData: any = {};
@@ -70,52 +74,55 @@ export function createMockResponse<ResBody = any>(options: Partial<Response<ResB
     locals: {},
     statusCode,
     // Response chainable methods
-    status: function(code: number): Response<ResBody> {
+    status: function (code: number): Response<ResBody> {
       statusCode = code;
       return this as Response<ResBody>;
     },
-    sendStatus: function(code: number): Response<ResBody> {
+    sendStatus: function (code: number): Response<ResBody> {
       statusCode = code;
       return this as Response<ResBody>;
     },
-    json: function(data: any): Response<ResBody> {
+    json: function (data: any): Response<ResBody> {
       responseData = data;
       return this as Response<ResBody>;
     },
-    send: function(data: any): Response<ResBody> {
+    send: function (data: any): Response<ResBody> {
       responseData = data;
       return this as Response<ResBody>;
     },
-    end: function(data?: any): Response<ResBody> {
+    end: function (data?: any): Response<ResBody> {
       if (data) responseData = data;
       endCalled = true;
       return this as Response<ResBody>;
     },
-    set: function(field: string | Record<string, string>, value?: string): Response<ResBody> {
-      if (typeof field === 'string') {
+    set: function (
+      field: string | Record<string, string>,
+      value?: string
+    ): Response<ResBody> {
+      if (typeof field === "string") {
         responseHeaders[field] = value as string;
       } else {
         responseHeaders = { ...responseHeaders, ...field };
       }
       return this as Response<ResBody>;
     },
-    get: function(field: string): string | undefined {
+    get: function (field: string): string | undefined {
       return responseHeaders[field];
     },
     // Testing helpers
-    _getStatus: function() {
+    _getStatus: function () {
       return statusCode;
     },
-    _getData: function() {
+    _getData: function () {
       return responseData;
     },
-    _getHeaders: function() {
+    _getHeaders: function () {
       return responseHeaders;
     },
-    _isEnded: function() {
+    _isEnded: function () {
       return endCalled;
     },
-    ...options
+    ...options,
   } as Response<ResBody>;
 
   return mockResponse;

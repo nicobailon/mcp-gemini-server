@@ -12,14 +12,24 @@ export interface ServerState {
   } | null;
   server: any; // Could be more specific if server types are known
   healthCheckServer: http.Server | null;
+  mcpClientService: any | null; // Add McpClientService to server state
 }
+
+// Make mcpClientService optional for tests
+export type TestServerState = Omit<ServerState, "mcpClientService"> & {
+  mcpClientService?: any | null;
+};
 
 // Reference to the server state from server.ts
 // This will be set from server.ts
 let serverStateRef: ServerState | null = null;
 
-export const setServerState = (state: ServerState) => {
-  serverStateRef = state;
+export const setServerState = (state: ServerState | TestServerState) => {
+  // For tests with TestServerState, add mcpClientService if not provided
+  if (!("mcpClientService" in state)) {
+    (state as ServerState).mcpClientService = null;
+  }
+  serverStateRef = state as ServerState;
 };
 
 export const getHealthStatus = () => {
@@ -61,8 +71,8 @@ export const startHealthCheckServer = () => {
     }
   });
 
-  server.on('error', (error: NodeJS.ErrnoException) => {
-    if (error.code === 'EADDRINUSE') {
+  server.on("error", (error: NodeJS.ErrnoException) => {
+    if (error.code === "EADDRINUSE") {
       logger.error(`Health check server port ${port} is already in use`);
     } else {
       logger.error(`Health check server error: ${error.message}`);

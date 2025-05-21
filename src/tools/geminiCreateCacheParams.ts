@@ -11,7 +11,7 @@ Returns metadata about the created cache.
 `;
 
 // Import required schemas
-import { ToolSchema, toolConfigSchema } from "./geminiGenericParamSchemas.js";
+import { ToolSchema, ToolConfigSchema } from "./schemas/ToolSchemas.js";
 
 // Define an object containing individual Zod schemas for each parameter
 export const CreateCacheParamsObject = {
@@ -56,9 +56,9 @@ export const CreateCacheParamsObject = {
     .describe(
       "Optional. A list of tools (e.g., function declarations) to associate with the cache."
     ),
-  toolConfig: toolConfigSchema
-    .optional()
-    .describe("Optional. Configuration for tools associated with the cache."),
+  toolConfig: ToolConfigSchema.optional().describe(
+    "Optional. Configuration for tools associated with the cache."
+  ),
   // expireTime is usually set via TTL by the API, not directly by user typically.
 };
 

@@ -81,7 +81,7 @@ declare module "micromatch" {
     makeRe(pattern: string, options?: MicromatchOptions): RegExp;
     scan(str: string, options?: MicromatchOptions): string[];
     parse(str: string, options?: MicromatchOptions): object;
-    compile(str: string, options?: MicromatchOptions): Function;
+    compile(str: string, options?: MicromatchOptions): (str: string) => boolean;
     create(str: string, options?: MicromatchOptions): object;
   }
 

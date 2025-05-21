@@ -1,5 +1,23 @@
 # MCP Gemini Server
 
+## Table of Contents
+- [Overview](#overview)
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Installation & Setup](#installation--setup)
+- [Configuration](#configuration)
+- [Available Tools](#available-tools)
+- [Usage Examples](#usage-examples)
+- [MCP Gemini Server and Gemini SDK's MCP Function Calling](#mcp-gemini-server-and-gemini-sdks-mcp-function-calling)
+- [Environment Variables](#environment-variables)
+- [Security Considerations](#security-considerations)
+- [Error Handling](#error-handling)
+- [Development and Testing](#development-and-testing)
+- [Contributing](#contributing)
+- [Code Review Tools](#code-review-tools)
+- [Server Features](#server-features)
+- [Known Issues](#known-issues)
+
 ## Overview
 
 This project provides a dedicated MCP (Model Context Protocol) server that wraps the `@google/genai` SDK (v0.10.0). It exposes Google's Gemini model capabilities as standard MCP tools, allowing other LLMs (like Claude) or MCP-compatible systems to leverage Gemini's features as a backend workhorse.
@@ -18,6 +36,12 @@ This server aims to simplify integration with Gemini models by providing a consi
 * **Object Detection:** Detect objects in images and return bounding box coordinates (`gemini_objectDetection`) with custom prompt additions and output format options.
 * **Visual Content Understanding:** Extract information from charts, diagrams, and other visual content (`gemini_contentUnderstanding`) with structured output options.
 * **Audio Transcription:** Transcribe audio files with optional timestamps and multilingual support (`gemini_audioTranscription`) for both small and large files.
+* **MCP Client:** Connect to and interact with external MCP servers.
+  * `mcpConnectToServer`: Establishes a connection to an external MCP server.
+  * `mcpListServerTools`: Lists available tools on a connected MCP server.
+  * `mcpCallServerTool`: Calls a function on a connected MCP server, with an option for file output.
+  * `mcpDisconnectFromServer`: Disconnects from an external MCP server.
+  * `writeToFile`: Writes content directly to files within allowed directories.
 
 
 ## Prerequisites
@@ -55,7 +79,8 @@ This server aims to simplify integration with Gemini models by providing a consi
           "env": {
             "GOOGLE_GEMINI_API_KEY": "YOUR_API_KEY",
             "GOOGLE_GEMINI_MODEL": "gemini-1.5-flash", // Optional: Set a default model
-            "GEMINI_SAFE_FILE_BASE_DIR": "/path/to/allowed/files" // Optional: Restrict file operations
+            "GEMINI_SAFE_FILE_BASE_DIR": "/var/opt/mcp-gemini-server/gemini_files", // Optional: Restrict file operations
+            "ALLOWED_OUTPUT_PATHS": "/var/opt/mcp-gemini-server/outputs,/tmp/mcp-gemini-outputs" // Optional: Comma-separated list of allowed output directories for mcpCallServerTool and writeToFileTool
           },
           "disabled": false,
           "autoApprove": []
@@ -73,6 +98,7 @@ The server uses environment variables for configuration, passed via the `env` ob
 
 * `GOOGLE_GEMINI_API_KEY` (**Required**): Your API key obtained from Google AI Studio.
 * `GOOGLE_GEMINI_MODEL` (*Optional*): Specifies a default Gemini model name (e.g., `gemini-1.5-flash`, `gemini-1.0-pro`). If set, tools that require a model name (like `gemini_generateContent`, `gemini_startChat`, etc.) will use this default when the `modelName` parameter is omitted in the tool call. This simplifies client calls when primarily using one model. If this environment variable is *not* set, the `modelName` parameter becomes required for those tools. See the [Google AI documentation](https://ai.google.dev/models/gemini) for available model names.
+* `ALLOWED_OUTPUT_PATHS` (*Optional*): A comma-separated list of absolute paths to directories where the `mcpCallServerTool` (with `outputToFile` parameter) and `writeToFileTool` are allowed to write files. If not set, file output will be disabled for these tools. This is a security measure to prevent arbitrary file writes.
 
 ## Available Tools
 
@@ -283,6 +309,42 @@ This server provides the following MCP tools. Parameter schemas are defined usin
     * Files over 20MB require a Google AI Studio API key and use the File API
     * The actual upper file size limit when using File API is determined by the Gemini API itself
     * Transcription quality may vary based on audio quality, background noise, and number of speakers
+
+### MCP Client Tools
+
+* **`mcpConnectToServer`**
+  * *Description:* Establishes a connection to an external MCP server and returns a connection ID.
+  * *Required Params:*
+    * `serverId` (string): A unique identifier for this server connection.
+    * `connectionType` (string enum: "sse" | "stdio"): The transport protocol to use.
+    * `sseUrl` (string, optional if `connectionType` is "stdio"): The URL for SSE connection.
+    * `stdioCommand` (string, optional if `connectionType` is "sse"): The command to run for stdio connection.
+    * `stdioArgs` (array of strings, optional): Arguments for the stdio command.
+    * `stdioEnv` (object, optional): Environment variables for the stdio command.
+  * *Important:* This tool returns a `connectionId` that must be used in subsequent calls to `mcpListServerTools`, `mcpCallServerTool`, and `mcpDisconnectFromServer`. This `connectionId` is generated internally and is different from the `serverId` parameter.
+* **`mcpListServerTools`**
+  * *Description:* Lists available tools on a connected MCP server.
+  * *Required Params:*
+    * `connectionId` (string): The connection identifier returned by `mcpConnectToServer`.
+* **`mcpCallServerTool`**
+  * *Description:* Calls a function on a connected MCP server.
+  * *Required Params:*
+    * `connectionId` (string): The connection identifier returned by `mcpConnectToServer`.
+    * `toolName` (string): The name of the tool to call on the remote server.
+    * `toolArgs` (object): The arguments to pass to the remote tool.
+  * *Optional Params:*
+    * `outputToFile` (string): If provided, the tool's output will be written to this file path. The path must be within one of the directories specified in the `ALLOWED_OUTPUT_PATHS` environment variable.
+* **`mcpDisconnectFromServer`**
+  * *Description:* Disconnects from an external MCP server.
+  * *Required Params:*
+    * `connectionId` (string): The connection identifier returned by `mcpConnectToServer`.
+* **`writeToFile`**
+  * *Description:* Writes content directly to a file.
+  * *Required Params:*
+    * `filePath` (string): The absolute path of the file to write to. Must be within one of the directories specified in the `ALLOWED_OUTPUT_PATHS` environment variable.
+    * `content` (string): The content to write to the file.
+  * *Optional Params:*
+    * `overwrite` (boolean, default: false): If true, overwrite the file if it already exists. Otherwise, an error will be thrown if the file exists.
 
 ## Usage Examples
 
@@ -628,6 +690,95 @@ The response will be a JSON string containing both the text response and which m
 }
 ```
 
+**Example 8: Connecting to an External MCP Server (SSE)**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>mcpConnectToServer</tool_name>
+  <arguments>
+    {
+      "serverId": "my-external-server",
+      "connectionType": "sse",
+      "sseUrl": "http://localhost:8080/mcp"
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+*(Assume response contains a unique connection ID like: `connectionId: "12345-abcde-67890"`)*
+
+**Example 9: Calling a Tool on an External MCP Server and Writing Output to File**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>mcpCallServerTool</tool_name>
+  <arguments>
+    {
+      "connectionId": "12345-abcde-67890", // Use the connectionId returned by mcpConnectToServer
+      "toolName": "remote_tool_name",
+      "toolArgs": { "param1": "value1" },
+      "outputToFile": "/var/opt/mcp-gemini-server/outputs/result.json"
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Important: The `connectionId` used in MCP client tools must be the connection identifier returned by `mcpConnectToServer`, not the original `serverId` parameter.**
+
+**Note:** The `outputToFile` path must be within one of the directories specified in the `ALLOWED_OUTPUT_PATHS` environment variable. For example, if `ALLOWED_OUTPUT_PATHS="/path/to/allowed/output,/another/allowed/path"`, then the file path must be a subdirectory of one of these paths.
+
+**Example 10: Writing Content Directly to a File**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>writeToFile</tool_name>
+  <arguments>
+    {
+      "filePath": "/path/to/allowed/output/my_notes.txt",
+      "content": "This is some important content.",
+      "overwrite": true
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Note:** Like with `mcpCallServerTool`, the `filePath` must be within one of the directories specified in the `ALLOWED_OUTPUT_PATHS` environment variable. This is a critical security feature to prevent unauthorized file writes.
+
+## `mcp-gemini-server` and Gemini SDK's MCP Function Calling
+
+The official Google Gemini API documentation includes examples (such as for [function calling with MCP structure](https://ai.google.dev/gemini-api/docs/function-calling?example=weather#model_context_protocol_mcp)) that demonstrate how you can use the client-side Gemini SDK (e.g., in Python or Node.js) to interact with the Gemini API. In such scenarios, particularly for function calling, the client SDK itself can be used to structure requests and handle responses in a manner that aligns with MCP principles.
+
+The `mcp-gemini-server` project offers a complementary approach by providing a **fully implemented, standalone MCP server**. Instead of your client application directly using the Gemini SDK to format MCP-style messages for the Gemini API, your client application (which could be another LLM like Claude, a custom script, or any MCP-compatible system) would:
+
+1.  Connect to an instance of this `mcp-gemini-server`.
+2.  Call the pre-defined MCP tools exposed by this server, such as `gemini_functionCall`, `gemini_generateContent`, etc.
+
+This `mcp-gemini-server` then internally handles all the necessary interactions with the Google Gemini API, including structuring the requests, managing API keys, and processing responses, abstracting these details away from your MCP client.
+
+### Benefits of using `mcp-gemini-server`:
+
+*   **Abstraction & Simplicity:** Client applications don't need to integrate the Gemini SDK directly or manage the specifics of its API for MCP-style interactions. They simply make standard MCP tool calls.
+*   **Centralized Configuration:** API keys, default model choices, safety settings, and other configurations are managed centrally within the `mcp-gemini-server`.
+*   **Rich Toolset:** Provides a broad set of pre-defined MCP tools for various Gemini features (text generation, chat, file handling, image generation, etc.), not just function calling.
+*   **Interoperability:** Enables any MCP-compatible client to leverage Gemini's capabilities without needing native Gemini SDK support.
+
+### When to Choose Which Approach:
+
+*   **Direct SDK Usage (as in Google's MCP examples):**
+    *   Suitable if you are building a client application (e.g., in Python or Node.js) and want fine-grained control over the Gemini API interaction directly within that client.
+    *   Useful if you prefer to manage the Gemini SDK dependencies and logic within your client application and are primarily focused on function calling structured in an MCP-like way.
+*   **Using `mcp-gemini-server`:**
+    *   Ideal if you want to expose Gemini capabilities to an existing MCP-compatible ecosystem (e.g., another LLM, a workflow automation system).
+    *   Beneficial if you want to rapidly prototype or deploy Gemini features as tools without extensive client-side SDK integration.
+    *   Preferable if you need a wider range of Gemini features exposed as consistent MCP tools and want to centralize the Gemini API interaction point.
+
+### A Note on This Server's Own MCP Client Tools:
+
+The `mcp-gemini-server` also includes tools like `mcpConnectToServer`, `mcpListServerTools`, and `mcpCallServerTool`. These tools allow *this server* to act as an MCP *client* to *other external* MCP servers. This is a distinct capability from how an MCP client would connect *to* `mcp-gemini-server` to utilize Gemini features.
+
 ## Environment Variables
 
 ### Required:
@@ -639,11 +790,23 @@ The response will be a JSON string containing both the text response and which m
 - `GOOGLE_GEMINI_IMAGE_RESOLUTION`: Default image resolution (512x512, 1024x1024, or 1536x1536)
 - `GOOGLE_GEMINI_MAX_IMAGE_SIZE_MB`: Maximum allowed image size in MB
 - `GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS`: JSON array of supported image formats (e.g., `["image/jpeg","image/png","image/webp"]`)
-- `GEMINI_SAFE_FILE_BASE_DIR`: Restricts file operations to a specific directory for security (defaults to current working directory)
+- `GEMINI_SAFE_FILE_BASE_DIR`: Restricts Gemini-specific file operations (like uploads managed by `gemini_uploadFile`) to a specific directory for security (defaults to current working directory). This is primarily used for files that will be processed by Gemini API services.
+
+### Optional - Security Configuration:
+- `ALLOWED_OUTPUT_PATHS`: A comma-separated list of absolute paths to directories where tools like `mcpCallServerTool` (with outputToFile parameter) and `writeToFileTool` are allowed to write files. Critical security feature to prevent unauthorized file writes. If not set, file output will be disabled for these tools.
 
 ### Optional - Server Configuration:
-- `MCP_TRANSPORT_TYPE`: Transport to use for MCP server (options: `stdio`, `ws`; default: `stdio`)
-- `MCP_WS_PORT`: Port for WebSocket transport when using `ws` transport type (default: `8080`)
+- `MCP_TRANSPORT`: Transport to use for MCP server (options: `stdio`, `sse`, `streaming`; default: `stdio`)
+  - IMPORTANT: SSE (Server-Sent Events) is NOT deprecated and remains a critical component of the MCP protocol
+  - SSE is particularly valuable for bidirectional communication, enabling features like dynamic tool updates and sampling
+  - Each transport type has specific valid use cases within the MCP ecosystem
+- `MCP_SERVER_PORT`: Port for network transports when using `sse` or `streaming` (default: `8080`)
+- `MCP_CONNECTION_TOKEN`: Token that clients need to provide when connecting to this server
+- `MCP_CLIENT_ID`: Default ID used when this server acts as a client to other MCP servers 
+
+### Optional - Legacy Server Configuration (Deprecated):
+- `MCP_TRANSPORT_TYPE`: Deprecated - Use `MCP_TRANSPORT` instead
+- `MCP_WS_PORT`: Deprecated - Use `MCP_SERVER_PORT` instead
 - `ENABLE_HEALTH_CHECK`: Enable health check server (options: `true`, `false`; default: `true`)
 - `HEALTH_CHECK_PORT`: Port for health check HTTP server (default: `3000`)
 
@@ -659,14 +822,81 @@ GOOGLE_GEMINI_DEFAULT_THINKING_BUDGET=4096
 GOOGLE_GEMINI_IMAGE_RESOLUTION=1024x1024
 GOOGLE_GEMINI_MAX_IMAGE_SIZE_MB=10
 GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS=["image/jpeg","image/png","image/webp"]
-GEMINI_SAFE_FILE_BASE_DIR=/path/to/allowed/files
+
+# Security Configuration
+GEMINI_SAFE_FILE_BASE_DIR=/var/opt/mcp-gemini-server/gemini_files  # For Gemini API file operations
+ALLOWED_OUTPUT_PATHS=/var/opt/mcp-gemini-server/outputs,/tmp/mcp-gemini-outputs   # For mcpCallServerTool and writeToFileTool
 
 # Server Configuration
-MCP_TRANSPORT_TYPE=stdio
-# MCP_WS_PORT=8080 # Uncomment when using WebSocket transport
+MCP_TRANSPORT=stdio  # Replaced deprecated MCP_TRANSPORT_TYPE
+MCP_SERVER_PORT=8080 # For network transports (replaced deprecated MCP_WS_PORT)
+MCP_CONNECTION_TOKEN=your_secure_token_here
+MCP_CLIENT_ID=gemini-sdk-client-001
 ENABLE_HEALTH_CHECK=true
 HEALTH_CHECK_PORT=3000
 ```
+
+## Security Considerations
+
+This server implements several security measures to protect against common vulnerabilities. Understanding these security features is critical when deploying in production environments.
+
+### File System Security
+
+1. **Path Validation and Isolation**
+   - **ALLOWED_OUTPUT_PATHS**: Critical security feature that restricts where file writing tools can write files
+   - **GEMINI_SAFE_FILE_BASE_DIR**: Restricts where Gemini-specific file operations can access and modify files
+   - **Security Principle**: Files can only be created, read, or modified within explicitly allowed directories
+   - **Production Requirement**: Always use absolute paths to prevent potential directory traversal attacks
+
+2. **Path Traversal Protection**
+   - The `FileSecurityService` implements robust path traversal protection by:
+     - Fully resolving paths to their absolute form
+     - Normalizing paths to handle ".." and "." segments properly
+     - Validating that normalized paths stay within allowed directories
+     - Checking both string-based prefixes and relative path calculations for redundant security
+
+3. **Symlink Security**
+   - Symbolic links are fully resolved and checked against allowed directories
+   - Both the symlink itself and its target are validated
+   - Parent directory symlinks are iteratively checked to prevent circumvention 
+   - Multi-level symlink chains are fully resolved before validation
+
+### Authentication & Authorization
+
+1. **Connection Tokens**
+   - `MCP_CONNECTION_TOKEN` provides basic authentication for clients connecting to this server
+   - Should be treated as a secret and use a strong, unique value in production
+
+2. **API Key Security**
+   - `GOOGLE_GEMINI_API_KEY` grants access to Google Gemini API services
+   - Must be kept secure and never exposed in client-side code or logs
+   - Use environment variables or secure secret management systems to inject this value
+
+### Network Security
+
+1. **Transport Options**
+   - stdio: Provides process isolation when used as a spawned child process
+   - SSE/HTTP: Ensure proper network-level protection when exposing over networks
+
+2. **Port Configuration**
+   - Configure firewall rules appropriately when exposing server ports
+   - Consider reverse proxies with TLS termination for production deployments
+
+### Production Deployment Recommendations
+
+1. **File Paths**
+   - Always use absolute paths for `ALLOWED_OUTPUT_PATHS` and `GEMINI_SAFE_FILE_BASE_DIR` 
+   - Use paths outside the application directory to prevent source code modification
+   - Restrict to specific, limited-purpose directories with appropriate permissions
+   - NEVER include sensitive system directories like "/", "/etc", "/usr", "/bin", or "/home"
+
+2. **Process Isolation**
+   - Run the server with restricted user permissions
+   - Consider containerization (Docker) for additional isolation
+
+3. **Secrets Management**
+   - Use a secure secrets management solution instead of .env files in production
+   - Rotate API keys and connection tokens regularly
 
 ## Error Handling
 
@@ -953,6 +1183,7 @@ This ensures clean termination when the server is run in containerized environme
 * **Path Requirements:** All file operations require absolute paths when run from the server environment. Relative paths are not supported.
 * **API Compatibility:** File Handling & Caching APIs are **not supported with Vertex AI credentials**, only Google AI Studio API keys.
 * **Model Support:** This server is primarily tested and optimized for the latest Gemini 1.5 and 2.5 models. While other models should work, these models are the primary focus for testing and feature compatibility.
+* **TypeScript Build Issues:** The TypeScript build may show errors primarily in test files. These are type compatibility issues that don't affect the runtime functionality. The server itself will function properly despite these build warnings.
 * **Resource Usage:** 
   * Image processing requires significant resource usage, especially for large resolution images. Consider using smaller resolutions (512x512) for faster responses.
   * Generating multiple images simultaneously increases resource usage proportionally.

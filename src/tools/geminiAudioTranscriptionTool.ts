@@ -17,9 +17,8 @@ import {
 } from "./geminiAudioTranscriptionParams.js";
 
 export function geminiAudioTranscriptionTool(server: McpServer) {
-  // Define geminiService at the top level to avoid using before declaration
-  const geminiService =
-    require("../services/index.js").GeminiService.getInstance();
+  // Get GeminiService instance
+  const geminiService = new GeminiService();
 
   server.tool(
     TOOL_NAME_AUDIO_TRANSCRIPTION,

@@ -73,23 +73,28 @@ export async function setupTestServer(
   const http = await import("node:http");
 
   // Create MCP server instance
+  // This is intentionally unused in the test setup but kept for reference
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const mcpServer = createServer();
 
   // Create an HTTP server using the MCP server
   const port = options.port || 0;
   const httpServer = http.createServer();
-  
+
   // Create a request handler
-  httpServer.on('request', (req, res) => {
+  httpServer.on("request", (req, res) => {
     // Since McpServer doesn't directly handle HTTP requests like Express middleware,
     // we need to create a compatible transport or adapter here.
     // For testing purposes, we'll implement a basic response
-    res.setHeader('Content-Type', 'application/json');
+    res.setHeader("Content-Type", "application/json");
     res.writeHead(200);
-    res.end(JSON.stringify({ 
-      status: 'ok',
-      message: 'This is a mock response for testing. In a real implementation, requests would be processed through the McpServer transport layer.'
-    }));
+    res.end(
+      JSON.stringify({
+        status: "ok",
+        message:
+          "This is a mock response for testing. In a real implementation, requests would be processed through the McpServer transport layer.",
+      })
+    );
   });
 
   // Start the HTTP server
@@ -132,13 +137,27 @@ export async function setupTestServer(
 }
 
 /**
+ * Interface for mock API responses
+ */
+export interface MockApiResponse<T> {
+  status: number;
+  data: T;
+  headers: Record<string, string>;
+  config: Record<string, unknown>;
+  request: Record<string, unknown>;
+}
+
+/**
  * Creates a mock API response object for testing
  *
  * @param status - HTTP status code to return
  * @param data - Response data
  * @returns Mock response object
  */
-export function createMockResponse(status: number, data: unknown): any {
+export function createMockResponse<T>(
+  status: number,
+  data: T
+): MockApiResponse<T> {
   return {
     status,
     data,
@@ -171,6 +190,13 @@ export function checkRequiredEnvVars(
 }
 
 /**
+ * Interface for test context that can be skipped
+ */
+export interface SkippableTestContext {
+  skip: (reason: string) => void;
+}
+
+/**
  * Skip a test if required environment variables are missing
  *
  * @param t - Test context
@@ -178,7 +204,7 @@ export function checkRequiredEnvVars(
  * @returns Whether the test should be skipped
  */
 export function skipIfMissingEnvVars(
-  t: any,
+  t: SkippableTestContext,
   requiredVars: string[] = ["GOOGLE_GEMINI_API_KEY"]
 ): boolean {
   const missing = requiredVars.filter((varName) => !process.env[varName]);

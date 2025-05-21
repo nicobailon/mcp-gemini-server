@@ -101,10 +101,10 @@ describe("geminiRouteMessageTool", () => {
 
     // Verify service method was called
     expect(mockRouteMessage).toHaveBeenCalledTimes(1);
-    
+
     // Get the parameters passed to the routeMessage function
-    const passedParams = mockRouteMessage.mock.calls[0][0] as
-      RouteMessageParams;
+    const passedParams = mockRouteMessage.mock
+      .calls[0][0] as RouteMessageParams;
 
     // Check parameters passed to service
     expect(passedParams.message).toBe(testRequest.message);
@@ -198,11 +198,11 @@ describe("geminiRouteMessageTool", () => {
         models: ["gemini-1.5-pro", "gemini-1.5-flash"],
       })
     ).rejects.toThrow(McpError);
-    
+
     // Reset the mock for the next test
     mockRouteMessage.mockReset();
     mockRouteMessage.mockRejectedValueOnce(serviceError);
-    
+
     // Use a separate test with a new rejection
     await expect(
       handler({
@@ -228,11 +228,11 @@ describe("geminiRouteMessageTool", () => {
         models: ["gemini-1.5-pro", "gemini-1.5-flash"],
       })
     ).rejects.toThrow(McpError);
-    
+
     // Reset the mock for the next test
     mockRouteMessage.mockReset();
     mockRouteMessage.mockRejectedValueOnce(validationError);
-    
+
     // Use a separate test with a new rejection
     await expect(
       handler({

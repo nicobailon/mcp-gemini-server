@@ -1,6 +1,6 @@
 /**
  * Tool Registry - Central management for MCP tools
- * 
+ *
  * This file introduces a more consistent approach to tool registration
  * that provides better type safety and simpler maintenance.
  */
@@ -19,10 +19,7 @@ export interface ToolRegistration {
    * @param server The MCP server instance
    * @param services Container with available services
    */
-  registerTool(
-    server: McpServer, 
-    services: ServiceContainer
-  ): void;
+  registerTool(server: McpServer, services: ServiceContainer): void;
 }
 
 /**
@@ -37,7 +34,7 @@ export interface ServiceContainer {
  * Tool registration function type - for standalone functions
  */
 export type ToolRegistrationFn = (
-  server: McpServer, 
+  server: McpServer,
   services: ServiceContainer
 ) => void;
 
@@ -76,19 +73,22 @@ export function createValidatedTool<T extends z.ZodRawShape, R>(
 export class ToolRegistry {
   private toolRegistrations: ToolRegistrationFn[] = [];
   private services: ServiceContainer;
-  
+
   /**
    * Creates a new tool registry
    * @param geminiService GeminiService instance
    * @param mcpClientService McpClientService instance
    */
-  constructor(geminiService: GeminiService, mcpClientService: McpClientService) {
+  constructor(
+    geminiService: GeminiService,
+    mcpClientService: McpClientService
+  ) {
     this.services = {
       geminiService,
-      mcpClientService
+      mcpClientService,
     };
   }
-  
+
   /**
    * Adds a tool to the registry
    * @param registration Tool registration function
@@ -96,14 +96,14 @@ export class ToolRegistry {
   public registerTool(registration: ToolRegistrationFn): void {
     this.toolRegistrations.push(registration);
   }
-  
+
   /**
    * Registers all tools with the MCP server
    * @param server McpServer instance
    */
   public registerAllTools(server: McpServer): void {
     logger.info(`Registering ${this.toolRegistrations.length} tools...`);
-    
+
     for (const registration of this.toolRegistrations) {
       try {
         registration(server, this.services);
@@ -113,7 +113,7 @@ export class ToolRegistry {
         );
       }
     }
-    
+
     logger.info("All tools registered successfully");
   }
 }

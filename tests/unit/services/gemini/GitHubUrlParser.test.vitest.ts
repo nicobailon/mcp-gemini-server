@@ -1,5 +1,4 @@
-import { describe, it } from "node:test";
-import assert from "node:assert";
+import { describe, it, expect } from "vitest";
 import { GitHubUrlParser } from "../../../../src/services/gemini/GitHubUrlParser.js";
 
 describe("GitHubUrlParser", () => {
@@ -8,12 +7,12 @@ describe("GitHubUrlParser", () => {
       const url = "https://github.com/nicobailon/mcp-gemini-server";
       const result = GitHubUrlParser.parse(url);
 
-      assert.strictEqual(result?.type, "repository");
-      assert.strictEqual(result?.owner, "nicobailon");
-      assert.strictEqual(result?.repo, "mcp-gemini-server");
-      assert.strictEqual(result?.branch, undefined);
-      assert.strictEqual(result?.prNumber, undefined);
-      assert.strictEqual(result?.issueNumber, undefined);
+      expect(result?.type).toBe("repository");
+      expect(result?.owner).toBe("nicobailon");
+      expect(result?.repo).toBe("mcp-gemini-server");
+      expect(result?.branch).toBeUndefined();
+      expect(result?.prNumber).toBeUndefined();
+      expect(result?.issueNumber).toBeUndefined();
     });
 
     it("should parse branch URLs correctly", () => {
@@ -21,24 +20,24 @@ describe("GitHubUrlParser", () => {
         "https://github.com/nicobailon/mcp-gemini-server/tree/feature/add-reasoning-effort-option";
       const result = GitHubUrlParser.parse(url);
 
-      assert.strictEqual(result?.type, "branch");
-      assert.strictEqual(result?.owner, "nicobailon");
-      assert.strictEqual(result?.repo, "mcp-gemini-server");
-      assert.strictEqual(result?.branch, "feature/add-reasoning-effort-option");
-      assert.strictEqual(result?.prNumber, undefined);
-      assert.strictEqual(result?.issueNumber, undefined);
+      expect(result?.type).toBe("branch");
+      expect(result?.owner).toBe("nicobailon");
+      expect(result?.repo).toBe("mcp-gemini-server");
+      expect(result?.branch).toBe("feature/add-reasoning-effort-option");
+      expect(result?.prNumber).toBeUndefined();
+      expect(result?.issueNumber).toBeUndefined();
     });
 
     it("should parse pull request URLs correctly", () => {
       const url = "https://github.com/nicobailon/mcp-gemini-server/pull/2";
       const result = GitHubUrlParser.parse(url);
 
-      assert.strictEqual(result?.type, "pull_request");
-      assert.strictEqual(result?.owner, "nicobailon");
-      assert.strictEqual(result?.repo, "mcp-gemini-server");
-      assert.strictEqual(result?.branch, undefined);
-      assert.strictEqual(result?.prNumber, "2");
-      assert.strictEqual(result?.issueNumber, undefined);
+      expect(result?.type).toBe("pull_request");
+      expect(result?.owner).toBe("nicobailon");
+      expect(result?.repo).toBe("mcp-gemini-server");
+      expect(result?.branch).toBeUndefined();
+      expect(result?.prNumber).toBe("2");
+      expect(result?.issueNumber).toBeUndefined();
     });
 
     it("should parse pull request files URLs correctly", () => {
@@ -46,25 +45,25 @@ describe("GitHubUrlParser", () => {
         "https://github.com/nicobailon/mcp-gemini-server/pull/2/files";
       const result = GitHubUrlParser.parse(url);
 
-      assert.strictEqual(result?.type, "pr_files");
-      assert.strictEqual(result?.owner, "nicobailon");
-      assert.strictEqual(result?.repo, "mcp-gemini-server");
-      assert.strictEqual(result?.branch, undefined);
-      assert.strictEqual(result?.prNumber, "2");
-      assert.strictEqual(result?.filesView, true);
-      assert.strictEqual(result?.issueNumber, undefined);
+      expect(result?.type).toBe("pr_files");
+      expect(result?.owner).toBe("nicobailon");
+      expect(result?.repo).toBe("mcp-gemini-server");
+      expect(result?.branch).toBeUndefined();
+      expect(result?.prNumber).toBe("2");
+      expect(result?.filesView).toBe(true);
+      expect(result?.issueNumber).toBeUndefined();
     });
 
     it("should parse issue URLs correctly", () => {
       const url = "https://github.com/nicobailon/mcp-gemini-server/issues/5";
       const result = GitHubUrlParser.parse(url);
 
-      assert.strictEqual(result?.type, "issue");
-      assert.strictEqual(result?.owner, "nicobailon");
-      assert.strictEqual(result?.repo, "mcp-gemini-server");
-      assert.strictEqual(result?.branch, undefined);
-      assert.strictEqual(result?.prNumber, undefined);
-      assert.strictEqual(result?.issueNumber, "5");
+      expect(result?.type).toBe("issue");
+      expect(result?.owner).toBe("nicobailon");
+      expect(result?.repo).toBe("mcp-gemini-server");
+      expect(result?.branch).toBeUndefined();
+      expect(result?.prNumber).toBeUndefined();
+      expect(result?.issueNumber).toBe("5");
     });
 
     it("should return null for invalid URLs", () => {
@@ -77,7 +76,7 @@ describe("GitHubUrlParser", () => {
       ];
 
       for (const url of urls) {
-        assert.strictEqual(GitHubUrlParser.parse(url), null);
+        expect(GitHubUrlParser.parse(url)).toBeNull();
       }
     });
   });
@@ -93,7 +92,7 @@ describe("GitHubUrlParser", () => {
       ];
 
       for (const url of urls) {
-        assert.strictEqual(GitHubUrlParser.isValidGitHubUrl(url), true);
+        expect(GitHubUrlParser.isValidGitHubUrl(url)).toBe(true);
       }
     });
 
@@ -107,7 +106,7 @@ describe("GitHubUrlParser", () => {
       ];
 
       for (const url of urls) {
-        assert.strictEqual(GitHubUrlParser.isValidGitHubUrl(url), false);
+        expect(GitHubUrlParser.isValidGitHubUrl(url)).toBe(false);
       }
     });
   });
@@ -115,24 +114,21 @@ describe("GitHubUrlParser", () => {
   describe("getApiEndpoint()", () => {
     it("should return the correct API endpoint for repository URLs", () => {
       const url = "https://github.com/nicobailon/mcp-gemini-server";
-      assert.strictEqual(
-        GitHubUrlParser.getApiEndpoint(url),
+      expect(GitHubUrlParser.getApiEndpoint(url)).toBe(
         "repos/nicobailon/mcp-gemini-server"
       );
     });
 
     it("should return the correct API endpoint for branch URLs", () => {
       const url = "https://github.com/nicobailon/mcp-gemini-server/tree/main";
-      assert.strictEqual(
-        GitHubUrlParser.getApiEndpoint(url),
+      expect(GitHubUrlParser.getApiEndpoint(url)).toBe(
         "repos/nicobailon/mcp-gemini-server/branches/main"
       );
     });
 
     it("should return the correct API endpoint for PR URLs", () => {
       const url = "https://github.com/nicobailon/mcp-gemini-server/pull/2";
-      assert.strictEqual(
-        GitHubUrlParser.getApiEndpoint(url),
+      expect(GitHubUrlParser.getApiEndpoint(url)).toBe(
         "repos/nicobailon/mcp-gemini-server/pulls/2"
       );
     });
@@ -140,23 +136,21 @@ describe("GitHubUrlParser", () => {
     it("should return the correct API endpoint for PR files URLs", () => {
       const url =
         "https://github.com/nicobailon/mcp-gemini-server/pull/2/files";
-      assert.strictEqual(
-        GitHubUrlParser.getApiEndpoint(url),
+      expect(GitHubUrlParser.getApiEndpoint(url)).toBe(
         "repos/nicobailon/mcp-gemini-server/pulls/2"
       );
     });
 
     it("should return the correct API endpoint for issue URLs", () => {
       const url = "https://github.com/nicobailon/mcp-gemini-server/issues/5";
-      assert.strictEqual(
-        GitHubUrlParser.getApiEndpoint(url),
+      expect(GitHubUrlParser.getApiEndpoint(url)).toBe(
         "repos/nicobailon/mcp-gemini-server/issues/5"
       );
     });
 
     it("should return null for invalid URLs", () => {
       const url = "https://example.com";
-      assert.strictEqual(GitHubUrlParser.getApiEndpoint(url), null);
+      expect(GitHubUrlParser.getApiEndpoint(url)).toBeNull();
     });
   });
 
@@ -171,14 +165,14 @@ describe("GitHubUrlParser", () => {
 
       for (const url of urls) {
         const info = GitHubUrlParser.getRepositoryInfo(url);
-        assert.strictEqual(info?.owner, "nicobailon");
-        assert.strictEqual(info?.repo, "mcp-gemini-server");
+        expect(info?.owner).toBe("nicobailon");
+        expect(info?.repo).toBe("mcp-gemini-server");
       }
     });
 
     it("should return null for invalid URLs", () => {
       const url = "https://example.com";
-      assert.strictEqual(GitHubUrlParser.getRepositoryInfo(url), null);
+      expect(GitHubUrlParser.getRepositoryInfo(url)).toBeNull();
     });
   });
 });

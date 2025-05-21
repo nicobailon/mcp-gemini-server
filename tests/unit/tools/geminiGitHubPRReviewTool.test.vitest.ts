@@ -80,7 +80,7 @@ describe("geminiGitHubPRReviewTool", () => {
 
     // Check that reviewGitHubPullRequest was called with the right parameters
     expect(mockGeminiService.reviewGitHubPullRequest).toHaveBeenCalledTimes(1);
-    
+
     const params = mockGeminiService.reviewGitHubPullRequest.mock.calls[0][0];
     expect(params.owner).toBe("nicobailon");
     expect(params.repo).toBe("mcp-gemini-server");

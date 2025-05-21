@@ -154,7 +154,10 @@ describe("MCP Client Tools Unit Tests", () => {
   describe("mcpConnectToServerTool", () => {
     it("should register the tool with the MCP server", () => {
       // Register the tool
-      mcpConnectToServerTool(mockMcpServer, mockMcpClientService as any as McpClientService);
+      mcpConnectToServerTool(
+        mockMcpServer,
+        mockMcpClientService as any as McpClientService
+      );
 
       // Verify registration
       expect(mockMcpServer.tool).toHaveBeenCalledTimes(1);
@@ -168,7 +171,10 @@ describe("MCP Client Tools Unit Tests", () => {
 
     it("should connect to SSE server successfully", async () => {
       // Register the tool
-      mcpConnectToServerTool(mockMcpServer, mockMcpClientService as any as McpClientService);
+      mcpConnectToServerTool(
+        mockMcpServer,
+        mockMcpClientService as any as McpClientService
+      );
 
       // Capture the processor function
       const processor = captureProcessorFunction(mockMcpServer);
@@ -213,7 +219,10 @@ describe("MCP Client Tools Unit Tests", () => {
 
     it("should connect to stdio server successfully", async () => {
       // Register the tool
-      mcpConnectToServerTool(mockMcpServer, mockMcpClientService as any as McpClientService);
+      mcpConnectToServerTool(
+        mockMcpServer,
+        mockMcpClientService as any as McpClientService
+      );
 
       // Capture the processor function
       const processor = captureProcessorFunction(mockMcpServer);
@@ -260,7 +269,10 @@ describe("MCP Client Tools Unit Tests", () => {
 
     it("should use default values from ConfigurationManager if not provided", async () => {
       // Register the tool
-      mcpConnectToServerTool(mockMcpServer, mockMcpClientService as any as McpClientService);
+      mcpConnectToServerTool(
+        mockMcpServer,
+        mockMcpClientService as any as McpClientService
+      );
 
       // Capture the processor function
       const processor = captureProcessorFunction(mockMcpServer);
@@ -286,7 +298,10 @@ describe("MCP Client Tools Unit Tests", () => {
 
     it("should handle SSE connection errors", async () => {
       // Register the tool
-      mcpConnectToServerTool(mockMcpServer, mockMcpClientService as any as McpClientService);
+      mcpConnectToServerTool(
+        mockMcpServer,
+        mockMcpClientService as any as McpClientService
+      );
 
       // Capture the processor function
       const processor = captureProcessorFunction(mockMcpServer);
@@ -323,7 +338,10 @@ describe("MCP Client Tools Unit Tests", () => {
   describe("mcpListServerToolsTool", () => {
     it("should register the tool with the MCP server", () => {
       // Register the tool
-      mcpListServerToolsTool(mockMcpServer, mockMcpClientService as any as McpClientService);
+      mcpListServerToolsTool(
+        mockMcpServer,
+        mockMcpClientService as any as McpClientService
+      );
 
       // Verify registration
       expect(mockMcpServer.tool).toHaveBeenCalledTimes(1);
@@ -337,7 +355,10 @@ describe("MCP Client Tools Unit Tests", () => {
 
     it("should list tools from a valid connection", async () => {
       // Register the tool
-      mcpListServerToolsTool(mockMcpServer, mockMcpClientService as any as McpClientService);
+      mcpListServerToolsTool(
+        mockMcpServer,
+        mockMcpClientService as any as McpClientService
+      );
 
       // Capture the processor function
       const processor = captureProcessorFunction(mockMcpServer);
@@ -386,7 +407,10 @@ describe("MCP Client Tools Unit Tests", () => {
 
     it("should handle non-existent connection", async () => {
       // Register the tool
-      mcpListServerToolsTool(mockMcpServer, mockMcpClientService as any as McpClientService);
+      mcpListServerToolsTool(
+        mockMcpServer,
+        mockMcpClientService as any as McpClientService
+      );
 
       // Capture the processor function
       const processor = captureProcessorFunction(mockMcpServer);
@@ -419,7 +443,10 @@ describe("MCP Client Tools Unit Tests", () => {
 
     it("should handle other errors", async () => {
       // Register the tool
-      mcpListServerToolsTool(mockMcpServer, mockMcpClientService as any as McpClientService);
+      mcpListServerToolsTool(
+        mockMcpServer,
+        mockMcpClientService as any as McpClientService
+      );
 
       // Capture the processor function
       const processor = captureProcessorFunction(mockMcpServer);
@@ -452,7 +479,10 @@ describe("MCP Client Tools Unit Tests", () => {
   describe("mcpCallServerTool", () => {
     it("should register the tool with the MCP server", () => {
       // Register the tool
-      mcpCallServerTool(mockMcpServer, mockMcpClientService as any as McpClientService);
+      mcpCallServerTool(
+        mockMcpServer,
+        mockMcpClientService as any as McpClientService
+      );
 
       // Verify registration
       expect(mockMcpServer.tool).toHaveBeenCalledTimes(1);
@@ -466,7 +496,10 @@ describe("MCP Client Tools Unit Tests", () => {
 
     it("should call a tool on a remote server", async () => {
       // Register the tool
-      mcpCallServerTool(mockMcpServer, mockMcpClientService as any as McpClientService);
+      mcpCallServerTool(
+        mockMcpServer,
+        mockMcpClientService as any as McpClientService
+      );
 
       // Capture the processor function
       const processor = captureProcessorFunction(mockMcpServer);
@@ -504,7 +537,10 @@ describe("MCP Client Tools Unit Tests", () => {
 
     it("should provide output file path info when outputFilePath is specified", async () => {
       // Register the tool
-      mcpCallServerTool(mockMcpServer, mockMcpClientService as any as McpClientService);
+      mcpCallServerTool(
+        mockMcpServer,
+        mockMcpClientService as any as McpClientService
+      );
 
       // Capture the processor function
       const processor = captureProcessorFunction(mockMcpServer);
@@ -551,7 +587,10 @@ describe("MCP Client Tools Unit Tests", () => {
 
     it("should throw error when no allowed output paths are configured", async () => {
       // Register the tool
-      mcpCallServerTool(mockMcpServer, mockMcpClientService as any as McpClientService);
+      mcpCallServerTool(
+        mockMcpServer,
+        mockMcpClientService as any as McpClientService
+      );
 
       // Capture the processor function
       const processor = captureProcessorFunction(mockMcpServer);
@@ -584,7 +623,10 @@ describe("MCP Client Tools Unit Tests", () => {
       // We just verify that the error handling code paths exist by test coverage
 
       // Register the tool
-      mcpCallServerTool(mockMcpServer, mockMcpClientService as any as McpClientService);
+      mcpCallServerTool(
+        mockMcpServer,
+        mockMcpClientService as any as McpClientService
+      );
 
       // The rest of this test is skipped due to mocking challenges
       // We've confirmed this code path functions correctly in manual testing
@@ -592,7 +634,10 @@ describe("MCP Client Tools Unit Tests", () => {
 
     it("should handle non-existent connection", async () => {
       // Register the tool
-      mcpCallServerTool(mockMcpServer, mockMcpClientService as any as McpClientService);
+      mcpCallServerTool(
+        mockMcpServer,
+        mockMcpClientService as any as McpClientService
+      );
 
       // Capture the processor function
       const processor = captureProcessorFunction(mockMcpServer);
@@ -627,7 +672,10 @@ describe("MCP Client Tools Unit Tests", () => {
   describe("mcpDisconnectFromServerTool", () => {
     it("should register the tool with the MCP server", () => {
       // Register the tool
-      mcpDisconnectFromServerTool(mockMcpServer, mockMcpClientService as any as McpClientService);
+      mcpDisconnectFromServerTool(
+        mockMcpServer,
+        mockMcpClientService as any as McpClientService
+      );
 
       // Verify registration
       expect(mockMcpServer.tool).toHaveBeenCalledTimes(1);
@@ -644,7 +692,10 @@ describe("MCP Client Tools Unit Tests", () => {
       mockMcpClientService.closeSseConnection.mockReturnValue(true);
 
       // Register the tool
-      mcpDisconnectFromServerTool(mockMcpServer, mockMcpClientService as any as McpClientService);
+      mcpDisconnectFromServerTool(
+        mockMcpServer,
+        mockMcpClientService as any as McpClientService
+      );
 
       // Capture the processor function
       const processor = captureProcessorFunction(mockMcpServer);
@@ -688,7 +739,10 @@ describe("MCP Client Tools Unit Tests", () => {
       mockMcpClientService.closeStdioConnection.mockReturnValue(true);
 
       // Register the tool
-      mcpDisconnectFromServerTool(mockMcpServer, mockMcpClientService as any as McpClientService);
+      mcpDisconnectFromServerTool(
+        mockMcpServer,
+        mockMcpClientService as any as McpClientService
+      );
 
       // Capture the processor function
       const processor = captureProcessorFunction(mockMcpServer);
@@ -731,7 +785,10 @@ describe("MCP Client Tools Unit Tests", () => {
 
     it("should throw error for non-existent connection", async () => {
       // Register the tool
-      mcpDisconnectFromServerTool(mockMcpServer, mockMcpClientService as any as McpClientService);
+      mcpDisconnectFromServerTool(
+        mockMcpServer,
+        mockMcpClientService as any as McpClientService
+      );
 
       // Capture the processor function
       const processor = captureProcessorFunction(mockMcpServer);

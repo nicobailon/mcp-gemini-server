@@ -1,5 +1,4 @@
-import { describe, it } from "node:test";
-import assert from "node:assert";
+import { describe, it, expect } from "vitest";
 import { GoogleGenAI } from "@google/genai";
 import { GeminiChatService } from "../src/services/gemini/GeminiChatService.js";
 import { RouteMessageParams } from "../src/services/GeminiService.js";
@@ -38,13 +37,13 @@ describe("Basic Router Test", () => {
       const result = await chatService.routeMessage(params);
 
       // Check that we got a response
-      assert.ok(result.response);
-      assert.ok(result.chosenModel);
+      expect(result.response).toBeTruthy();
+      expect(result.chosenModel).toBeTruthy();
 
       // Should be one of our models
-      assert.ok(
+      expect(
         ["gemini-1.5-pro", "gemini-1.5-flash"].includes(result.chosenModel)
-      );
+      ).toBeTruthy();
 
       console.log(`Chosen model: ${result.chosenModel}`);
       console.log(

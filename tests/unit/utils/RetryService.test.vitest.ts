@@ -96,7 +96,9 @@ describe("RetryService", () => {
       const fn = createMultiFailFunction(5, "never reached");
       const mockFn = vi.fn(fn);
 
-      await expect(retryService.execute(mockFn)).rejects.toThrow("Simulated error");
+      await expect(retryService.execute(mockFn)).rejects.toThrow(
+        "Simulated error"
+      );
       expect(mockFn).toHaveBeenCalledTimes(4); // 1 initial + 3 retries (maxAttempts)
       expect(onRetryMock).toHaveBeenCalledTimes(3);
     });
@@ -109,7 +111,9 @@ describe("RetryService", () => {
         throw error;
       });
 
-      await expect(retryService.execute(fn)).rejects.toThrow("Non-retryable error");
+      await expect(retryService.execute(fn)).rejects.toThrow(
+        "Non-retryable error"
+      );
       expect(fn).toHaveBeenCalledTimes(1); // No retries
       expect(onRetryMock).not.toHaveBeenCalled();
     });
@@ -132,7 +136,9 @@ describe("RetryService", () => {
       });
 
       // Should not retry for regular error
-      await expect(customRetryService.execute(nonRetryableFn)).rejects.toThrow();
+      await expect(
+        customRetryService.execute(nonRetryableFn)
+      ).rejects.toThrow();
       expect(nonRetryableFn).toHaveBeenCalledTimes(1);
 
       // Should retry for custom error

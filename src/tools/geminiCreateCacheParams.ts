@@ -56,9 +56,9 @@ export const CreateCacheParamsObject = {
     .describe(
       "Optional. A list of tools (e.g., function declarations) to associate with the cache."
     ),
-  toolConfig: ToolConfigSchema
-    .optional()
-    .describe("Optional. Configuration for tools associated with the cache."),
+  toolConfig: ToolConfigSchema.optional().describe(
+    "Optional. Configuration for tools associated with the cache."
+  ),
   // expireTime is usually set via TTL by the API, not directly by user typically.
 };
 

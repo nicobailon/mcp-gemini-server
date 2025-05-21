@@ -17,8 +17,6 @@
     "test:unit": "vitest run --dir tests/unit",
     "test:watch": "vitest watch",
     "test:coverage": "vitest run --coverage",
-    "test:node": "node --test --experimental-test-module-mocks --loader ts-node/esm tests/**/*.test.ts",
-    "test:node:unit": "node --test --experimental-test-module-mocks --loader ts-node/esm tests/unit/**/*.test.ts",
     "test:github": "vitest run tests/unit/services/gemini/GitHubApiService.test.ts",
     "test:integration": "vitest run --dir tests/integration",
     "test:e2e": "vitest run --dir tests/e2e",

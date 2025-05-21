@@ -13,9 +13,9 @@ describe("Tool Parameter Schemas", () => {
   describe("exampleToolSchema", () => {
     it("should validate valid parameters", () => {
       const validParams = {
-        name: "Test User"
+        name: "Test User",
       };
-      
+
       const result = exampleToolSchema.safeParse(validParams);
       expect(result.success).toBe(true);
     });
@@ -23,9 +23,9 @@ describe("Tool Parameter Schemas", () => {
     it("should validate with optional language parameter", () => {
       const validParams = {
         name: "Test User",
-        language: "es"
+        language: "es",
       };
-      
+
       const result = exampleToolSchema.safeParse(validParams);
       expect(result.success).toBe(true);
     });
@@ -55,8 +55,8 @@ describe("Tool Parameter Schemas", () => {
     describe("language parameter values", () => {
       it("should validate all valid language options", () => {
         const validOptions = ["en", "es", "fr"];
-        
-        validOptions.forEach(lang => {
+
+        validOptions.forEach((lang) => {
           const params = { name: "Test User", language: lang };
           expect(exampleToolSchema.safeParse(params).success).toBe(true);
         });
@@ -64,8 +64,8 @@ describe("Tool Parameter Schemas", () => {
 
       it("should reject invalid language options", () => {
         const invalidOptions = ["de", "jp", "it", ""];
-        
-        invalidOptions.forEach(lang => {
+
+        invalidOptions.forEach((lang) => {
           const params = { name: "Test User", language: lang };
           expect(exampleToolSchema.safeParse(params).success).toBe(false);
         });
@@ -76,9 +76,9 @@ describe("Tool Parameter Schemas", () => {
   describe("geminiGenerateContentSchema", () => {
     it("should validate minimal required parameters", () => {
       const validParams = {
-        prompt: "Tell me a story"
+        prompt: "Tell me a story",
       };
-      
+
       const result = geminiGenerateContentSchema.safeParse(validParams);
       expect(result.success).toBe(true);
     });
@@ -95,19 +95,19 @@ describe("Tool Parameter Schemas", () => {
           stopSequences: ["THE END"],
           thinkingConfig: {
             thinkingBudget: 1000,
-            reasoningEffort: "medium"
-          }
+            reasoningEffort: "medium",
+          },
         },
         safetySettings: [
           {
             category: "HARM_CATEGORY_HATE_SPEECH",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          }
+            threshold: "BLOCK_MEDIUM_AND_ABOVE",
+          },
         ],
         systemInstruction: "Respond in a friendly tone",
-        cachedContentName: "cachedContents/example123"
+        cachedContentName: "cachedContents/example123",
       };
-      
+
       const result = geminiGenerateContentSchema.safeParse(validParams);
       expect(result.success).toBe(true);
     });
@@ -115,9 +115,9 @@ describe("Tool Parameter Schemas", () => {
     it("should reject empty prompt", () => {
       const invalidParams = {
         prompt: "",
-        modelName: "gemini-pro"
+        modelName: "gemini-pro",
       };
-      
+
       const result = geminiGenerateContentSchema.safeParse(invalidParams);
       expect(result.success).toBe(false);
     });
@@ -126,10 +126,10 @@ describe("Tool Parameter Schemas", () => {
       const invalidParams = {
         prompt: "Tell me a story",
         generationConfig: {
-          temperature: 2.0 // Should be between 0 and 1
-        }
+          temperature: 2.0, // Should be between 0 and 1
+        },
       };
-      
+
       const result = geminiGenerateContentSchema.safeParse(invalidParams);
       expect(result.success).toBe(false);
     });
@@ -140,11 +140,11 @@ describe("Tool Parameter Schemas", () => {
         safetySettings: [
           {
             category: "INVALID_CATEGORY", // Not a valid harm category
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          }
-        ]
+            threshold: "BLOCK_MEDIUM_AND_ABOVE",
+          },
+        ],
       };
-      
+
       const result = geminiGenerateContentSchema.safeParse(invalidParams);
       expect(result.success).toBe(false);
     });
@@ -154,9 +154,9 @@ describe("Tool Parameter Schemas", () => {
     it("should validate minimal required parameters", () => {
       const validParams = {
         filePath: "/path/to/file.txt",
-        content: "File content"
+        content: "File content",
       };
-      
+
       const result = writeToFileSchema.safeParse(validParams);
       expect(result.success).toBe(true);
     });
@@ -166,9 +166,9 @@ describe("Tool Parameter Schemas", () => {
         filePath: "/path/to/file.txt",
         content: "File content",
         encoding: "base64",
-        overwriteFile: true
+        overwriteFile: true,
       };
-      
+
       const result = writeToFileSchema.safeParse(validParams);
       expect(result.success).toBe(true);
     });
@@ -177,15 +177,15 @@ describe("Tool Parameter Schemas", () => {
       const utf8Params = {
         filePath: "/path/to/file.txt",
         content: "File content",
-        encoding: "utf8"
+        encoding: "utf8",
       };
-      
+
       const base64Params = {
         filePath: "/path/to/file.txt",
         content: "File content",
-        encoding: "base64"
+        encoding: "base64",
       };
-      
+
       expect(writeToFileSchema.safeParse(utf8Params).success).toBe(true);
       expect(writeToFileSchema.safeParse(base64Params).success).toBe(true);
     });
@@ -193,9 +193,9 @@ describe("Tool Parameter Schemas", () => {
     it("should reject empty file path", () => {
       const invalidParams = {
         filePath: "",
-        content: "File content"
+        content: "File content",
       };
-      
+
       const result = writeToFileSchema.safeParse(invalidParams);
       expect(result.success).toBe(false);
     });
@@ -204,9 +204,9 @@ describe("Tool Parameter Schemas", () => {
       const invalidParams = {
         filePath: "/path/to/file.txt",
         content: "File content",
-        encoding: "binary" // Not in ['utf8', 'base64']
+        encoding: "binary", // Not in ['utf8', 'base64']
       };
-      
+
       const result = writeToFileSchema.safeParse(invalidParams);
       expect(result.success).toBe(false);
     });

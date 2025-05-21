@@ -42,11 +42,7 @@ const TOOL_PARAMS = {
 };
 
 // Create standardized schema with helper function
-const schema = createToolSchema(
-  TOOL_NAME,
-  TOOL_DESCRIPTION,
-  TOOL_PARAMS
-);
+const schema = createToolSchema(TOOL_NAME, TOOL_DESCRIPTION, TOOL_PARAMS);
 
 // Export all schema components
 export const {
@@ -54,12 +50,12 @@ export const {
   TOOL_DESCRIPTION: exportedToolDescription,
   TOOL_PARAMS: exportedToolParams,
   toolSchema: geminiGenerateContentSchema,
-  ToolParams: GeminiGenerateContentParams
+  ToolParams: GeminiGenerateContentParams,
 } = schema;
 
 // For backward compatibility with existing code
 export {
   exportedToolName as GEMINI_GENERATE_CONTENT_TOOL_NAME,
   exportedToolDescription as GEMINI_GENERATE_CONTENT_TOOL_DESCRIPTION,
-  exportedToolParams as GEMINI_GENERATE_CONTENT_PARAMS
-}
+  exportedToolParams as GEMINI_GENERATE_CONTENT_PARAMS,
+};

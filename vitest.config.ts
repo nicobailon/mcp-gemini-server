@@ -8,7 +8,7 @@ export default defineConfig({
     include: [
       "**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}",
       "**/*.test.vitest.ts",
-      "**/*.spec.vitest.ts"
+      "**/*.spec.vitest.ts",
     ],
     coverage: {
       provider: "v8",

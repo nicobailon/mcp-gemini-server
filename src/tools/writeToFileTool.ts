@@ -20,7 +20,7 @@ import { ValidationError } from "../utils/errors.js";
 export const writeToFileTool = (server: McpServer): void => {
   // Create a FileSecurityService instance for this tool
   const fileSecurityService = new FileSecurityService();
-  
+
   /**
    * Process a write to file request.
    * @param args - The parameters for the file write operation.
@@ -46,7 +46,7 @@ export const writeToFileTool = (server: McpServer): void => {
           "No allowed output paths configured. Cannot write file."
         );
       }
-      
+
       // Update the FileSecurityService with allowed paths
       fileSecurityService.setAllowedDirectories(allowedOutputPaths);
 
@@ -105,19 +105,18 @@ export const writeToFileTool = (server: McpServer): void => {
             `File already exists: ${error.message}`
           );
         }
-        
-        if (error.message.includes("Access denied") || 
-            error.message.includes("Security error")) {
+
+        if (
+          error.message.includes("Access denied") ||
+          error.message.includes("Security error")
+        ) {
           throw new McpError(
             ErrorCode.InvalidParams,
             `Security error: ${error.message}`
           );
         }
-        
-        throw new McpError(
-          ErrorCode.InvalidParams,
-          error.message
-        );
+
+        throw new McpError(ErrorCode.InvalidParams, error.message);
       }
 
       // Catch-all for unexpected errors

@@ -1,5 +1,4 @@
-import { describe, it, beforeEach, afterEach, mock } from "node:test";
-import assert from "node:assert";
+import { describe, it, beforeEach, afterEach, expect, vi } from "vitest";
 import { GeminiService } from "../../../../src/services/GeminiService.js";
 import {
   GeminiApiError,
@@ -26,9 +25,9 @@ describe("GeminiService - Image Generation", () => {
     generateImages: GenerateImagesFunc;
   };
 
-  // Create properly typed mocks for the GoogleGenAI SDK using node:test
-  const mockGenerateImages = mock.fn<GenerateImagesFunc>();
-  const mockGetGenerativeModel = mock.fn<GetModelFunc>();
+  // Create properly typed mocks using vitest
+  const mockGenerateImages = vi.fn<any, any>();
+  const mockGetGenerativeModel = vi.fn<any, any>();
 
   // Mock response data
   const mockImageResponse = {
@@ -51,14 +50,14 @@ describe("GeminiService - Image Generation", () => {
     process.env.GOOGLE_GEMINI_API_KEY = "test-api-key";
 
     // Reset the mocks before each test
-    mock.reset();
+    vi.resetAllMocks();
 
     // Configure the mock behavior with properly typed implementations
-    mockGenerateImages.mock.mockImplementation((params) => {
+    mockGenerateImages.mockImplementation((params) => {
       return Promise.resolve(mockImageResponse);
     });
 
-    mockGetGenerativeModel.mock.mockImplementation((params) => {
+    mockGetGenerativeModel.mockImplementation((params) => {
       return {
         generateImages: mockGenerateImages,
       };
@@ -177,31 +176,30 @@ describe("GeminiService - Image Generation", () => {
     const result = await service.generateImage(prompt);
 
     // Assert
-    assert.strictEqual(mockGetGenerativeModel.mock.callCount(), 1);
-    assert.deepStrictEqual(mockGetGenerativeModel.mock.calls[0].arguments[0], {
+    expect(mockGetGenerativeModel).toHaveBeenCalledTimes(1);
+    expect(mockGetGenerativeModel).toHaveBeenCalledWith({
       model: "imagen-3.1-generate-003", // Updated to match current implementation
     });
 
-    assert.strictEqual(mockGenerateImages.mock.callCount(), 1);
+    expect(mockGenerateImages).toHaveBeenCalledTimes(1);
     // Don't check the exact parameters since our mock implementation has extra fields
-    const args = mockGenerateImages.mock.calls[0].arguments[0];
-    assert.strictEqual(args.prompt, prompt);
-    assert.strictEqual(args.resolution, "1024x1024");
-    assert.strictEqual(args.numberOfImages, 1);
+    const args = mockGenerateImages.mock.calls[0][0];
+    expect(args.prompt).toBe(prompt);
+    expect(args.resolution).toBe("1024x1024");
+    expect(args.numberOfImages).toBe(1);
 
     // Verify the result structure
-    assert.ok("images" in result);
-    assert.strictEqual(result.images.length, 1);
-    assert.strictEqual(result.images[0].base64Data, "mockBase64Data");
-    assert.strictEqual(result.images[0].mimeType, "image/png");
-    assert.strictEqual(result.images[0].width, 1024);
-    assert.strictEqual(result.images[0].height, 1024);
+    expect(result).toHaveProperty("images");
+    expect(result.images.length).toBe(1);
+    expect(result.images[0].base64Data).toBe("mockBase64Data");
+    expect(result.images[0].mimeType).toBe("image/png");
+    expect(result.images[0].width).toBe(1024);
+    expect(result.images[0].height).toBe(1024);
   });
 
   it("should generate an image with custom parameters", async () => {
     // Reset mock call counts before this test to ensure clean state
-    mockGetGenerativeModel.mock.resetCalls();
-    mockGenerateImages.mock.resetCalls();
+    vi.clearAllMocks();
 
     // Arrange
     const service = new GeminiService();
@@ -229,30 +227,29 @@ describe("GeminiService - Image Generation", () => {
     );
 
     // Assert
-    assert.strictEqual(mockGetGenerativeModel.mock.callCount(), 1);
-    assert.deepStrictEqual(mockGetGenerativeModel.mock.calls[0].arguments[0], {
+    expect(mockGetGenerativeModel).toHaveBeenCalledTimes(1);
+    expect(mockGetGenerativeModel).toHaveBeenCalledWith({
       model: "gemini-2.0-flash-exp",
     });
 
-    assert.strictEqual(mockGenerateImages.mock.callCount(), 1);
+    expect(mockGenerateImages).toHaveBeenCalledTimes(1);
 
     // Only check specific parameters instead of full object equality
-    const args = mockGenerateImages.mock.calls[0].arguments[0];
-    assert.strictEqual(args.prompt, prompt);
-    assert.strictEqual(args.resolution, "512x512");
-    assert.strictEqual(args.numberOfImages, 2);
-    assert.strictEqual(args.negativePrompt, negativePrompt);
-    assert.deepStrictEqual(args.safetySettings, safetySettings);
+    const args = mockGenerateImages.mock.calls[0][0];
+    expect(args.prompt).toBe(prompt);
+    expect(args.resolution).toBe("512x512");
+    expect(args.numberOfImages).toBe(2);
+    expect(args.negativePrompt).toBe(negativePrompt);
+    expect(args.safetySettings).toEqual(safetySettings);
 
     // Verify width and height from the specified resolution
-    assert.strictEqual(result.images[0].width, 512);
-    assert.strictEqual(result.images[0].height, 512);
+    expect(result.images[0].width).toBe(512);
+    expect(result.images[0].height).toBe(512);
   });
 
   it("should handle errors from the API", async () => {
     // Reset mock call counts before this test to ensure clean state
-    mockGetGenerativeModel.mock.resetCalls();
-    mockGenerateImages.mock.resetCalls();
+    vi.clearAllMocks();
 
     // Arrange
     const service = new GeminiService();
@@ -260,47 +257,39 @@ describe("GeminiService - Image Generation", () => {
     const errorMessage = "API rate limit exceeded";
 
     // Configure mock to throw an error
-    mockGenerateImages.mock.mockImplementation(() => {
+    mockGenerateImages.mockImplementation(() => {
       throw new Error(errorMessage);
     });
 
     // Act & Assert
-    await assert.rejects(
-      async () => await service.generateImage(prompt),
-      (err) => err instanceof GeminiApiError
-    );
+    await expect(service.generateImage(prompt)).rejects.toThrow(GeminiApiError);
   });
 
   it("should throw an error when no images are generated", async () => {
     // Reset mock call counts before this test to ensure clean state
-    mockGetGenerativeModel.mock.resetCalls();
-    mockGenerateImages.mock.resetCalls();
+    vi.clearAllMocks();
 
     // Arrange
     const service = new GeminiService();
     const prompt = "Empty result test";
 
     // Configure mock to return empty images array with proper typing
-    mockGenerateImages.mock.mockImplementation((params) => {
+    mockGenerateImages.mockImplementation((params) => {
       return Promise.resolve({ images: [] });
     });
 
     // Act & Assert
-    await assert.rejects(
-      async () => await service.generateImage(prompt),
-      (err) => {
-        return (
-          err instanceof GeminiModelError &&
-          err.message === GeminiErrorMessages.UNSUPPORTED_FORMAT
-        );
-      }
+    await expect(service.generateImage(prompt)).rejects.toThrow(
+      GeminiModelError
+    );
+    await expect(service.generateImage(prompt)).rejects.toThrow(
+      GeminiErrorMessages.UNSUPPORTED_FORMAT
     );
   });
 
   it("should support advanced style parameters", async () => {
     // Reset mock call counts before this test to ensure clean state
-    mockGetGenerativeModel.mock.resetCalls();
-    mockGenerateImages.mock.resetCalls();
+    vi.clearAllMocks();
 
     // Arrange
     const service = new GeminiService();
@@ -323,10 +312,10 @@ describe("GeminiService - Image Generation", () => {
     );
 
     // Assert
-    assert.strictEqual(mockGenerateImages.mock.callCount(), 1);
-    const callArgs = mockGenerateImages.mock.calls[0].arguments[0];
-    assert.strictEqual(callArgs.stylePreset, "anime");
-    assert.strictEqual(callArgs.seed, 12345);
-    assert.strictEqual(callArgs.styleStrength, 0.8);
+    expect(mockGenerateImages).toHaveBeenCalledTimes(1);
+    const callArgs = mockGenerateImages.mock.calls[0][0];
+    expect(callArgs.stylePreset).toBe("anime");
+    expect(callArgs.seed).toBe(12345);
+    expect(callArgs.styleStrength).toBe(0.8);
   });
 });

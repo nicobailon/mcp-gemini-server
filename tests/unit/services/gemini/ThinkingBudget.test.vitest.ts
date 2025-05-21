@@ -1,5 +1,4 @@
-import { describe, it, mock, beforeEach } from "node:test";
-import assert from "node:assert";
+import { describe, it, beforeEach, expect, vi } from "vitest";
 import { GeminiContentService } from "../../../../src/services/gemini/GeminiContentService.js";
 import { GeminiSecurityService } from "../../../../src/services/gemini/GeminiSecurityService.js";
 import { GeminiChatService } from "../../../../src/services/gemini/GeminiChatService.js";
@@ -27,14 +26,14 @@ describe("Thinking Budget Feature", () => {
   }
 
   // Mock GoogleGenAI
-  const mockGenerateContentMethod = mock.fn((_config?: MockRequestConfig) => ({
+  const mockGenerateContentMethod = vi.fn((_config?: MockRequestConfig) => ({
     text: "Mock response from generateContent",
   }));
 
   const mockGenAI = {
     models: {
       generateContent: mockGenerateContentMethod,
-      generateContentStream: mock.fn(async function* () {
+      generateContentStream: vi.fn(async function* () {
         yield { text: "Mock response from generateContentStream" };
       }),
     },
@@ -42,7 +41,7 @@ describe("Thinking Budget Feature", () => {
 
   // Reset mocks before each test
   beforeEach(() => {
-    mockGenerateContentMethod.mock.resetCalls();
+    vi.clearAllMocks();
   });
 
   describe("GeminiContentService", () => {
@@ -66,19 +65,15 @@ describe("Thinking Budget Feature", () => {
       });
 
       // Assert
-      assert.strictEqual(mockGenerateContentMethod.mock.calls.length, 1);
+      expect(mockGenerateContentMethod).toHaveBeenCalledTimes(1);
       // Get mock arguments safely with null checks
       const args = mockGenerateContentMethod.mock.calls[0];
-      assert.ok(args, "Mock should have been called with arguments");
+      expect(args).toBeTruthy();
 
-      const requestConfig = args.arguments[0];
-      assert.ok(requestConfig, "Request config should exist");
-      assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");
-      assert.strictEqual(
-        requestConfig.thinkingConfig.thinkingBudget,
-        5000,
-        "Should pass the thinking budget"
-      );
+      const requestConfig = args[0];
+      expect(requestConfig).toBeTruthy();
+      expect(requestConfig.thinkingConfig).toBeTruthy();
+      expect(requestConfig.thinkingConfig.thinkingBudget).toBe(5000);
     });
 
     it("should map reasoningEffort to thinkingBudget values", async () => {
@@ -98,7 +93,7 @@ describe("Thinking Budget Feature", () => {
       ];
 
       for (const testCase of testCases) {
-        mockGenerateContentMethod.mock.resetCalls();
+        vi.clearAllMocks();
 
         // Act
         await service.generateContent({
@@ -111,18 +106,16 @@ describe("Thinking Budget Feature", () => {
         });
 
         // Assert
-        assert.strictEqual(mockGenerateContentMethod.mock.calls.length, 1);
+        expect(mockGenerateContentMethod).toHaveBeenCalledTimes(1);
         // Get mock arguments safely with null checks
         const args = mockGenerateContentMethod.mock.calls[0];
-        assert.ok(args, "Mock should have been called with arguments");
+        expect(args).toBeTruthy();
 
-        const requestConfig = args.arguments[0];
-        assert.ok(requestConfig, "Request config should exist");
-        assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");
-        assert.strictEqual(
-          requestConfig.thinkingConfig.thinkingBudget,
-          testCase.expectedBudget,
-          `Should map reasoningEffort '${testCase.reasoningEffort}' to thinkingBudget ${testCase.expectedBudget}`
+        const requestConfig = args[0];
+        expect(requestConfig).toBeTruthy();
+        expect(requestConfig.thinkingConfig).toBeTruthy();
+        expect(requestConfig.thinkingConfig.thinkingBudget).toBe(
+          testCase.expectedBudget
         );
       }
     });
@@ -143,18 +136,16 @@ describe("Thinking Budget Feature", () => {
       });
 
       // Assert
-      assert.strictEqual(mockGenerateContentMethod.mock.calls.length, 1);
+      expect(mockGenerateContentMethod).toHaveBeenCalledTimes(1);
       // Get mock arguments safely with null checks
       const args = mockGenerateContentMethod.mock.calls[0];
-      assert.ok(args, "Mock should have been called with arguments");
+      expect(args).toBeTruthy();
 
-      const requestConfig = args.arguments[0];
-      assert.ok(requestConfig, "Request config should exist");
-      assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");
-      assert.strictEqual(
-        requestConfig.thinkingConfig.thinkingBudget,
-        defaultThinkingBudget,
-        "Should apply default thinking budget"
+      const requestConfig = args[0];
+      expect(requestConfig).toBeTruthy();
+      expect(requestConfig.thinkingConfig).toBeTruthy();
+      expect(requestConfig.thinkingConfig.thinkingBudget).toBe(
+        defaultThinkingBudget
       );
     });
 
@@ -180,25 +171,23 @@ describe("Thinking Budget Feature", () => {
       });
 
       // Assert
-      assert.strictEqual(mockGenerateContentMethod.mock.calls.length, 1);
+      expect(mockGenerateContentMethod).toHaveBeenCalledTimes(1);
       // Get mock arguments safely with null checks
       const args = mockGenerateContentMethod.mock.calls[0];
-      assert.ok(args, "Mock should have been called with arguments");
+      expect(args).toBeTruthy();
 
-      const requestConfig = args.arguments[0];
-      assert.ok(requestConfig, "Request config should exist");
-      assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");
-      assert.strictEqual(
-        requestConfig.thinkingConfig.thinkingBudget,
-        configThinkingBudget,
-        "Should prioritize generationConfig thinking budget"
+      const requestConfig = args[0];
+      expect(requestConfig).toBeTruthy();
+      expect(requestConfig.thinkingConfig).toBeTruthy();
+      expect(requestConfig.thinkingConfig.thinkingBudget).toBe(
+        configThinkingBudget
       );
     });
   });
 
   describe("GeminiChatService", () => {
     // Mock for chat service with proper typing
-    const mockChatGenerateContentMethod = mock.fn(
+    const mockChatGenerateContentMethod = vi.fn(
       (
         _config?: MockRequestConfig
       ): Promise<PartialGenerateContentResponse> => {
@@ -233,7 +222,7 @@ describe("Thinking Budget Feature", () => {
     };
 
     beforeEach(() => {
-      mockChatGenerateContentMethod.mock.resetCalls();
+      vi.clearAllMocks();
     });
 
     it("should apply thinking budget to chat session", async () => {
@@ -259,19 +248,15 @@ describe("Thinking Budget Feature", () => {
       });
 
       // Assert
-      assert.strictEqual(mockChatGenerateContentMethod.mock.calls.length, 1);
+      expect(mockChatGenerateContentMethod).toHaveBeenCalledTimes(1);
       // Get mock arguments safely with null checks
       const args = mockChatGenerateContentMethod.mock.calls[0];
-      assert.ok(args, "Mock should have been called with arguments");
+      expect(args).toBeTruthy();
 
-      const requestConfig = args.arguments[0];
-      assert.ok(requestConfig, "Request config should exist");
-      assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");
-      assert.strictEqual(
-        requestConfig.thinkingConfig.thinkingBudget,
-        6000,
-        "Should pass the thinking budget from chat session"
-      );
+      const requestConfig = args[0];
+      expect(requestConfig).toBeTruthy();
+      expect(requestConfig.thinkingConfig).toBeTruthy();
+      expect(requestConfig.thinkingConfig.thinkingBudget).toBe(6000);
     });
 
     it("should map reasoningEffort to thinkingBudget in chat session", async () => {
@@ -290,7 +275,7 @@ describe("Thinking Budget Feature", () => {
       ];
 
       for (const testCase of testCases) {
-        mockChatGenerateContentMethod.mock.resetCalls();
+        vi.clearAllMocks();
 
         // Act
         const sessionId = chatService.startChatSession({
@@ -307,18 +292,16 @@ describe("Thinking Budget Feature", () => {
         });
 
         // Assert
-        assert.strictEqual(mockChatGenerateContentMethod.mock.calls.length, 1);
+        expect(mockChatGenerateContentMethod).toHaveBeenCalledTimes(1);
         // Get mock arguments safely with null checks
         const args = mockChatGenerateContentMethod.mock.calls[0];
-        assert.ok(args, "Mock should have been called with arguments");
+        expect(args).toBeTruthy();
 
-        const requestConfig = args.arguments[0];
-        assert.ok(requestConfig, "Request config should exist");
-        assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");
-        assert.strictEqual(
-          requestConfig.thinkingConfig.thinkingBudget,
-          testCase.expectedBudget,
-          `Should map reasoningEffort '${testCase.reasoningEffort}' to thinkingBudget ${testCase.expectedBudget}`
+        const requestConfig = args[0];
+        expect(requestConfig).toBeTruthy();
+        expect(requestConfig.thinkingConfig).toBeTruthy();
+        expect(requestConfig.thinkingConfig.thinkingBudget).toBe(
+          testCase.expectedBudget
         );
       }
     });
@@ -350,19 +333,15 @@ describe("Thinking Budget Feature", () => {
       });
 
       // Assert
-      assert.strictEqual(mockChatGenerateContentMethod.mock.calls.length, 1);
+      expect(mockChatGenerateContentMethod).toHaveBeenCalledTimes(1);
       // Get mock arguments safely with null checks
       const args = mockChatGenerateContentMethod.mock.calls[0];
-      assert.ok(args, "Mock should have been called with arguments");
+      expect(args).toBeTruthy();
 
-      const requestConfig = args.arguments[0];
-      assert.ok(requestConfig, "Request config should exist");
-      assert.ok(requestConfig.thinkingConfig, "Should have thinkingConfig");
-      assert.strictEqual(
-        requestConfig.thinkingConfig.thinkingBudget,
-        8000,
-        "Should override session thinking budget with message thinking budget"
-      );
+      const requestConfig = args[0];
+      expect(requestConfig).toBeTruthy();
+      expect(requestConfig.thinkingConfig).toBeTruthy();
+      expect(requestConfig.thinkingConfig.thinkingBudget).toBe(8000);
     });
   });
 });

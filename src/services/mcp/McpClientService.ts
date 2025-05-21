@@ -117,14 +117,14 @@ export class McpClientService {
     // Create controller for aborting the fetch
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeoutMs);
-    
+
     try {
       // Add the signal to the options
       const fetchOptions = {
         ...options,
-        signal: controller.signal
+        signal: controller.signal,
       };
-      
+
       // Make the fetch request
       const response = await fetch(url, fetchOptions);
       clearTimeout(id);
@@ -514,7 +514,7 @@ export class McpClientService {
 
         // Spawn the child process
         const childProcess = spawn(command, args, {
-          stdio: "pipe"
+          stdio: "pipe",
         });
 
         // Store the connection with timestamp
@@ -566,77 +566,72 @@ export class McpClientService {
 
               // Check if this is a response to a pending request
               if (parsedData.id) {
-                // Search for the request in all connection maps
+                // Only check pending requests for the current connection (connectionId)
+                const requestsMap = this.pendingStdioRequests.get(connectionId);
                 let foundRequest = false;
-                for (const [
-                  connId,
-                  requestsMap,
-                ] of this.pendingStdioRequests.entries()) {
-                  if (requestsMap.has(parsedData.id)) {
-                    const { resolve, reject } = requestsMap.get(parsedData.id)!;
 
-                    requestsMap.delete(parsedData.id);
+                if (requestsMap && requestsMap.has(parsedData.id)) {
+                  const { resolve, reject } = requestsMap.get(parsedData.id)!;
 
-                    // If this was the last pending request, clean up the connection map
-                    if (requestsMap.size === 0) {
-                      this.pendingStdioRequests.delete(connId);
-                    }
+                  requestsMap.delete(parsedData.id);
 
-                    foundRequest = true;
+                  // If this was the last pending request, clean up the connection map
+                  if (requestsMap.size === 0) {
+                    this.pendingStdioRequests.delete(connectionId);
+                  }
 
-                    if (parsedData.error) {
+                  foundRequest = true;
+
+                  if (parsedData.error) {
+                    reject(
+                      new SdkMcpError(
+                        (parsedData.error.code as unknown as ErrorCode) ||
+                          ErrorCode.InternalError,
+                        parsedData.error.message || "Tool execution error",
+                        parsedData.error.data
+                      )
+                    );
+                  } else {
+                    // Verify the result is an object or array
+                    if (
+                      parsedData.result === null ||
+                      parsedData.result === undefined
+                    ) {
                       reject(
-                        new SdkMcpError(
-                          (parsedData.error.code as unknown as ErrorCode) ||
-                            ErrorCode.InternalError,
-                          parsedData.error.message || "Tool execution error",
-                          parsedData.error.data
+                        new McpError(
+                          ErrorCode.InternalError,
+                          "Received null or undefined result from tool",
+                          { responseId: parsedData.id }
+                        )
+                      );
+                    } else if (
+                      typeof parsedData.result !== "object" &&
+                      !Array.isArray(parsedData.result)
+                    ) {
+                      reject(
+                        new McpError(
+                          ErrorCode.InternalError,
+                          "Expected object or array result from tool",
+                          {
+                            responseId: parsedData.id,
+                            receivedType: typeof parsedData.result,
+                          }
                         )
                       );
                     } else {
-                      // Verify the result is an object or array
-                      if (
-                        parsedData.result === null ||
-                        parsedData.result === undefined
-                      ) {
-                        reject(
-                          new McpError(
-                            ErrorCode.InternalError,
-                            "Received null or undefined result from tool",
-                            { responseId: parsedData.id }
-                          )
-                        );
-                      } else if (
-                        typeof parsedData.result !== "object" &&
-                        !Array.isArray(parsedData.result)
-                      ) {
-                        reject(
-                          new McpError(
-                            ErrorCode.InternalError,
-                            "Expected object or array result from tool",
-                            {
-                              responseId: parsedData.id,
-                              receivedType: typeof parsedData.result,
-                            }
-                          )
-                        );
-                      } else {
-                        resolve(
-                          parsedData.result as
-                            | Record<string, unknown>
-                            | Array<unknown>
-                        );
-                      }
+                      resolve(
+                        parsedData.result as
+                          | Record<string, unknown>
+                          | Array<unknown>
+                      );
                     }
-
-                    break;
                   }
                 }
 
                 // Only log if we didn't find the request
                 if (!foundRequest && messageHandler) {
                   logger.debug(
-                    `Received message with ID ${parsedData.id} but no matching pending request found`
+                    `Received message with ID ${parsedData.id} but no matching pending request found for this connection`
                   );
                   messageHandler(parsedData);
                 }

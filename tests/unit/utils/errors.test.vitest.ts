@@ -173,7 +173,7 @@ describe("mapToMcpError", () => {
     });
 
     // Directly check the original error - it should have details
-    expect(errorWithDetails).toHaveProperty('details');
+    expect(errorWithDetails).toHaveProperty("details");
     expect(errorWithDetails.details).toEqual({ key: "value" });
 
     // Map it to an McpError
@@ -187,9 +187,9 @@ describe("mapToMcpError", () => {
     // Verify mapping occurs correctly
     expect(mappedError).toBeInstanceOf(McpError);
     expect(mappedError.message).toContain("API error with details");
-    
+
     // If McpError supports data property for error details, check it
-    if ('data' in mappedError) {
+    if ("data" in mappedError) {
       expect(mappedError.data).toBeDefined();
     }
   });

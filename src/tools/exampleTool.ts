@@ -9,7 +9,7 @@ import {
   TOOL_NAME,
   TOOL_DESCRIPTION,
   TOOL_PARAMS,
-  ExampleToolParams
+  ExampleToolParams,
 } from "./schemas/exampleToolParams.js";
 
 /**

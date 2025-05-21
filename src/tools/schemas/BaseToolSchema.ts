@@ -1,6 +1,6 @@
 /**
  * Base Tool Schema Pattern
- * 
+ *
  * This file establishes the standardized pattern for defining tool parameter schemas.
  * All tool parameter definitions should follow this pattern for consistency.
  */
@@ -14,22 +14,22 @@ export interface ToolSchemaDefinition<T extends z.ZodRawShape> {
    * The tool name used for registration
    */
   TOOL_NAME: string;
-  
+
   /**
    * The tool description
    */
   TOOL_DESCRIPTION: string;
-  
+
   /**
    * The tool parameters as a Zod schema object for direct use with MCP server.tool()
    */
   TOOL_PARAMS: T;
-  
+
   /**
    * Complete Zod schema for validation (z.object(TOOL_PARAMS))
    */
   toolSchema: z.ZodObject<T>;
-  
+
   /**
    * TypeScript type for parameters derived from the schema
    */
@@ -50,12 +50,12 @@ export function createToolSchema<T extends z.ZodRawShape>(
 ): ToolSchemaDefinition<T> {
   const toolSchema = z.object(params);
   type ToolParams = z.infer<typeof toolSchema>;
-  
+
   return {
     TOOL_NAME: name,
     TOOL_DESCRIPTION: description,
     TOOL_PARAMS: params,
     toolSchema,
-    ToolParams: undefined as unknown as ToolParams
+    ToolParams: undefined as unknown as ToolParams,
   };
 }

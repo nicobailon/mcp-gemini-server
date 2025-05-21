@@ -1,5 +1,4 @@
-import { describe, it, beforeEach, afterEach, mock } from "node:test";
-import assert from "node:assert";
+import { describe, it, beforeEach, afterEach, expect, vi } from "vitest";
 import { setupTestServer, TestServerContext } from "../utils/test-setup.js";
 import { skipIfEnvMissing } from "../utils/env-check.js";
 import { REQUIRED_ENV_VARS } from "../utils/environment.js";
@@ -85,27 +84,27 @@ describe("Gemini Router Integration", () => {
     serverContext.server.on("request", originalListener as any);
 
     // Verify successful response
-    assert.strictEqual(response.status, 200);
+    expect(response.status).toBe(200);
 
     // Parse response
     const result = await response.json();
 
     // Verify response structure
-    assert.ok(result.content);
-    assert.strictEqual(result.content.length, 1);
-    assert.strictEqual(result.content[0].type, "text");
+    expect(result.content).toBeTruthy();
+    expect(result.content.length).toBe(1);
+    expect(result.content[0].type).toBe("text");
 
     // Parse the text content
     const parsedContent = JSON.parse(result.content[0].text);
 
     // Verify we got both a response and a chosen model
-    assert.ok(parsedContent.text);
-    assert.ok(parsedContent.chosenModel);
+    expect(parsedContent.text).toBeTruthy();
+    expect(parsedContent.chosenModel).toBeTruthy();
 
     // Verify the chosen model is one of our specified models
-    assert.ok(
+    expect(
       ["gemini-1.5-pro", "gemini-1.5-flash"].includes(parsedContent.chosenModel)
-    );
+    ).toBeTruthy();
   });
 
   it("should use default model when routing fails", async (t) => {
@@ -164,19 +163,19 @@ describe("Gemini Router Integration", () => {
     serverContext.server.on("request", originalListener as any);
 
     // Verify successful response
-    assert.strictEqual(response.status, 200);
+    expect(response.status).toBe(200);
 
     // Parse response
     const result = await response.json();
 
     // Verify response structure
-    assert.ok(result.content);
+    expect(result.content).toBeTruthy();
 
     // Parse the text content
     const parsedContent = JSON.parse(result.content[0].text);
 
     // Verify the default model was used
-    assert.strictEqual(parsedContent.chosenModel, "gemini-1.5-pro");
+    expect(parsedContent.chosenModel).toBe("gemini-1.5-pro");
   });
 
   it("should return validation errors for invalid inputs", async (t) => {
@@ -220,14 +219,14 @@ describe("Gemini Router Integration", () => {
     });
 
     // Verify error response
-    assert.strictEqual(response.status, 400);
+    expect(response.status).toBe(400);
 
     // Parse error
     const error = await response.json();
 
     // Verify error structure
-    assert.strictEqual(error.code, "InvalidParams");
-    assert.ok(error.message.includes("Invalid parameters"));
+    expect(error.code).toBe("InvalidParams");
+    expect(error.message.includes("Invalid parameters")).toBeTruthy();
 
     // Restore original listener after test
     serverContext.server.removeAllListeners("request");

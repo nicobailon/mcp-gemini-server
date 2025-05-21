@@ -27,7 +27,7 @@ export function mcpCallServerTool(
   mcpClientService: McpClientService
 ): void {
   logger.info(`Registering tool: ${TOOL_NAME}`);
-  
+
   // Create a FileSecurityService instance for this tool
   const fileSecurityService = new FileSecurityService();
 
@@ -73,7 +73,7 @@ export function mcpCallServerTool(
                 "ALLOWED_OUTPUT_PATHS environment variable."
             );
           }
-          
+
           // Update the FileSecurityService with allowed paths
           fileSecurityService.setAllowedDirectories(allowedOutputPaths);
 
@@ -81,7 +81,10 @@ export function mcpCallServerTool(
           await fileSecurityService.secureWriteFile(
             args.outputFilePath,
             JSON.stringify(result, null, 2),
-            { overwrite: args.overwriteFile !== undefined ? args.overwriteFile : true }
+            {
+              overwrite:
+                args.overwriteFile !== undefined ? args.overwriteFile : true,
+            }
           );
 
           // Return a success message with the file path
@@ -116,9 +119,11 @@ export function mcpCallServerTool(
                 overwrite: args.overwriteFile,
               });
             }
-            
-            if (error.message.includes("Access denied") || 
-                error.message.includes("Security error")) {
+
+            if (
+              error.message.includes("Access denied") ||
+              error.message.includes("Security error")
+            ) {
               throw new McpError(
                 ErrorCode.InvalidParams,
                 `Security error: ${error.message}`,
@@ -126,7 +131,7 @@ export function mcpCallServerTool(
               );
             }
           }
-          
+
           // Generic file system errors
           throw new McpError(
             ErrorCode.InternalError,
@@ -161,7 +166,7 @@ export function mcpCallServerTool(
         // Create new data object with tool context
         const contextData = {
           toolName: args.toolName,
-          connectionId: args.connectionId
+          connectionId: args.connectionId,
         };
         throw new McpError(error.code, error.message, contextData);
       } else if (

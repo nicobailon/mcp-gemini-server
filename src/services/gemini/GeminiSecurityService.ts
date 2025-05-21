@@ -7,7 +7,7 @@ import { ValidationError } from "../../utils/errors.js";
  * Service for handling security-related operations for the Gemini service.
  * Primarily focuses on file path validation and secure base path management.
  * Uses the centralized FileSecurityService for consistent path validation.
- * 
+ *
  * @deprecated Use FileSecurityService directly instead
  */
 export class GeminiSecurityService {
@@ -23,9 +23,11 @@ export class GeminiSecurityService {
       secureBasePath ? [secureBasePath] : undefined,
       secureBasePath
     );
-    
+
     if (secureBasePath) {
-      logger.debug(`GeminiSecurityService initialized with base path: ${secureBasePath}`);
+      logger.debug(
+        `GeminiSecurityService initialized with base path: ${secureBasePath}`
+      );
     } else {
       logger.debug(`GeminiSecurityService initialized with default base path`);
     }
@@ -46,7 +48,7 @@ export class GeminiSecurityService {
   public validateFilePath(filePath: string, basePath?: string): string {
     try {
       return this.fileSecurityService.validateAndResolvePath(filePath, {
-        basePath: basePath
+        basePath: basePath,
       });
     } catch (error) {
       // Convert ValidationError to regular Error for backward compatibility
@@ -82,7 +84,7 @@ export class GeminiSecurityService {
   public getSecureBasePath(): string | undefined {
     return this.fileSecurityService.getSecureBasePath();
   }
-  
+
   /**
    * Gets the underlying FileSecurityService instance
    * This allows for a gradual transition to the new service

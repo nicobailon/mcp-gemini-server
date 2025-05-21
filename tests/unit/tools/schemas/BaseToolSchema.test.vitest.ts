@@ -12,11 +12,11 @@ describe("BaseToolSchema", () => {
       const testParams = {
         name: z.string().min(1),
         count: z.number().int().positive(),
-        isEnabled: z.boolean().optional()
+        isEnabled: z.boolean().optional(),
       };
 
       const result = createToolSchema(
-        "testTool", 
+        "testTool",
         "A tool for testing",
         testParams
       );
@@ -30,11 +30,11 @@ describe("BaseToolSchema", () => {
     it("should create a schema that validates correctly", () => {
       const testParams = {
         name: z.string().min(1),
-        count: z.number().int().positive()
+        count: z.number().int().positive(),
       };
 
       const { toolSchema } = createToolSchema(
-        "testTool", 
+        "testTool",
         "A tool for testing",
         testParams
       );

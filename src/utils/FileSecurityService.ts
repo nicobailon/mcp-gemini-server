@@ -41,8 +41,8 @@ export class FileSecurityService {
   private secureBasePath?: string;
 
   // Default safe base directory - using the project root as the default
-  private readonly DEFAULT_SAFE_BASE_DIR: string = process.env.GEMINI_SAFE_FILE_BASE_DIR || 
-    path.resolve(process.cwd());
+  private readonly DEFAULT_SAFE_BASE_DIR: string =
+    process.env.GEMINI_SAFE_FILE_BASE_DIR || path.resolve(process.cwd());
 
   /**
    * Creates a new instance of the FileSecurityService
@@ -51,7 +51,8 @@ export class FileSecurityService {
    */
   constructor(allowedDirectories?: string[], secureBasePath?: string) {
     // Initialize with environment variable if set
-    this.secureBasePath = process.env.GEMINI_SAFE_FILE_BASE_DIR || 
+    this.secureBasePath =
+      process.env.GEMINI_SAFE_FILE_BASE_DIR ||
       (secureBasePath ? path.normalize(secureBasePath) : undefined);
 
     // Initialize allowed directories
@@ -62,8 +63,10 @@ export class FileSecurityService {
     } else {
       this.allowedDirectories = [path.resolve(process.cwd())];
     }
-    
-    logger.info(`File operations restricted to: ${this.allowedDirectories.join(", ")}`);
+
+    logger.info(
+      `File operations restricted to: ${this.allowedDirectories.join(", ")}`
+    );
   }
 
   /**
@@ -77,12 +80,12 @@ export class FileSecurityService {
 
     // Store the base path in a private field
     this.secureBasePath = path.normalize(basePath);
-    
+
     // Update allowed directories to include this path
     if (!this.allowedDirectories.includes(this.secureBasePath)) {
       this.allowedDirectories.push(this.secureBasePath);
     }
-    
+
     logger.debug(`Secure base path set to: ${this.secureBasePath}`);
   }
 
@@ -99,7 +102,9 @@ export class FileSecurityService {
    */
   public setAllowedDirectories(directories: string[]): void {
     if (!directories || directories.length === 0) {
-      throw new ValidationError("At least one allowed directory must be provided");
+      throw new ValidationError(
+        "At least one allowed directory must be provided"
+      );
     }
 
     // Validate all directories are absolute paths
@@ -110,8 +115,10 @@ export class FileSecurityService {
     }
 
     // Store normalized paths
-    this.allowedDirectories = directories.map(dir => path.normalize(dir));
-    logger.debug(`Allowed directories set to: ${this.allowedDirectories.join(", ")}`);
+    this.allowedDirectories = directories.map((dir) => path.normalize(dir));
+    logger.debug(
+      `Allowed directories set to: ${this.allowedDirectories.join(", ")}`
+    );
   }
 
   /**
@@ -138,18 +145,17 @@ export class FileSecurityService {
       basePath?: string;
     } = {}
   ): string {
-    const { 
-      mustExist = false,
-      allowedDirs,
-      basePath 
-    } = options;
+    const { mustExist = false, allowedDirs, basePath } = options;
 
     // Determine which allowed directories to use
-    const effectiveAllowedDirs = allowedDirs || 
+    const effectiveAllowedDirs =
+      allowedDirs ||
       (basePath ? [path.normalize(basePath)] : this.allowedDirectories);
 
     logger.debug(`Validating file path: ${filePath}`);
-    logger.debug(`Using allowed directories: ${effectiveAllowedDirs.join(", ")}`);
+    logger.debug(
+      `Using allowed directories: ${effectiveAllowedDirs.join(", ")}`
+    );
 
     // Resolve the absolute path
     const absolutePath = path.isAbsolute(filePath)
@@ -161,7 +167,9 @@ export class FileSecurityService {
 
     // Check if the path is within any allowed directory
     if (!this.isPathWithinAllowedDirs(normalizedPath, effectiveAllowedDirs)) {
-      logger.warn(`Access denied: Path not in allowed directories: ${filePath}`);
+      logger.warn(
+        `Access denied: Path not in allowed directories: ${filePath}`
+      );
       throw new ValidationError(
         `Access denied: The file path must be within the allowed directories`
       );
@@ -229,14 +237,14 @@ export class FileSecurityService {
 
   /**
    * Fully resolves a file path, handling symlinks and security checks
-   * 
+   *
    * @param filePath The file path to resolve
    * @returns The fully resolved file path
    * @throws ValidationError if the path contains insecure symlinks
    */
   public async fullyResolvePath(filePath: string): Promise<string> {
     const normalizedPath = path.normalize(path.resolve(filePath));
-    
+
     try {
       // Check if the target file exists and is a symlink
       try {
@@ -244,15 +252,18 @@ export class FileSecurityService {
         if (stats.isSymbolicLink()) {
           logger.warn(`Path is a symlink: ${normalizedPath}`);
           const target = await fs.readlink(normalizedPath);
-          const resolvedPath = path.resolve(path.dirname(normalizedPath), target);
-          
+          const resolvedPath = path.resolve(
+            path.dirname(normalizedPath),
+            target
+          );
+
           // Ensure the symlink target is within allowed directories
           if (!this.isPathWithinAllowedDirs(resolvedPath)) {
             throw new ValidationError(
               `Security error: Symlink target is outside allowed directories: ${resolvedPath}`
             );
           }
-          
+
           return resolvedPath;
         }
       } catch (err) {
@@ -265,7 +276,7 @@ export class FileSecurityService {
       // Also check parent directories to ensure we're not inside a symlinked directory
       let currentPath = path.dirname(normalizedPath);
       const root = path.parse(currentPath).root;
-      
+
       // Track resolved parent paths
       const resolvedPaths = new Map<string, string>();
 
@@ -276,27 +287,29 @@ export class FileSecurityService {
             // Resolve the symlink
             const linkTarget = await fs.readlink(currentPath);
             const resolvedPath = path.resolve(
-              path.dirname(currentPath), 
+              path.dirname(currentPath),
               linkTarget
             );
-            
-            logger.warn(`Parent directory is a symlink: ${currentPath} -> ${resolvedPath}`);
+
+            logger.warn(
+              `Parent directory is a symlink: ${currentPath} -> ${resolvedPath}`
+            );
             resolvedPaths.set(currentPath, resolvedPath);
-            
+
             // If this is the immediate parent, update the final path
             if (currentPath === path.dirname(normalizedPath)) {
               const updatedPath = path.join(
                 resolvedPath,
                 path.basename(normalizedPath)
               );
-              
+
               // Ensure resolved path is still secure
               if (!this.isPathWithinAllowedDirs(updatedPath)) {
                 throw new ValidationError(
                   `Security error: Resolved symlink path is outside allowed directories: ${updatedPath}`
                 );
               }
-              
+
               return updatedPath;
             }
           }
@@ -314,45 +327,48 @@ export class FileSecurityService {
         try {
           // Get fully resolved path including all symlinks
           const finalResolvedPath = await fs.realpath(normalizedPath);
-          
+
           // Final security check with the fully resolved path
           if (!this.isPathWithinAllowedDirs(finalResolvedPath)) {
             throw new ValidationError(
               `Security error: Resolved path is outside allowed directories: ${finalResolvedPath}`
             );
           }
-          
+
           return finalResolvedPath;
         } catch (err) {
           // Handle case where path doesn't exist yet
           if (isENOENTError(err)) {
             // Try to resolve just the directory part
-            const resolvedDir = await fs.realpath(path.dirname(normalizedPath))
+            const resolvedDir = await fs
+              .realpath(path.dirname(normalizedPath))
               .catch((dirErr) => {
                 if (isENOENTError(dirErr)) {
                   return path.dirname(normalizedPath);
                 }
                 throw dirErr;
               });
-              
-            const finalPath = path.join(resolvedDir, path.basename(normalizedPath));
-            
+
+            const finalPath = path.join(
+              resolvedDir,
+              path.basename(normalizedPath)
+            );
+
             // Final security check
             if (!this.isPathWithinAllowedDirs(finalPath)) {
               throw new ValidationError(
                 `Security error: Resolved path is outside allowed directories: ${finalPath}`
               );
             }
-            
+
             return finalPath;
           }
           throw err;
         }
       }
-      
+
       // No symlinks found, return the normalized path
       return normalizedPath;
-      
     } catch (err) {
       if (hasErrorMessage(err) && err.message.includes("Security error:")) {
         // Re-throw security errors
@@ -384,13 +400,15 @@ export class FileSecurityService {
     } = {}
   ): Promise<void> {
     const { overwrite = false, allowedDirs } = options;
-    
+
     // Use instance's allowed directories if none provided
     const effectiveAllowedDirs = allowedDirs || this.allowedDirectories;
 
     // 1. Initial validation against allowed directories
-    const validatedPath = this.validateAndResolvePath(filePath, { allowedDirs: effectiveAllowedDirs });
-    
+    const validatedPath = this.validateAndResolvePath(filePath, {
+      allowedDirs: effectiveAllowedDirs,
+    });
+
     // 2. Fully resolve the path handling symlinks and do final security check
     const finalFilePath = await this.fullyResolvePath(validatedPath);
 
@@ -399,7 +417,9 @@ export class FileSecurityService {
       try {
         await fs.access(finalFilePath);
         // If we get here, the file exists
-        logger.error(`File already exists and overwrite is false: ${finalFilePath}`);
+        logger.error(
+          `File already exists and overwrite is false: ${finalFilePath}`
+        );
         throw new ValidationError(
           `File already exists: ${filePath}. Set overwrite flag to true to replace it.`
         );
@@ -422,7 +442,9 @@ export class FileSecurityService {
     } catch (err) {
       logger.error(`Error creating directory ${dirPath}:`, err);
       const errorMsg = hasErrorMessage(err) ? err.message : String(err);
-      throw new ValidationError(`Failed to create directory structure: ${errorMsg}`);
+      throw new ValidationError(
+        `Failed to create directory structure: ${errorMsg}`
+      );
     }
 
     // 5. Write the file
@@ -447,7 +469,9 @@ export class FileSecurityService {
     if (customBaseDir) {
       // Validate that the custom base directory exists
       if (!fsSync.existsSync(customBaseDir)) {
-        logger.warn(`Configured GEMINI_SAFE_FILE_BASE_DIR does not exist: ${customBaseDir}`);
+        logger.warn(
+          `Configured GEMINI_SAFE_FILE_BASE_DIR does not exist: ${customBaseDir}`
+        );
         logger.warn(`Falling back to default directory: ${process.cwd()}`);
         service.setAllowedDirectories([process.cwd()]);
       } else {
@@ -455,7 +479,9 @@ export class FileSecurityService {
         service.setAllowedDirectories([customBaseDir]);
       }
     } else {
-      logger.info(`File operations restricted to current working directory: ${process.cwd()}`);
+      logger.info(
+        `File operations restricted to current working directory: ${process.cwd()}`
+      );
       service.setAllowedDirectories([process.cwd()]);
     }
 

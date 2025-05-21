@@ -1,48 +1,7 @@
-import { describe, it, before, mock, afterEach } from "node:test";
-import assert from "node:assert";
+import { describe, it, beforeAll, afterEach, expect, vi } from "vitest";
 import { GeminiGitDiffService } from "../../../../src/services/gemini/GeminiGitDiffService.js";
 import { Content } from "../../../../src/services/gemini/GeminiTypes.js";
 import gitdiffParser from "gitdiff-parser";
-
-// Create a simple mock for gitdiff-parser
-const mockParsedDiff = [
-  {
-    oldPath: "src/utils/logger.ts",
-    newPath: "src/utils/logger.ts",
-    hunks: [
-      {
-        oldStart: 1,
-        oldLines: 5,
-        newStart: 1,
-        newLines: 6,
-        changes: [
-          { type: "normal", content: "const logger = {" },
-          {
-            type: "delete",
-            content: "  log: (message: string) => console.log(message),",
-          },
-          {
-            type: "insert",
-            content:
-              "  log: (message: string, ...args: any[]) => console.log(message, ...args),",
-          },
-          {
-            type: "insert",
-            content:
-              "  debug: (message: string, ...args: any[]) => console.debug(message, ...args),",
-          },
-          {
-            type: "normal",
-            content:
-              "  error: (message: string, error?: Error) => console.error(message, error)",
-          },
-          { type: "normal", content: "};" },
-          { type: "normal", content: "" },
-        ],
-      },
-    ],
-  },
-];
 
 // Mock diff content
 const mockDiffContent = `diff --git a/src/utils/logger.ts b/src/utils/logger.ts
@@ -59,6 +18,52 @@ index 1234567..abcdef0 100644
  
 `;
 
+// Mock gitdiff-parser - declare parsed diff inside the mock
+vi.mock("gitdiff-parser", () => {
+  return {
+    default: {
+      parse: vi.fn().mockReturnValue([
+        {
+          oldPath: "src/utils/logger.ts",
+          newPath: "src/utils/logger.ts",
+          hunks: [
+            {
+              oldStart: 1,
+              oldLines: 5,
+              newStart: 1,
+              newLines: 6,
+              changes: [
+                { type: "normal", content: "const logger = {" },
+                {
+                  type: "delete",
+                  content: "  log: (message: string) => console.log(message),",
+                },
+                {
+                  type: "insert",
+                  content:
+                    "  log: (message: string, ...args: any[]) => console.log(message, ...args),",
+                },
+                {
+                  type: "insert",
+                  content:
+                    "  debug: (message: string, ...args: any[]) => console.debug(message, ...args),",
+                },
+                {
+                  type: "normal",
+                  content:
+                    "  error: (message: string, error?: Error) => console.error(message, error)",
+                },
+                { type: "normal", content: "};" },
+                { type: "normal", content: "" },
+              ],
+            },
+          ],
+        },
+      ]),
+    },
+  };
+});
+
 describe("GeminiGitDiffService", () => {
   let mockGenAI: any;
   let mockModel: any;
@@ -66,7 +71,7 @@ describe("GeminiGitDiffService", () => {
   let service: GeminiGitDiffService;
 
   // Setup test fixture
-  before(() => {
+  beforeAll(() => {
     // Create mock response
     mockResponse = {
       response: {
@@ -76,8 +81,8 @@ describe("GeminiGitDiffService", () => {
 
     // Create mock model
     mockModel = {
-      generateContent: mock.fn(() => Promise.resolve(mockResponse)),
-      generateContentStream: mock.fn(() => ({
+      generateContent: vi.fn(() => Promise.resolve(mockResponse)),
+      generateContentStream: vi.fn(() => ({
         stream: {
           async *[Symbol.asyncIterator]() {
             yield { text: () => "Streamed chunk 1" };
@@ -89,7 +94,7 @@ describe("GeminiGitDiffService", () => {
 
     // Create mock GoogleGenAI
     mockGenAI = {
-      getGenerativeModel: mock.fn(() => mockModel),
+      getGenerativeModel: vi.fn(() => mockModel),
     };
 
     // Create service with flash model as default
@@ -99,17 +104,10 @@ describe("GeminiGitDiffService", () => {
       1024 * 1024,
       ["package-lock.json", "*.min.js"]
     );
-
-    // We need to mock gitdiff-parser.parse correctly since it's used by the parseGitDiff method
-    // Intercept calls to gitdiff-parser.parse and return our mock
-    mock.method(gitdiffParser, "parse", () => mockParsedDiff);
   });
 
   afterEach(() => {
-    mock.restoreAll();
-    if (mockGenAI && mockGenAI.getGenerativeModel) {
-      mockGenAI.getGenerativeModel.mock.resetCalls();
-    }
+    vi.clearAllMocks();
   });
 
   describe("reviewDiff", () => {
@@ -121,10 +119,14 @@ describe("GeminiGitDiffService", () => {
       });
 
       // Verify model called with correct parameters
-      assert.strictEqual(mockGenAI.getGenerativeModel.mock.calls.length, 1);
-      assert.strictEqual(
-        mockGenAI.getGenerativeModel.mock.calls[0].arguments[0].model,
-        "gemini-flash-2.0"
+      expect(mockGenAI.getGenerativeModel).toHaveBeenCalledTimes(1);
+      expect(mockGenAI.getGenerativeModel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: "gemini-flash-2.0",
+          generationConfig: expect.objectContaining({
+            thinkingBudget: 4096,
+          }),
+        })
       );
     });
 
@@ -137,10 +139,11 @@ describe("GeminiGitDiffService", () => {
       });
 
       // Verify model called with correct parameters
-      assert.strictEqual(mockGenAI.getGenerativeModel.mock.calls.length, 1);
-      assert.strictEqual(
-        mockGenAI.getGenerativeModel.mock.calls[0].arguments[0].model,
-        "gemini-pro"
+      expect(mockGenAI.getGenerativeModel).toHaveBeenCalledTimes(1);
+      expect(mockGenAI.getGenerativeModel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: "gemini-pro",
+        })
       );
     });
 
@@ -152,11 +155,13 @@ describe("GeminiGitDiffService", () => {
       });
 
       // Verify thinking budget set accordingly
-      assert.strictEqual(mockGenAI.getGenerativeModel.mock.calls.length, 1);
-      assert.strictEqual(
-        mockGenAI.getGenerativeModel.mock.calls[0].arguments[0].generationConfig
-          .thinkingBudget,
-        2048
+      expect(mockGenAI.getGenerativeModel).toHaveBeenCalledTimes(1);
+      expect(mockGenAI.getGenerativeModel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          generationConfig: expect.objectContaining({
+            thinkingBudget: 2048,
+          }),
+        })
       );
     });
   });
@@ -174,9 +179,9 @@ describe("GeminiGitDiffService", () => {
       }
 
       // Verify we got both chunks
-      assert.strictEqual(chunks.length, 2);
-      assert.strictEqual(chunks[0], "Streamed chunk 1");
-      assert.strictEqual(chunks[1], "Streamed chunk 2");
+      expect(chunks.length).toBe(2);
+      expect(chunks[0]).toBe("Streamed chunk 1");
+      expect(chunks[1]).toBe("Streamed chunk 2");
     });
   });
 });

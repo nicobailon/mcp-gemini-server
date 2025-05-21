@@ -1,5 +1,4 @@
-import { describe, it } from "node:test";
-import assert from "node:assert";
+import { describe, it, expect } from "vitest";
 import {
   processTemplate,
   getReviewTemplate,
@@ -17,7 +16,7 @@ describe("GeminiPromptTemplates", () => {
       };
 
       const result = processTemplate(template, context);
-      assert.strictEqual(result, "Hello John, welcome to Paris!");
+      expect(result).toBe("Hello John, welcome to Paris!");
     });
 
     it("should handle missing placeholders", () => {
@@ -28,7 +27,7 @@ describe("GeminiPromptTemplates", () => {
       };
 
       const result = processTemplate(template, context);
-      assert.strictEqual(result, "Hello John, welcome to !");
+      expect(result).toBe("Hello John, welcome to !");
     });
 
     it("should handle undefined values", () => {
@@ -40,7 +39,7 @@ describe("GeminiPromptTemplates", () => {
       };
 
       const result = processTemplate(template, context);
-      assert.strictEqual(result, "Hello John, welcome to !");
+      expect(result).toBe("Hello John, welcome to !");
     });
 
     it("should handle non-string values", () => {
@@ -51,7 +50,7 @@ describe("GeminiPromptTemplates", () => {
       };
 
       const result = processTemplate(template, context);
-      assert.strictEqual(result, "The answer is 42.");
+      expect(result).toBe("The answer is 42.");
     });
   });
 
@@ -64,48 +63,48 @@ describe("GeminiPromptTemplates", () => {
       const generalTemplate = getReviewTemplate("general");
 
       // Verify all templates are strings and different from each other
-      assert.strictEqual(typeof securityTemplate, "string");
-      assert.strictEqual(typeof performanceTemplate, "string");
-      assert.strictEqual(typeof architectureTemplate, "string");
-      assert.strictEqual(typeof bugsTemplate, "string");
-      assert.strictEqual(typeof generalTemplate, "string");
+      expect(typeof securityTemplate).toBe("string");
+      expect(typeof performanceTemplate).toBe("string");
+      expect(typeof architectureTemplate).toBe("string");
+      expect(typeof bugsTemplate).toBe("string");
+      expect(typeof generalTemplate).toBe("string");
 
-      assert.notStrictEqual(securityTemplate, performanceTemplate);
-      assert.notStrictEqual(securityTemplate, architectureTemplate);
-      assert.notStrictEqual(securityTemplate, bugsTemplate);
-      assert.notStrictEqual(securityTemplate, generalTemplate);
-      assert.notStrictEqual(performanceTemplate, architectureTemplate);
-      assert.notStrictEqual(performanceTemplate, bugsTemplate);
-      assert.notStrictEqual(performanceTemplate, generalTemplate);
-      assert.notStrictEqual(architectureTemplate, bugsTemplate);
-      assert.notStrictEqual(architectureTemplate, generalTemplate);
-      assert.notStrictEqual(bugsTemplate, generalTemplate);
+      expect(securityTemplate).not.toBe(performanceTemplate);
+      expect(securityTemplate).not.toBe(architectureTemplate);
+      expect(securityTemplate).not.toBe(bugsTemplate);
+      expect(securityTemplate).not.toBe(generalTemplate);
+      expect(performanceTemplate).not.toBe(architectureTemplate);
+      expect(performanceTemplate).not.toBe(bugsTemplate);
+      expect(performanceTemplate).not.toBe(generalTemplate);
+      expect(architectureTemplate).not.toBe(bugsTemplate);
+      expect(architectureTemplate).not.toBe(generalTemplate);
+      expect(bugsTemplate).not.toBe(generalTemplate);
     });
 
     it("should return a template containing expected keywords for each focus", () => {
       // Security template should mention security concepts
       const securityTemplate = getReviewTemplate("security");
-      assert.ok(securityTemplate.includes("security"));
-      assert.ok(securityTemplate.includes("vulnerabilit"));
+      expect(securityTemplate).toContain("security");
+      expect(securityTemplate).toContain("vulnerabilit");
 
       // Performance template should mention performance concepts
       const performanceTemplate = getReviewTemplate("performance");
-      assert.ok(performanceTemplate.includes("performance"));
-      assert.ok(performanceTemplate.includes("optimiz"));
+      expect(performanceTemplate).toContain("performance");
+      expect(performanceTemplate).toContain("optimiz");
 
       // Architecture template should mention architecture concepts
       const architectureTemplate = getReviewTemplate("architecture");
-      assert.ok(architectureTemplate.includes("architect"));
-      assert.ok(architectureTemplate.includes("design"));
+      expect(architectureTemplate).toContain("architect");
+      expect(architectureTemplate).toContain("design");
 
       // Bugs template should mention bug-related concepts
       const bugsTemplate = getReviewTemplate("bugs");
-      assert.ok(bugsTemplate.includes("bug"));
-      assert.ok(bugsTemplate.includes("error"));
+      expect(bugsTemplate).toContain("bug");
+      expect(bugsTemplate).toContain("error");
 
       // General template should be comprehensive
       const generalTemplate = getReviewTemplate("general");
-      assert.ok(generalTemplate.includes("comprehensive"));
+      expect(generalTemplate).toContain("comprehensive");
     });
   });
 
@@ -118,48 +117,48 @@ describe("GeminiPromptTemplates", () => {
       const generalInstructions = getFocusInstructions("general");
 
       // Verify all instructions are strings and different from each other
-      assert.strictEqual(typeof securityInstructions, "string");
-      assert.strictEqual(typeof performanceInstructions, "string");
-      assert.strictEqual(typeof architectureInstructions, "string");
-      assert.strictEqual(typeof bugsInstructions, "string");
-      assert.strictEqual(typeof generalInstructions, "string");
+      expect(typeof securityInstructions).toBe("string");
+      expect(typeof performanceInstructions).toBe("string");
+      expect(typeof architectureInstructions).toBe("string");
+      expect(typeof bugsInstructions).toBe("string");
+      expect(typeof generalInstructions).toBe("string");
 
-      assert.notStrictEqual(securityInstructions, performanceInstructions);
-      assert.notStrictEqual(securityInstructions, architectureInstructions);
-      assert.notStrictEqual(securityInstructions, bugsInstructions);
-      assert.notStrictEqual(securityInstructions, generalInstructions);
-      assert.notStrictEqual(performanceInstructions, architectureInstructions);
-      assert.notStrictEqual(performanceInstructions, bugsInstructions);
-      assert.notStrictEqual(performanceInstructions, generalInstructions);
-      assert.notStrictEqual(architectureInstructions, bugsInstructions);
-      assert.notStrictEqual(architectureInstructions, generalInstructions);
-      assert.notStrictEqual(bugsInstructions, generalInstructions);
+      expect(securityInstructions).not.toBe(performanceInstructions);
+      expect(securityInstructions).not.toBe(architectureInstructions);
+      expect(securityInstructions).not.toBe(bugsInstructions);
+      expect(securityInstructions).not.toBe(generalInstructions);
+      expect(performanceInstructions).not.toBe(architectureInstructions);
+      expect(performanceInstructions).not.toBe(bugsInstructions);
+      expect(performanceInstructions).not.toBe(generalInstructions);
+      expect(architectureInstructions).not.toBe(bugsInstructions);
+      expect(architectureInstructions).not.toBe(generalInstructions);
+      expect(bugsInstructions).not.toBe(generalInstructions);
     });
 
     it("should include focus-specific keywords in each instruction", () => {
       // Security instructions should mention security concepts
       const securityInstructions = getFocusInstructions("security");
-      assert.ok(securityInstructions.includes("security"));
-      assert.ok(securityInstructions.includes("vulnerabilities"));
+      expect(securityInstructions).toContain("security");
+      expect(securityInstructions).toContain("vulnerabilities");
 
       // Performance instructions should mention performance concepts
       const performanceInstructions = getFocusInstructions("performance");
-      assert.ok(performanceInstructions.includes("performance"));
-      assert.ok(performanceInstructions.includes("Algorithm"));
+      expect(performanceInstructions).toContain("performance");
+      expect(performanceInstructions).toContain("Algorithm");
 
       // Architecture instructions should mention architecture concepts
       const architectureInstructions = getFocusInstructions("architecture");
-      assert.ok(architectureInstructions.includes("architectural"));
-      assert.ok(architectureInstructions.includes("Design pattern"));
+      expect(architectureInstructions).toContain("architectural");
+      expect(architectureInstructions).toContain("Design pattern");
 
       // Bugs instructions should mention bug-related concepts
       const bugsInstructions = getFocusInstructions("bugs");
-      assert.ok(bugsInstructions.includes("bugs"));
-      assert.ok(bugsInstructions.includes("errors"));
+      expect(bugsInstructions).toContain("bugs");
+      expect(bugsInstructions).toContain("errors");
 
       // General instructions should be comprehensive
       const generalInstructions = getFocusInstructions("general");
-      assert.ok(generalInstructions.includes("comprehensive"));
+      expect(generalInstructions).toContain("comprehensive");
     });
   });
 });

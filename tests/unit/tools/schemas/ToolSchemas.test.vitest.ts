@@ -1,14 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { 
-  ToolSchema, 
+import {
+  ToolSchema,
   ToolResponseSchema,
   FunctionParameterTypeSchema,
   FunctionParameterSchema,
   FunctionDeclarationSchema,
-  ToolConfigSchema 
+  ToolConfigSchema,
 } from "../../../../src/tools/schemas/ToolSchemas.js";
 
-import { 
+import {
   HarmCategorySchema,
   HarmBlockThresholdSchema,
   SafetySettingSchema,
@@ -18,7 +18,7 @@ import {
   FileOverwriteSchema,
   EncodingSchema,
   ModelNameSchema,
-  PromptSchema
+  PromptSchema,
 } from "../../../../src/tools/schemas/CommonSchemas.js";
 
 describe("Tool Schemas Validation", () => {
@@ -34,13 +34,13 @@ describe("Tool Schemas Validation", () => {
               properties: {
                 name: {
                   type: "STRING",
-                  description: "The name parameter"
-                }
+                  description: "The name parameter",
+                },
               },
-              required: ["name"]
-            }
-          }
-        ]
+              required: ["name"],
+            },
+          },
+        ],
       };
 
       const result = ToolSchema.safeParse(validTool);
@@ -61,10 +61,10 @@ describe("Tool Schemas Validation", () => {
             description: "A test function",
             parameters: {
               type: "OBJECT",
-              properties: {}
-            }
-          }
-        ]
+              properties: {},
+            },
+          },
+        ],
       };
 
       const result = ToolSchema.safeParse(invalidTool);
@@ -76,7 +76,7 @@ describe("Tool Schemas Validation", () => {
     it("should validate a valid tool response", () => {
       const validResponse = {
         name: "testTool",
-        response: { result: "success" }
+        response: { result: "success" },
       };
 
       const result = ToolResponseSchema.safeParse(validResponse);
@@ -85,7 +85,7 @@ describe("Tool Schemas Validation", () => {
 
     it("should reject response with missing name", () => {
       const invalidResponse = {
-        response: { result: "success" }
+        response: { result: "success" },
       };
 
       const result = ToolResponseSchema.safeParse(invalidResponse);
@@ -97,21 +97,23 @@ describe("Tool Schemas Validation", () => {
     it("should validate primitive parameter types", () => {
       const stringParam = {
         type: "STRING",
-        description: "A string parameter"
+        description: "A string parameter",
       };
 
       const numberParam = {
         type: "NUMBER",
-        description: "A number parameter"
+        description: "A number parameter",
       };
 
       const booleanParam = {
-        type: "BOOLEAN"
+        type: "BOOLEAN",
       };
 
       expect(FunctionParameterSchema.safeParse(stringParam).success).toBe(true);
       expect(FunctionParameterSchema.safeParse(numberParam).success).toBe(true);
-      expect(FunctionParameterSchema.safeParse(booleanParam).success).toBe(true);
+      expect(FunctionParameterSchema.safeParse(booleanParam).success).toBe(
+        true
+      );
     });
 
     it("should validate object parameter with nested properties", () => {
@@ -120,21 +122,21 @@ describe("Tool Schemas Validation", () => {
         description: "An object parameter",
         properties: {
           name: {
-            type: "STRING"
+            type: "STRING",
           },
           age: {
-            type: "INTEGER"
+            type: "INTEGER",
           },
           details: {
             type: "OBJECT",
             properties: {
               address: {
-                type: "STRING"
-              }
-            }
-          }
+                type: "STRING",
+              },
+            },
+          },
         },
-        required: ["name"]
+        required: ["name"],
       };
 
       const result = FunctionParameterSchema.safeParse(objectParam);
@@ -146,8 +148,8 @@ describe("Tool Schemas Validation", () => {
         type: "ARRAY",
         description: "An array parameter",
         items: {
-          type: "STRING"
-        }
+          type: "STRING",
+        },
       };
 
       const result = FunctionParameterSchema.safeParse(arrayParam);
@@ -157,7 +159,7 @@ describe("Tool Schemas Validation", () => {
     it("should reject parameter with invalid type", () => {
       const invalidParam = {
         type: "INVALID_TYPE", // Not a valid type
-        description: "An invalid parameter"
+        description: "An invalid parameter",
       };
 
       const result = FunctionParameterSchema.safeParse(invalidParam);
@@ -175,14 +177,14 @@ describe("Tool Schemas Validation", () => {
           properties: {
             name: {
               type: "STRING",
-              description: "The name parameter"
+              description: "The name parameter",
             },
             age: {
-              type: "INTEGER"
-            }
+              type: "INTEGER",
+            },
           },
-          required: ["name"]
-        }
+          required: ["name"],
+        },
       };
 
       const result = FunctionDeclarationSchema.safeParse(validFunction);
@@ -195,8 +197,8 @@ describe("Tool Schemas Validation", () => {
         description: "A test function",
         parameters: {
           type: "OBJECT",
-          properties: {}
-        }
+          properties: {},
+        },
       };
 
       const result = FunctionDeclarationSchema.safeParse(invalidFunction);
@@ -209,8 +211,8 @@ describe("Tool Schemas Validation", () => {
         description: "A test function",
         parameters: {
           type: "STRING", // Should be "OBJECT"
-          properties: {}
-        }
+          properties: {},
+        },
       };
 
       const result = FunctionDeclarationSchema.safeParse(invalidFunction);
@@ -226,16 +228,18 @@ describe("Tool Schemas Validation", () => {
           "HARM_CATEGORY_HATE_SPEECH",
           "HARM_CATEGORY_SEXUALLY_EXPLICIT",
           "HARM_CATEGORY_HARASSMENT",
-          "HARM_CATEGORY_DANGEROUS_CONTENT"
+          "HARM_CATEGORY_DANGEROUS_CONTENT",
         ];
 
-        validCategories.forEach(category => {
+        validCategories.forEach((category) => {
           expect(HarmCategorySchema.safeParse(category).success).toBe(true);
         });
       });
 
       it("should reject invalid harm categories", () => {
-        expect(HarmCategorySchema.safeParse("INVALID_CATEGORY").success).toBe(false);
+        expect(HarmCategorySchema.safeParse("INVALID_CATEGORY").success).toBe(
+          false
+        );
       });
     });
 
@@ -243,7 +247,7 @@ describe("Tool Schemas Validation", () => {
       it("should validate a valid safety setting", () => {
         const validSetting = {
           category: "HARM_CATEGORY_HATE_SPEECH",
-          threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          threshold: "BLOCK_MEDIUM_AND_ABOVE",
         };
 
         const result = SafetySettingSchema.safeParse(validSetting);
@@ -256,7 +260,7 @@ describe("Tool Schemas Validation", () => {
           "HARM_CATEGORY_HATE_SPEECH",
           "HARM_CATEGORY_SEXUALLY_EXPLICIT",
           "HARM_CATEGORY_HARASSMENT",
-          "HARM_CATEGORY_DANGEROUS_CONTENT"
+          "HARM_CATEGORY_DANGEROUS_CONTENT",
         ];
 
         const validThresholds = [
@@ -264,7 +268,7 @@ describe("Tool Schemas Validation", () => {
           "BLOCK_LOW_AND_ABOVE",
           "BLOCK_MEDIUM_AND_ABOVE",
           "BLOCK_ONLY_HIGH",
-          "BLOCK_NONE"
+          "BLOCK_NONE",
         ];
 
         // Test a sampling of combinations
@@ -279,7 +283,7 @@ describe("Tool Schemas Validation", () => {
       it("should reject setting with valid structure but invalid category", () => {
         const invalidSetting = {
           category: "INVALID_CATEGORY",
-          threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          threshold: "BLOCK_MEDIUM_AND_ABOVE",
         };
 
         const result = SafetySettingSchema.safeParse(invalidSetting);
@@ -289,7 +293,7 @@ describe("Tool Schemas Validation", () => {
       it("should reject setting with valid structure but invalid threshold", () => {
         const invalidSetting = {
           category: "HARM_CATEGORY_HATE_SPEECH",
-          threshold: "INVALID_THRESHOLD"
+          threshold: "INVALID_THRESHOLD",
         };
 
         const result = SafetySettingSchema.safeParse(invalidSetting);
@@ -298,15 +302,19 @@ describe("Tool Schemas Validation", () => {
 
       it("should reject setting with missing required fields", () => {
         const missingCategory = {
-          threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          threshold: "BLOCK_MEDIUM_AND_ABOVE",
         };
 
         const missingThreshold = {
-          category: "HARM_CATEGORY_HATE_SPEECH"
+          category: "HARM_CATEGORY_HATE_SPEECH",
         };
 
-        expect(SafetySettingSchema.safeParse(missingCategory).success).toBe(false);
-        expect(SafetySettingSchema.safeParse(missingThreshold).success).toBe(false);
+        expect(SafetySettingSchema.safeParse(missingCategory).success).toBe(
+          false
+        );
+        expect(SafetySettingSchema.safeParse(missingThreshold).success).toBe(
+          false
+        );
       });
     });
 
@@ -320,8 +328,8 @@ describe("Tool Schemas Validation", () => {
           stopSequences: ["STOP", "END"],
           thinkingConfig: {
             thinkingBudget: 1000,
-            reasoningEffort: "medium"
-          }
+            reasoningEffort: "medium",
+          },
         };
 
         const result = GenerationConfigSchema.safeParse(validConfig);
@@ -419,10 +427,10 @@ describe("Tool Schemas Validation", () => {
           { thinkingBudget: 1000 },
           { reasoningEffort: "medium" },
           { thinkingBudget: 5000, reasoningEffort: "high" },
-          {} // Empty config is valid
+          {}, // Empty config is valid
         ];
 
-        validConfigs.forEach(config => {
+        validConfigs.forEach((config) => {
           expect(ThinkingConfigSchema.safeParse(config).success).toBe(true);
         });
       });
@@ -457,8 +465,8 @@ describe("Tool Schemas Validation", () => {
       describe("reasoningEffort parameter values", () => {
         it("should validate all valid reasoningEffort options", () => {
           const validOptions = ["none", "low", "medium", "high"];
-          
-          validOptions.forEach(option => {
+
+          validOptions.forEach((option) => {
             const config = { reasoningEffort: option };
             expect(ThinkingConfigSchema.safeParse(config).success).toBe(true);
           });
@@ -466,8 +474,8 @@ describe("Tool Schemas Validation", () => {
 
         it("should reject invalid reasoningEffort options", () => {
           const invalidOptions = ["maximum", "minimal", "very-high", ""];
-          
-          invalidOptions.forEach(option => {
+
+          invalidOptions.forEach((option) => {
             const config = { reasoningEffort: option };
             expect(ThinkingConfigSchema.safeParse(config).success).toBe(false);
           });
@@ -479,10 +487,10 @@ describe("Tool Schemas Validation", () => {
       it("should validate valid file paths", () => {
         const validPaths = [
           "/path/to/file.txt",
-          "C:\\Windows\\System32\\file.exe"
+          "C:\\Windows\\System32\\file.exe",
         ];
 
-        validPaths.forEach(path => {
+        validPaths.forEach((path) => {
           expect(FilePathSchema.safeParse(path).success).toBe(true);
         });
       });

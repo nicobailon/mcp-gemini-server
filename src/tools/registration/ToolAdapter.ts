@@ -1,6 +1,6 @@
 /**
  * Tool Adapter
- * 
+ *
  * Provides adapter functions to convert existing tool implementations
  * to work with the new standardized registry system.
  */
@@ -18,12 +18,18 @@ export type LegacyServerOnlyTool = (server: McpServer) => void;
 /**
  * Legacy tool function that accepts server and GeminiService
  */
-export type LegacyGeminiServiceTool = (server: McpServer, service: GeminiService) => void;
+export type LegacyGeminiServiceTool = (
+  server: McpServer,
+  service: GeminiService
+) => void;
 
 /**
  * Legacy tool function that accepts server and McpClientService
  */
-export type LegacyMcpClientServiceTool = (server: McpServer, service: McpClientService) => void;
+export type LegacyMcpClientServiceTool = (
+  server: McpServer,
+  service: McpClientService
+) => void;
 
 /**
  * Adapts a legacy tool that only uses server to the new registration system
@@ -31,7 +37,7 @@ export type LegacyMcpClientServiceTool = (server: McpServer, service: McpClientS
  * @param name Optional name for logging
  */
 export function adaptServerOnlyTool(
-  tool: LegacyServerOnlyTool, 
+  tool: LegacyServerOnlyTool,
   name?: string
 ): ToolRegistrationFn {
   return (server: McpServer, _services: ServiceContainer) => {
@@ -42,7 +48,7 @@ export function adaptServerOnlyTool(
       }
     } catch (error) {
       logger.error(
-        `Failed to register server-only tool${name ? ` ${name}` : ''}: ${
+        `Failed to register server-only tool${name ? ` ${name}` : ""}: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
@@ -67,7 +73,7 @@ export function adaptGeminiServiceTool(
       }
     } catch (error) {
       logger.error(
-        `Failed to register GeminiService tool${name ? ` ${name}` : ''}: ${
+        `Failed to register GeminiService tool${name ? ` ${name}` : ""}: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
@@ -92,7 +98,7 @@ export function adaptMcpClientServiceTool(
       }
     } catch (error) {
       logger.error(
-        `Failed to register McpClientService tool${name ? ` ${name}` : ''}: ${
+        `Failed to register McpClientService tool${name ? ` ${name}` : ""}: ${
           error instanceof Error ? error.message : String(error)
         }`
       );

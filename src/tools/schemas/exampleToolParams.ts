@@ -25,11 +25,7 @@ const TOOL_PARAMS = {
 };
 
 // Create standardized schema with helper function
-const schema = createToolSchema(
-  TOOL_NAME,
-  TOOL_DESCRIPTION,
-  TOOL_PARAMS
-);
+const schema = createToolSchema(TOOL_NAME, TOOL_DESCRIPTION, TOOL_PARAMS);
 
 // Export all schema components
 export const {
@@ -37,12 +33,12 @@ export const {
   TOOL_DESCRIPTION: exportedToolDescription,
   TOOL_PARAMS: exportedToolParams,
   toolSchema: exampleToolSchema,
-  ToolParams: ExampleToolParams
+  ToolParams: ExampleToolParams,
 } = schema;
 
 // For backward compatibility, re-export with original names
 export {
   exportedToolName as TOOL_NAME,
   exportedToolDescription as TOOL_DESCRIPTION,
-  exportedToolParams as TOOL_PARAMS
-}
+  exportedToolParams as TOOL_PARAMS,
+};

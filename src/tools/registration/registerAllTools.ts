@@ -1,15 +1,15 @@
 /**
  * Tool Registration - Central registration point for all tools
- * 
+ *
  * This file uses the new ToolRegistry system to register all tools.
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ToolRegistry } from "./ToolRegistry.js";
-import { 
-  adaptServerOnlyTool, 
-  adaptGeminiServiceTool, 
+import {
+  adaptServerOnlyTool,
+  adaptGeminiServiceTool,
   adaptMcpClientServiceTool,
-  adaptDirectTool
+  adaptDirectTool,
 } from "./ToolAdapter.js";
 import { logger } from "../../utils/logger.js";
 import { GeminiService } from "../../services/GeminiService.js";
@@ -61,96 +61,188 @@ import { writeToFileTool } from "../writeToFileTool.js";
  */
 export function registerAllTools(server: McpServer): McpClientService {
   logger.info("Initializing services and tool registry...");
-  
+
   // Create service instances
   const geminiService = new GeminiService();
   const mcpClientService = new McpClientService();
-  
+
   // Create the tool registry
   const registry = new ToolRegistry(geminiService, mcpClientService);
-  
+
   try {
     // Register all tools with appropriate adapters
-    
+
     // Example tool
     registry.registerTool(adaptServerOnlyTool(exampleTool, "exampleTool"));
-    
+
     // Content generation tools
-    registry.registerTool(adaptGeminiServiceTool(geminiGenerateContentTool, "geminiGenerateContentTool"));
-    registry.registerTool(adaptGeminiServiceTool(geminiGenerateContentStreamTool, "geminiGenerateContentStreamTool"));
-    registry.registerTool(adaptGeminiServiceTool(geminiFunctionCallTool, "geminiFunctionCallTool"));
-    
+    registry.registerTool(
+      adaptGeminiServiceTool(
+        geminiGenerateContentTool,
+        "geminiGenerateContentTool"
+      )
+    );
+    registry.registerTool(
+      adaptGeminiServiceTool(
+        geminiGenerateContentStreamTool,
+        "geminiGenerateContentStreamTool"
+      )
+    );
+    registry.registerTool(
+      adaptGeminiServiceTool(geminiFunctionCallTool, "geminiFunctionCallTool")
+    );
+
     // Chat tools
-    registry.registerTool(adaptGeminiServiceTool(geminiStartChatTool, "geminiStartChatTool"));
-    registry.registerTool(adaptGeminiServiceTool(geminiSendMessageTool, "geminiSendMessageTool"));
-    registry.registerTool(adaptGeminiServiceTool(geminiSendFunctionResultTool, "geminiSendFunctionResultTool"));
-    registry.registerTool(adaptGeminiServiceTool(geminiRouteMessageTool, "geminiRouteMessageTool"));
-    
+    registry.registerTool(
+      adaptGeminiServiceTool(geminiStartChatTool, "geminiStartChatTool")
+    );
+    registry.registerTool(
+      adaptGeminiServiceTool(geminiSendMessageTool, "geminiSendMessageTool")
+    );
+    registry.registerTool(
+      adaptGeminiServiceTool(
+        geminiSendFunctionResultTool,
+        "geminiSendFunctionResultTool"
+      )
+    );
+    registry.registerTool(
+      adaptGeminiServiceTool(geminiRouteMessageTool, "geminiRouteMessageTool")
+    );
+
     // File handling tools
-    registry.registerTool(adaptGeminiServiceTool(geminiUploadFileTool, "geminiUploadFileTool"));
-    registry.registerTool(adaptGeminiServiceTool(geminiListFilesTool, "geminiListFilesTool"));
-    registry.registerTool(adaptGeminiServiceTool(geminiGetFileTool, "geminiGetFileTool"));
-    registry.registerTool(adaptGeminiServiceTool(geminiDeleteFileTool, "geminiDeleteFileTool"));
-    
+    registry.registerTool(
+      adaptGeminiServiceTool(geminiUploadFileTool, "geminiUploadFileTool")
+    );
+    registry.registerTool(
+      adaptGeminiServiceTool(geminiListFilesTool, "geminiListFilesTool")
+    );
+    registry.registerTool(
+      adaptGeminiServiceTool(geminiGetFileTool, "geminiGetFileTool")
+    );
+    registry.registerTool(
+      adaptGeminiServiceTool(geminiDeleteFileTool, "geminiDeleteFileTool")
+    );
+
     // Caching tools
-    registry.registerTool(adaptGeminiServiceTool(geminiCreateCacheTool, "geminiCreateCacheTool"));
-    registry.registerTool(adaptGeminiServiceTool(geminiListCachesTool, "geminiListCachesTool"));
-    registry.registerTool(adaptGeminiServiceTool(geminiGetCacheTool, "geminiGetCacheTool"));
-    registry.registerTool(adaptGeminiServiceTool(geminiUpdateCacheTool, "geminiUpdateCacheTool")); 
-    registry.registerTool(adaptGeminiServiceTool(geminiDeleteCacheTool, "geminiDeleteCacheTool"));
-    
+    registry.registerTool(
+      adaptGeminiServiceTool(geminiCreateCacheTool, "geminiCreateCacheTool")
+    );
+    registry.registerTool(
+      adaptGeminiServiceTool(geminiListCachesTool, "geminiListCachesTool")
+    );
+    registry.registerTool(
+      adaptGeminiServiceTool(geminiGetCacheTool, "geminiGetCacheTool")
+    );
+    registry.registerTool(
+      adaptGeminiServiceTool(geminiUpdateCacheTool, "geminiUpdateCacheTool")
+    );
+    registry.registerTool(
+      adaptGeminiServiceTool(geminiDeleteCacheTool, "geminiDeleteCacheTool")
+    );
+
     // Image feature tools
-    registry.registerTool(adaptServerOnlyTool(geminiGenerateImageTool, "geminiGenerateImageTool"));
-    registry.registerTool(adaptServerOnlyTool(geminiObjectDetectionTool, "geminiObjectDetectionTool"));
-    registry.registerTool(adaptServerOnlyTool(geminiContentUnderstandingTool, "geminiContentUnderstandingTool"));
-    
+    registry.registerTool(
+      adaptServerOnlyTool(geminiGenerateImageTool, "geminiGenerateImageTool")
+    );
+    registry.registerTool(
+      adaptServerOnlyTool(
+        geminiObjectDetectionTool,
+        "geminiObjectDetectionTool"
+      )
+    );
+    registry.registerTool(
+      adaptServerOnlyTool(
+        geminiContentUnderstandingTool,
+        "geminiContentUnderstandingTool"
+      )
+    );
+
     // Audio transcription tool
-    registry.registerTool(adaptServerOnlyTool(geminiAudioTranscriptionTool, "geminiAudioTranscriptionTool"));
-    
+    registry.registerTool(
+      adaptServerOnlyTool(
+        geminiAudioTranscriptionTool,
+        "geminiAudioTranscriptionTool"
+      )
+    );
+
     // Git diff review tools - these use a different registration pattern
-    registry.registerTool(adaptDirectTool(
-      "gemini_gitLocalDiffReview",
-      "Review local git diff using Gemini models",
-      geminiGitLocalDiffReviewTool as unknown as (args: unknown) => Promise<unknown>
-    ));
-    
-    registry.registerTool(adaptDirectTool(
-      "gemini_gitLocalDiffStreamReview",
-      "Stream review of local git diff using Gemini models",
-      geminiGitLocalDiffStreamReviewTool as unknown as (args: unknown) => Promise<unknown>
-    ));
-    
-    registry.registerTool(adaptDirectTool(
-      "gemini_githubRepoReview",
-      "Review GitHub repository using Gemini models",
-      geminiGitHubRepoReviewTool as unknown as (args: unknown) => Promise<unknown>
-    ));
-    
-    registry.registerTool(adaptDirectTool(
-      "gemini_githubPRReview",
-      "Review GitHub pull request using Gemini models",
-      geminiGitHubPRReviewTool as unknown as (args: unknown) => Promise<unknown>
-    ));
-    
+    registry.registerTool(
+      adaptDirectTool(
+        "gemini_gitLocalDiffReview",
+        "Review local git diff using Gemini models",
+        geminiGitLocalDiffReviewTool as unknown as (
+          args: unknown
+        ) => Promise<unknown>
+      )
+    );
+
+    registry.registerTool(
+      adaptDirectTool(
+        "gemini_gitLocalDiffStreamReview",
+        "Stream review of local git diff using Gemini models",
+        geminiGitLocalDiffStreamReviewTool as unknown as (
+          args: unknown
+        ) => Promise<unknown>
+      )
+    );
+
+    registry.registerTool(
+      adaptDirectTool(
+        "gemini_githubRepoReview",
+        "Review GitHub repository using Gemini models",
+        geminiGitHubRepoReviewTool as unknown as (
+          args: unknown
+        ) => Promise<unknown>
+      )
+    );
+
+    registry.registerTool(
+      adaptDirectTool(
+        "gemini_githubPRReview",
+        "Review GitHub pull request using Gemini models",
+        geminiGitHubPRReviewTool as unknown as (
+          args: unknown
+        ) => Promise<unknown>
+      )
+    );
+
     // MCP tools
-    registry.registerTool(adaptMcpClientServiceTool(mcpConnectToServerTool, "mcpConnectToServerTool"));
-    registry.registerTool(adaptMcpClientServiceTool(mcpDisconnectFromServerTool, "mcpDisconnectFromServerTool"));
-    registry.registerTool(adaptMcpClientServiceTool(mcpListServerToolsTool, "mcpListServerToolsTool"));
-    registry.registerTool(adaptMcpClientServiceTool(mcpCallServerTool, "mcpCallServerTool"));
-    
+    registry.registerTool(
+      adaptMcpClientServiceTool(
+        mcpConnectToServerTool,
+        "mcpConnectToServerTool"
+      )
+    );
+    registry.registerTool(
+      adaptMcpClientServiceTool(
+        mcpDisconnectFromServerTool,
+        "mcpDisconnectFromServerTool"
+      )
+    );
+    registry.registerTool(
+      adaptMcpClientServiceTool(
+        mcpListServerToolsTool,
+        "mcpListServerToolsTool"
+      )
+    );
+    registry.registerTool(
+      adaptMcpClientServiceTool(mcpCallServerTool, "mcpCallServerTool")
+    );
+
     // File utility tools
-    registry.registerTool(adaptServerOnlyTool(writeToFileTool, "writeToFileTool"));
-    
+    registry.registerTool(
+      adaptServerOnlyTool(writeToFileTool, "writeToFileTool")
+    );
+
     // Register all tools with the server
     registry.registerAllTools(server);
-    
   } catch (error) {
     logger.error(
       "Error registering tools:",
       error instanceof Error ? error.message : String(error)
     );
   }
-  
+
   // Return the McpClientService instance for use in graceful shutdown
   return mcpClientService;
 }

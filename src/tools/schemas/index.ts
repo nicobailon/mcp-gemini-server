@@ -1,6 +1,6 @@
 /**
  * Tool Schemas Index
- * 
+ *
  * This barrel file exports all standardized schema definitions
  * for tools, providing a central access point.
  */

@@ -49,7 +49,7 @@ import { TOOL_NAME as CONNECT_TOOL_NAME } from "../../../src/tools/mcpConnectToS
 import { TOOL_NAME as LIST_TOOLS_TOOL_NAME } from "../../../src/tools/mcpListServerToolsToolParams.js";
 import { TOOL_NAME as CALL_TOOL_TOOL_NAME } from "../../../src/tools/mcpCallServerToolParams.js";
 import { TOOL_NAME as DISCONNECT_TOOL_NAME } from "../../../src/tools/mcpDisconnectFromServerToolParams.js";
-import { TOOL_NAME as WRITE_FILE_TOOL_NAME } from "../../../src/tools/writeToFileToolParams.js";
+import { TOOL_NAME as WRITE_FILE_TOOL_NAME } from "../../../src/tools/schemas/writeToFileParams.js";
 
 // Import mocked modules to get their mock functions
 import { logger as mockLogger } from "../../../src/utils/logger.js";

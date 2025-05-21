@@ -10,6 +10,7 @@
 - [Usage Examples](#usage-examples)
 - [MCP Gemini Server and Gemini SDK's MCP Function Calling](#mcp-gemini-server-and-gemini-sdks-mcp-function-calling)
 - [Environment Variables](#environment-variables)
+- [Security Considerations](#security-considerations)
 - [Error Handling](#error-handling)
 - [Development and Testing](#development-and-testing)
 - [Contributing](#contributing)
@@ -784,7 +785,10 @@ The `mcp-gemini-server` also includes tools like `mcpConnectToServer`, `mcpListS
 - `GOOGLE_GEMINI_IMAGE_RESOLUTION`: Default image resolution (512x512, 1024x1024, or 1536x1536)
 - `GOOGLE_GEMINI_MAX_IMAGE_SIZE_MB`: Maximum allowed image size in MB
 - `GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS`: JSON array of supported image formats (e.g., `["image/jpeg","image/png","image/webp"]`)
-- `GEMINI_SAFE_FILE_BASE_DIR`: Restricts file operations to a specific directory for security (defaults to current working directory)
+- `GEMINI_SAFE_FILE_BASE_DIR`: Restricts Gemini-specific file operations (like uploads managed by `gemini_uploadFile`) to a specific directory for security (defaults to current working directory). This is primarily used for files that will be processed by Gemini API services.
+
+### Optional - Security Configuration:
+- `ALLOWED_OUTPUT_PATHS`: A comma-separated list of absolute paths to directories where tools like `mcpCallServerTool` (with outputToFile parameter) and `writeToFileTool` are allowed to write files. Critical security feature to prevent unauthorized file writes. If not set, file output will be disabled for these tools.
 
 ### Optional - Server Configuration:
 - `MCP_TRANSPORT`: Transport to use for MCP server (options: `stdio`, `sse`, `streaming`; default: `stdio`)
@@ -813,14 +817,81 @@ GOOGLE_GEMINI_DEFAULT_THINKING_BUDGET=4096
 GOOGLE_GEMINI_IMAGE_RESOLUTION=1024x1024
 GOOGLE_GEMINI_MAX_IMAGE_SIZE_MB=10
 GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS=["image/jpeg","image/png","image/webp"]
-GEMINI_SAFE_FILE_BASE_DIR=/path/to/allowed/files
+
+# Security Configuration
+GEMINI_SAFE_FILE_BASE_DIR=/path/to/allowed/gemini/files  # For Gemini API file operations
+ALLOWED_OUTPUT_PATHS=/path/to/output1,/path/to/output2   # For mcpCallServerTool and writeToFileTool
 
 # Server Configuration
-MCP_TRANSPORT_TYPE=stdio
-# MCP_WS_PORT=8080 # Uncomment when using WebSocket transport
+MCP_TRANSPORT=stdio  # Replaced deprecated MCP_TRANSPORT_TYPE
+MCP_SERVER_PORT=8080 # For network transports (replaced deprecated MCP_WS_PORT)
+MCP_CONNECTION_TOKEN=your_secure_token_here
+MCP_CLIENT_ID=gemini-sdk-client-001
 ENABLE_HEALTH_CHECK=true
 HEALTH_CHECK_PORT=3000
 ```
+
+## Security Considerations
+
+This server implements several security measures to protect against common vulnerabilities. Understanding these security features is critical when deploying in production environments.
+
+### File System Security
+
+1. **Path Validation and Isolation**
+   - **ALLOWED_OUTPUT_PATHS**: Critical security feature that restricts where file writing tools can write files
+   - **GEMINI_SAFE_FILE_BASE_DIR**: Restricts where Gemini-specific file operations can access and modify files
+   - **Security Principle**: Files can only be created, read, or modified within explicitly allowed directories
+   - **Production Requirement**: Always use absolute paths to prevent potential directory traversal attacks
+
+2. **Path Traversal Protection**
+   - The `FileSecurityService` implements robust path traversal protection by:
+     - Fully resolving paths to their absolute form
+     - Normalizing paths to handle ".." and "." segments properly
+     - Validating that normalized paths stay within allowed directories
+     - Checking both string-based prefixes and relative path calculations for redundant security
+
+3. **Symlink Security**
+   - Symbolic links are fully resolved and checked against allowed directories
+   - Both the symlink itself and its target are validated
+   - Parent directory symlinks are iteratively checked to prevent circumvention 
+   - Multi-level symlink chains are fully resolved before validation
+
+### Authentication & Authorization
+
+1. **Connection Tokens**
+   - `MCP_CONNECTION_TOKEN` provides basic authentication for clients connecting to this server
+   - Should be treated as a secret and use a strong, unique value in production
+
+2. **API Key Security**
+   - `GOOGLE_GEMINI_API_KEY` grants access to Google Gemini API services
+   - Must be kept secure and never exposed in client-side code or logs
+   - Use environment variables or secure secret management systems to inject this value
+
+### Network Security
+
+1. **Transport Options**
+   - stdio: Provides process isolation when used as a spawned child process
+   - SSE/HTTP: Ensure proper network-level protection when exposing over networks
+
+2. **Port Configuration**
+   - Configure firewall rules appropriately when exposing server ports
+   - Consider reverse proxies with TLS termination for production deployments
+
+### Production Deployment Recommendations
+
+1. **File Paths**
+   - Always use absolute paths for `ALLOWED_OUTPUT_PATHS` and `GEMINI_SAFE_FILE_BASE_DIR` 
+   - Use paths outside the application directory to prevent source code modification
+   - Restrict to specific, limited-purpose directories with appropriate permissions
+   - NEVER include sensitive system directories like "/", "/etc", "/usr", "/bin", or "/home"
+
+2. **Process Isolation**
+   - Run the server with restricted user permissions
+   - Consider containerization (Docker) for additional isolation
+
+3. **Secrets Management**
+   - Use a secure secrets management solution instead of .env files in production
+   - Rotate API keys and connection tokens regularly
 
 ## Error Handling
 

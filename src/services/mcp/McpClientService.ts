@@ -6,7 +6,9 @@ import {
   ErrorCode,
 } from "@modelcontextprotocol/sdk/types.js";
 import { v4 as uuidv4 } from "uuid";
-import fetch from "node-fetch";
+// Import node-fetch dynamically since v2 is CJS
+import type { Response, RequestInit } from "node-fetch";
+// We'll use the dynamic import later when we need fetch
 
 // Define custom types for EventSource events since the eventsource package
 // doesn't export its own types
@@ -125,6 +127,10 @@ export class McpClientService {
         ...options,
         signal: controller.signal,
       };
+
+      // Dynamically import node-fetch (v2 is CommonJS)
+      const nodeFetch = await import('node-fetch');
+      const fetch = nodeFetch.default;
 
       // Make the fetch request
       const response = await fetch(url, fetchOptions);

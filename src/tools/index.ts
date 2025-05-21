@@ -49,7 +49,8 @@ import { writeToFileTool } from "./writeToFileTool.js";
  */
 export function registerTools(server: McpServer): McpClientService {
   logger.info("Registering tools...");
-  const configManager = ConfigurationManager.getInstance();
+  // Get configuration instance (used indirectly by tools)
+  ConfigurationManager.getInstance();
 
   // Create a single GeminiService instance
   // GeminiService gets its config directly from ConfigurationManager
@@ -139,7 +140,9 @@ export function registerTools(server: McpServer): McpClientService {
       "gemini_gitLocalDiffReview",
       "Review local git diff using Gemini models",
       {},
-      geminiGitLocalDiffReviewTool as unknown as (args: any) => Promise<any>
+      geminiGitLocalDiffReviewTool as unknown as (
+        args: unknown
+      ) => Promise<unknown>
     );
 
     server.tool(
@@ -147,8 +150,8 @@ export function registerTools(server: McpServer): McpClientService {
       "Stream review of local git diff using Gemini models",
       {},
       geminiGitLocalDiffStreamReviewTool as unknown as (
-        args: any
-      ) => Promise<any>
+        args: unknown
+      ) => Promise<unknown>
     );
 
     // Register GitHub review tools
@@ -156,14 +159,16 @@ export function registerTools(server: McpServer): McpClientService {
       "gemini_githubRepoReview",
       "Review GitHub repository using Gemini models",
       {},
-      geminiGitHubRepoReviewTool as unknown as (args: any) => Promise<any>
+      geminiGitHubRepoReviewTool as unknown as (
+        args: unknown
+      ) => Promise<unknown>
     );
 
     server.tool(
       "gemini_githubPRReview",
       "Review GitHub pull request using Gemini models",
       {},
-      geminiGitHubPRReviewTool as unknown as (args: any) => Promise<any>
+      geminiGitHubPRReviewTool as unknown as (args: unknown) => Promise<unknown>
     );
 
     // Register MCP tools

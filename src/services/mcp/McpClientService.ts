@@ -1,7 +1,9 @@
 import { logger } from "../../utils/index.js";
 import { spawn, ChildProcess } from "child_process";
 import EventSource from "eventsource";
-import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import { McpError as SdkMcpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import { v4 as uuidv4 } from "uuid";
+import fetch from "node-fetch";
 
 // Define custom types for EventSource events since the eventsource package
 // doesn't export its own types
@@ -21,8 +23,6 @@ interface ESErrorEvent {
 // Add appropriate error handler typings
 type ESErrorHandler = (event: ESErrorEvent) => void;
 type ESMessageHandler = (event: ESMessageEvent) => void;
-import { v4 as uuidv4 } from "uuid";
-import fetch from "node-fetch";
 
 export interface McpRequest {
   id: string;
@@ -30,7 +30,7 @@ export interface McpRequest {
   params?: Record<string, unknown>;
 }
 
-export interface McpError {
+export interface McpResponseError {
   code: number;
   message: string;
   data?: Record<string, unknown>;
@@ -39,7 +39,7 @@ export interface McpError {
 export interface McpResponse {
   id: string;
   result?: Record<string, unknown> | Array<unknown>;
-  error?: McpError;
+  error?: McpResponseError;
 }
 
 export interface ToolDefinition {
@@ -54,6 +54,10 @@ export interface ConnectionDetails {
   stdioCommand?: string;
   stdioArgs?: string[];
 }
+
+// Re-export SDK McpError under the local name used throughout this file
+type McpError = SdkMcpError;
+const McpError = SdkMcpError;
 
 /**
  * Service for connecting to external Model Context Protocol (MCP) servers.
@@ -253,8 +257,8 @@ export class McpClientService {
           if (!this.activeSseConnections.has(connectionId)) {
             // If we haven't resolved yet, this is a connection failure
             reject(
-              new McpError(
-                ErrorCode.ConnectionFailed,
+              new SdkMcpError(
+                ErrorCode.InternalError,
                 `Failed to establish SSE connection to ${url}: ${error.message || "Unknown error"}`
               )
             );
@@ -289,9 +293,9 @@ export class McpClientService {
 
       // Clean up event listeners by setting handlers to null
       // (EventSource doesn't support removeEventListener)
-      eventSource.onopen = null;
-      eventSource.onmessage = null;
-      eventSource.onerror = null;
+      (eventSource as any).onopen = null;
+      (eventSource as any).onmessage = null;
+      (eventSource as any).onerror = null;
 
       // Close the connection
       eventSource.close();
@@ -386,8 +390,8 @@ export class McpClientService {
 
                     if (parsedData.error) {
                       reject(
-                        new McpError(
-                          parsedData.error.code || ErrorCode.ServerError,
+                        new SdkMcpError(
+                          (parsedData.error.code as unknown as ErrorCode) || ErrorCode.InternalError,
                           parsedData.error.message || "Tool execution error",
                           parsedData.error.data
                         )
@@ -400,7 +404,7 @@ export class McpClientService {
                       ) {
                         reject(
                           new McpError(
-                            ErrorCode.InvalidResponse,
+                            ErrorCode.InternalError,
                             "Received null or undefined result from tool",
                             { responseId: parsedData.id }
                           )
@@ -411,7 +415,7 @@ export class McpClientService {
                       ) {
                         reject(
                           new McpError(
-                            ErrorCode.InvalidResponse,
+                            ErrorCode.InternalError,
                             "Expected object or array result from tool",
                             {
                               responseId: parsedData.id,
@@ -476,8 +480,8 @@ export class McpClientService {
                   `Rejecting pending request ${requestId} due to connection error`
                 );
                 rejectRequest(
-                  new McpError(
-                    ErrorCode.ConnectionFailed,
+                  new SdkMcpError(
+                    ErrorCode.InternalError,
                     `Connection error occurred before response: ${error.message}`
                   )
                 );
@@ -512,7 +516,7 @@ export class McpClientService {
                 );
                 rejectRequest(
                   new McpError(
-                    ErrorCode.ConnectionClosed,
+                    ErrorCode.InternalError,
                     `Connection closed before response (code: ${code}, signal: ${signal})`
                   )
                 );
@@ -575,8 +579,8 @@ export class McpClientService {
     const connection = this.activeStdioConnections.get(connectionId);
     if (connection) {
       // Remove all listeners to prevent memory leaks
-      connection.stdout.removeAllListeners();
-      connection.stderr.removeAllListeners();
+      connection.stdout?.removeAllListeners();
+      connection.stderr?.removeAllListeners();
       connection.removeAllListeners();
 
       // Kill the process
@@ -648,7 +652,7 @@ export class McpClientService {
 
         if (!response.ok) {
           throw new McpError(
-            ErrorCode.NetworkError,
+            ErrorCode.InternalError,
             `HTTP error from MCP server: ${response.status} ${response.statusText}`
           );
         }
@@ -656,8 +660,8 @@ export class McpClientService {
         const mcpResponse: McpResponse = await response.json();
 
         if (mcpResponse.error) {
-          throw new McpError(
-            mcpResponse.error.code || ErrorCode.ServerError,
+          throw new SdkMcpError(
+            (mcpResponse.error.code as unknown as ErrorCode) || ErrorCode.InternalError,
             `MCP error: ${mcpResponse.error.message}`,
             mcpResponse.error.data
           );
@@ -667,7 +671,7 @@ export class McpClientService {
         const result = mcpResponse.result;
         if (!Array.isArray(result)) {
           throw new McpError(
-            ErrorCode.InvalidResponse,
+            ErrorCode.InternalError,
             "Expected array of tools in response",
             { receivedType: typeof result }
           );
@@ -705,7 +709,10 @@ export class McpClientService {
         // Store the promise resolution functions
         this.pendingStdioRequests
           .get(serverId)!
-          .set(requestId, { resolve, reject });
+          .set(requestId, {
+            resolve: resolve as unknown as (value: Record<string, unknown> | Array<unknown>) => void,
+            reject: reject as (reason: Error | McpError) => void,
+          });
 
         // Send the request
         const sent = this.sendToStdio(serverId, request);
@@ -802,7 +809,7 @@ export class McpClientService {
 
         if (!response.ok) {
           throw new McpError(
-            ErrorCode.NetworkError,
+            ErrorCode.InternalError,
             `HTTP error from MCP server: ${response.status} ${response.statusText}`
           );
         }
@@ -810,8 +817,8 @@ export class McpClientService {
         const mcpResponse: McpResponse = await response.json();
 
         if (mcpResponse.error) {
-          throw new McpError(
-            mcpResponse.error.code || ErrorCode.ServerError,
+          throw new SdkMcpError(
+            (mcpResponse.error.code as unknown as ErrorCode) || ErrorCode.InternalError,
             `MCP error: ${mcpResponse.error.message}`,
             mcpResponse.error.data
           );
@@ -824,7 +831,7 @@ export class McpClientService {
             !Array.isArray(mcpResponse.result))
         ) {
           throw new McpError(
-            ErrorCode.InvalidResponse,
+            ErrorCode.InternalError,
             "Expected object or array result from tool call",
             { receivedType: typeof mcpResponse.result }
           );
@@ -866,7 +873,10 @@ export class McpClientService {
         // Store the promise resolution functions
         this.pendingStdioRequests
           .get(serverId)!
-          .set(requestId, { resolve, reject });
+          .set(requestId, {
+            resolve: resolve as unknown as (value: Record<string, unknown> | Array<unknown>) => void,
+            reject: reject as (reason: Error | McpError) => void,
+          });
 
         // Send the request
         const sent = this.sendToStdio(serverId, request);
@@ -926,20 +936,17 @@ export class McpClientService {
    */
   public closeAllConnections(): void {
     // Close all SSE connections
-    for (const connectionId of this.activeSseConnections.keys()) {
-      this.closeSseConnection(connectionId);
+    for (const id of this.activeSseConnections.keys()) {
+      this.closeSseConnection(id);
     }
 
     // Close all stdio connections
-    for (const connectionId of this.activeStdioConnections.keys()) {
-      this.closeStdioConnection(connectionId);
+    for (const id of this.activeStdioConnections.keys()) {
+      this.closeStdioConnection(id);
     }
 
     // Clean up all pending requests
-    for (const [
-      connectionId,
-      requestsMap,
-    ] of this.pendingStdioRequests.entries()) {
+    for (const [, requestsMap] of this.pendingStdioRequests.entries()) {
       for (const [requestId, { reject }] of requestsMap.entries()) {
         logger.warn(
           `Rejecting pending request ${requestId} due to service shutdown`

@@ -348,56 +348,19 @@ Format your response as a JSON object with this structure:
         ? `${basePrompt}\n\nAdditional instructions: ${promptAddition}`
         : basePrompt;
 
-      // Use the content service to generate analysis
-      const effectiveModel =
-        modelName || this.defaultModelName || "gemini-1.5-flash";
-
-      // Convert our custom ImagePart to the format expected by generateContent
-      const contentParts: Part[] = [{ text: fullPrompt }];
-
-      // Convert based on the type field in our ImagePart interface
-      if (imagePart.type === "base64") {
-        // Handle base64 data
-        contentParts.push({
-          inlineData: {
-            data: imagePart.data,
-            mimeType: imagePart.mimeType,
-          },
-        });
-      } else if (imagePart.type === "url") {
-        // Handle URL data
-        contentParts.push({
-          fileData: {
-            fileUri: imagePart.data,
-            mimeType: imagePart.mimeType,
-          },
-        });
-      } else {
-        throw new GeminiValidationError(
-          "Invalid image part: type must be either 'base64' or 'url'",
-          "imagePart"
-        );
-      }
-
-      // Create request configuration
-      const requestConfig = {
-        model: effectiveModel,
-        contents: [{ role: "user" as const, parts: contentParts }],
+      // Use the existing generateContent method for consistency
+      const result = await this.generateContent({
+        prompt: fullPrompt,
+        modelName: modelName || this.defaultModelName || "gemini-1.5-flash",
+        fileReferenceOrInlineData: imagePart,
+        safetySettings: safetySettings,
         generationConfig: {
           temperature: 0.1, // Low temperature for more consistent object detection
           topK: 40,
           topP: 0.95,
           maxOutputTokens: 2048,
         },
-        safetySettings: safetySettings || [],
-      };
-
-      // Call the Gemini API
-      const result = await this.genAI.models.generateContent(requestConfig);
-
-      if (!result.text) {
-        throw new GeminiApiError("No text was generated in the response");
-      }
+      });
 
       logger.debug("Object detection analysis completed");
 
@@ -416,10 +379,10 @@ Format your response as a JSON object with this structure:
       let parsedResult: ParsedObjectDetectionResult;
       try {
         // Extract JSON from the response (handle cases where response includes markdown code blocks)
-        const jsonMatch = result.text.match(
+        const jsonMatch = result.match(
           /```(?:json)?\s*(\{[\s\S]*\})\s*```/
         );
-        const jsonText = jsonMatch ? jsonMatch[1] : result.text.trim();
+        const jsonText = jsonMatch ? jsonMatch[1] : result.trim();
         parsedResult = JSON.parse(jsonText) as ParsedObjectDetectionResult;
       } catch (parseError) {
         // If JSON parsing fails, create a structured response from the text
@@ -436,8 +399,8 @@ Format your response as a JSON object with this structure:
             },
           ],
           summary:
-            result.text.substring(0, 200) +
-            (result.text.length > 200 ? "..." : ""),
+            result.substring(0, 200) +
+            (result.length > 200 ? "..." : ""),
         };
       }
 
@@ -459,7 +422,7 @@ Format your response as a JSON object with this structure:
 
       return {
         objects,
-        rawText: result.text,
+        rawText: result,
       };
     } catch (error: unknown) {
       logger.error("Error in detectObjects:", error);

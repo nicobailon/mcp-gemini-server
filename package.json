@@ -2,13 +2,13 @@
   "name": "mcp-gemini-server",
   "version": "0.1.0",
   "description": "My new MCP Server",
-  "main": "dist/src/server.js",
+  "main": "dist/server.js",
   "bin": {
-    "mcp-gemini-server": "dist/src/initialize.js"
+    "mcp-gemini-server": "dist/server.js"
   },
   "type": "module",
   "scripts": {
-    "start": "node dist/src/server.js",
+    "start": "node dist/server.js",
     "build": "tsc",
     "build:test": "tsc -p tsconfig.test.json",
     "dev": "nodemon --watch src --ext ts --exec \"node --loader ts-node/esm src/server.ts\"",

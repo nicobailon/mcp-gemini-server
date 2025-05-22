@@ -207,10 +207,20 @@ const main = async () => {
     const transportType =
       process.env.MCP_TRANSPORT || process.env.MCP_TRANSPORT_TYPE || "stdio";
 
-    if (transportType === "sse" || transportType === "ws") {
+    if (transportType === "sse") {
+      // SSE uses the StreamableHTTPServerTransport
+      transport = null; // No persistent transport needed
+      logger.info("Transport selected", {
+        requested: transportType,
+        selected: "streamable",
+        fallback: false,
+        message: "SSE transport - using StreamableHTTPServerTransport via HTTP endpoint",
+        timestamp: new Date().toISOString(),
+      });
+    } else if (transportType === "ws") {
       // WebSocket transport is not available in the current SDK version
       const fallbackReason =
-        "WebSocket/SSE transport not available in current SDK version";
+        "WebSocket transport not available in current SDK version";
       logger.warn("Transport fallback", {
         requested: transportType,
         selected: "stdio",
@@ -263,8 +273,8 @@ const main = async () => {
       logger.info("No persistent transport - using HTTP-only mode");
     }
 
-    // Set up HTTP server for streamable transport if requested
-    if (transportType === "http" || transportType === "streamable") {
+    // Set up HTTP server for streamable/SSE transport if requested
+    if (transportType === "http" || transportType === "streamable" || transportType === "sse") {
       await setupHttpServer(server, sessionService);
     }
 
@@ -275,7 +285,7 @@ const main = async () => {
     logger.info("MCP Server connected and listening.");
 
     // For HTTP-only mode, keep the process alive
-    if (transportType === "http" || transportType === "streamable") {
+    if (transportType === "http" || transportType === "streamable" || transportType === "sse") {
       // Keep the process alive since we don't have a persistent transport
       // The HTTP server will handle all requests
       process.on("SIGINT", () => shutdown("SIGINT"));

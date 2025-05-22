@@ -229,21 +229,15 @@ export class GeminiService {
     modelName?: string,
     safetySettings?: SafetySetting[]
   ): Promise<any> {
-    // This is a stub method to satisfy TypeScript
-    // In a real implementation, this would call the content service
-    logger.warn(
-      "GeminiService.analyzeContent called but not fully implemented"
+    throw new GeminiValidationError(
+      "analyzeContent method is not implemented",
+      "NOT_IMPLEMENTED",
+      {
+        method: "analyzeContent",
+        message: "This method requires full implementation to analyze image content",
+        suggestion: "Use geminiGenerateContent tool with image input instead",
+      }
     );
-
-    // Use a simpler approach to avoid TypeScript errors
-    logger.warn("GeminiService.analyzeContent: Using mock implementation");
-
-    return {
-      analysis: {
-        text: "This is a mock implementation of analyzeContent. The actual implementation would analyze the image content.",
-        data: structuredOutput ? { mock: "data" } : undefined,
-      },
-    };
   }
 
   /**

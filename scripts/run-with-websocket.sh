@@ -6,4 +6,4 @@
 WS_PORT=${1:-8080}
 
 # Run the server with WebSocket transport
-MCP_TRANSPORT_TYPE=ws MCP_WS_PORT=$WS_PORT node dist/server.js
+MCP_TRANSPORT=ws MCP_SERVER_PORT=$WS_PORT node dist/server.js

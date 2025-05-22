@@ -13,6 +13,8 @@ import {
   SafetySetting,
   Part,
   ThinkingConfig,
+  FileId,
+  ImagePart,
 } from "./GeminiTypes.js";
 import { ZodError } from "zod";
 import {
@@ -43,7 +45,7 @@ interface GenerateContentParams {
   safetySettings?: SafetySetting[];
   systemInstruction?: Content | string;
   cachedContentName?: string;
-  fileReferenceOrInlineData?: FileMetadata | string;
+  fileReferenceOrInlineData?: FileId | ImagePart | FileMetadata | string;
   inlineDataMimeType?: string;
 }
 
@@ -194,29 +196,73 @@ export class GeminiContentService {
 
     // Add file reference or inline data if provided
     if (fileReferenceOrInlineData) {
-      if (typeof fileReferenceOrInlineData === "string" && inlineDataMimeType) {
-        // Handle inline base64 data
-        contentParts.push({
-          inlineData: {
-            data: fileReferenceOrInlineData,
-            mimeType: inlineDataMimeType,
-          },
-        });
+      if (typeof fileReferenceOrInlineData === "string") {
+        if (fileReferenceOrInlineData.startsWith("files/")) {
+          // Handle FileId format (files/{id})
+          contentParts.push({
+            fileData: {
+              fileUri: `https://generativelanguage.googleapis.com/v1beta/${fileReferenceOrInlineData}`,
+              mimeType: "application/octet-stream", // Default, actual type determined by API
+            },
+          });
+        } else if (inlineDataMimeType) {
+          // Handle inline base64 data
+          contentParts.push({
+            inlineData: {
+              data: fileReferenceOrInlineData,
+              mimeType: inlineDataMimeType,
+            },
+          });
+        } else {
+          throw new GeminiValidationError(
+            "For string file data, either provide a FileId (files/{id}) or include inlineDataMimeType for base64 data",
+            "fileReferenceOrInlineData"
+          );
+        }
+      } else if (
+        typeof fileReferenceOrInlineData === "object" &&
+        "type" in fileReferenceOrInlineData &&
+        "data" in fileReferenceOrInlineData &&
+        "mimeType" in fileReferenceOrInlineData
+      ) {
+        // Handle ImagePart type
+        const imagePart = fileReferenceOrInlineData as ImagePart;
+        if (imagePart.type === "base64") {
+          contentParts.push({
+            inlineData: {
+              data: imagePart.data,
+              mimeType: imagePart.mimeType,
+            },
+          });
+        } else if (imagePart.type === "url") {
+          contentParts.push({
+            fileData: {
+              fileUri: imagePart.data,
+              mimeType: imagePart.mimeType,
+            },
+          });
+        } else {
+          throw new GeminiValidationError(
+            "ImagePart type must be either 'base64' or 'url'",
+            "fileReferenceOrInlineData"
+          );
+        }
       } else if (
         typeof fileReferenceOrInlineData === "object" &&
         "name" in fileReferenceOrInlineData &&
-        fileReferenceOrInlineData.uri
+        "uri" in fileReferenceOrInlineData
       ) {
-        // Handle file reference
+        // Handle FileMetadata type
+        const fileMetadata = fileReferenceOrInlineData as FileMetadata;
         contentParts.push({
           fileData: {
-            fileUri: fileReferenceOrInlineData.uri,
-            mimeType: fileReferenceOrInlineData.mimeType,
+            fileUri: fileMetadata.uri,
+            mimeType: fileMetadata.mimeType,
           },
         });
       } else {
         throw new GeminiValidationError(
-          "Invalid file reference or inline data provided",
+          "Invalid file reference or inline data provided. Expected FileId, ImagePart, FileMetadata, or base64 string with mimeType",
           "fileReferenceOrInlineData"
         );
       }

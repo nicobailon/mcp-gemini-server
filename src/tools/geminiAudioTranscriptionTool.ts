@@ -110,8 +110,8 @@ export function geminiAudioTranscriptionTool(server: McpServer) {
             transcriptionResult = await geminiService.generateContent({
               prompt,
               modelName: params.modelName,
-              // Avoid passing uploadedFile which appears incompatible
-              parts: [{ text: prompt }, { fileData: uploadedFile }],
+              // Use fileReferenceOrInlineData for the uploaded file
+              fileReferenceOrInlineData: uploadedFile,
             });
           } catch (error) {
             if (
@@ -160,16 +160,9 @@ export function geminiAudioTranscriptionTool(server: McpServer) {
             transcriptionResult = await geminiService.generateContent({
               prompt,
               modelName: params.modelName,
-              // Use parts array for audio data
-              parts: [
-                { text: prompt },
-                {
-                  inlineData: {
-                    data: audioBase64,
-                    mimeType: mimeType,
-                  },
-                },
-              ],
+              // Use fileReferenceOrInlineData for base64 audio data
+              fileReferenceOrInlineData: audioBase64,
+              inlineDataMimeType: mimeType,
             });
           } catch (error) {
             if (error instanceof Error && error.message.includes("read file")) {

@@ -22,16 +22,12 @@ import {
 import { GitHubApiService } from "./gemini/GitHubApiService.js";
 
 // Import specialized services
-import {
-  GeminiFileService,
-  ListFilesResponseType,
-} from "./gemini/GeminiFileService.js";
+import { GeminiFileService } from "./gemini/GeminiFileService.js";
 import { GeminiChatService } from "./gemini/GeminiChatService.js";
 import { GeminiContentService } from "./gemini/GeminiContentService.js";
 import { GeminiCacheService } from "./gemini/GeminiCacheService.js";
 import { FileSecurityService } from "../utils/FileSecurityService.js";
 import {
-  ChatSession,
   Content,
   Tool,
   ToolConfig,
@@ -228,56 +224,247 @@ export class GeminiService {
     structuredOutput?: boolean,
     modelName?: string,
     safetySettings?: SafetySetting[]
-  ): Promise<any> {
-    throw new GeminiValidationError(
-      "analyzeContent method is not implemented",
-      "NOT_IMPLEMENTED",
-      {
-        method: "analyzeContent",
-        message: "This method requires full implementation to analyze image content",
-        suggestion: "Use geminiGenerateContent tool with image input instead",
+  ): Promise<{
+    analysis: {
+      text?: string;
+      data?: Record<string, unknown>;
+    };
+  }> {
+    logger.debug("GeminiService.analyzeContent called");
+
+    try {
+      // Prepare the prompt for analysis
+      const analysisPrompt = structuredOutput
+        ? `${prompt}\n\nPlease provide your analysis in a structured JSON format.`
+        : prompt;
+
+      // Use the existing generateContent method with the image
+      const result = await this.generateContent({
+        prompt: analysisPrompt,
+        modelName: modelName || this.defaultModelName || "gemini-1.5-flash",
+        fileReferenceOrInlineData: imagePart,
+        safetySettings: safetySettings,
+        generationConfig: structuredOutput
+          ? {
+              temperature: 0.1, // Lower temperature for more consistent structured output
+              topK: 40,
+              topP: 0.95,
+              maxOutputTokens: 2048,
+            }
+          : undefined,
+      });
+
+      // Parse the result if structured output was requested
+      if (structuredOutput) {
+        try {
+          // Try to extract JSON from the response
+          const jsonMatch = result.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+          const jsonText = jsonMatch ? jsonMatch[1] : result.trim();
+          const parsedData = JSON.parse(jsonText);
+
+          return {
+            analysis: {
+              data: parsedData,
+              text: result,
+            },
+          };
+        } catch (parseError) {
+          logger.debug(
+            "Failed to parse structured output, returning as text",
+            parseError
+          );
+          return {
+            analysis: {
+              text: result,
+            },
+          };
+        }
       }
-    );
+
+      // Return plain text analysis
+      return {
+        analysis: {
+          text: result,
+        },
+      };
+    } catch (error: unknown) {
+      logger.error("Error in analyzeContent:", error);
+      throw mapGeminiError(error, "analyzeContent");
+    }
   }
 
   /**
-   * Detect objects in an image
+   * Detect objects in an image using Gemini's vision capabilities
    *
    * @param imagePart The image part to analyze
    * @param promptAddition Additional prompt to guide detection
    * @param modelName Optional model name
    * @param safetySettings Optional safety settings
-   * @returns Detection results
+   * @returns Detection results with objects array and raw text
    */
   public async detectObjects(
     imagePart: ImagePart,
     promptAddition?: string,
     modelName?: string,
     safetySettings?: SafetySetting[]
-  ): Promise<any> {
-    // This is a stub method to satisfy TypeScript
-    // In a real implementation, this would call the content service
-    logger.warn("GeminiService.detectObjects called but not fully implemented");
+  ): Promise<{
+    objects: Array<{
+      label: string;
+      boundingBox?: {
+        yMin: number;
+        xMin: number;
+        yMax: number;
+        xMax: number;
+      };
+      confidence?: number;
+      description?: string;
+    }>;
+    rawText: string;
+  }> {
+    logger.debug("GeminiService.detectObjects called");
 
-    // Use a simpler approach to avoid TypeScript errors
-    logger.warn("GeminiService.detectObjects: Using mock implementation");
+    try {
+      // Construct a comprehensive prompt for object detection
+      const basePrompt = `Analyze this image and identify all objects present. For each object you detect, provide:
+1. A clear label/name for the object
+2. A brief description of the object
+3. The object's approximate location in the image (if possible)
 
-    return {
-      objects: [
-        {
-          label: "Mock Object 1",
-          boundingBox: {
-            yMin: 0.1,
-            xMin: 0.1,
-            yMax: 0.9,
-            xMax: 0.9,
+Please be thorough and identify both prominent objects and smaller details that are clearly visible.
+
+Format your response as a JSON object with this structure:
+{
+  "objects": [
+    {
+      "label": "object name",
+      "description": "brief description of the object",
+      "location": "description of where the object is located in the image"
+    }
+  ],
+  "summary": "brief overall description of what you see in the image"
+}`;
+
+      const fullPrompt = promptAddition
+        ? `${basePrompt}\n\nAdditional instructions: ${promptAddition}`
+        : basePrompt;
+
+      // Use the content service to generate analysis
+      const effectiveModel =
+        modelName || this.defaultModelName || "gemini-1.5-flash";
+
+      // Convert our custom ImagePart to the format expected by generateContent
+      const contentParts: Part[] = [{ text: fullPrompt }];
+
+      // Convert based on the type field in our ImagePart interface
+      if (imagePart.type === "base64") {
+        // Handle base64 data
+        contentParts.push({
+          inlineData: {
+            data: imagePart.data,
+            mimeType: imagePart.mimeType,
           },
-          confidence: 0.95,
+        });
+      } else if (imagePart.type === "url") {
+        // Handle URL data
+        contentParts.push({
+          fileData: {
+            fileUri: imagePart.data,
+            mimeType: imagePart.mimeType,
+          },
+        });
+      } else {
+        throw new GeminiValidationError(
+          "Invalid image part: type must be either 'base64' or 'url'",
+          "imagePart"
+        );
+      }
+
+      // Create request configuration
+      const requestConfig = {
+        model: effectiveModel,
+        contents: [{ role: "user" as const, parts: contentParts }],
+        generationConfig: {
+          temperature: 0.1, // Low temperature for more consistent object detection
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 2048,
         },
-      ],
-      rawText:
-        "This is a mock implementation of detectObjects. The actual implementation would detect objects in the image.",
-    };
+        safetySettings: safetySettings || [],
+      };
+
+      // Call the Gemini API
+      const result = await this.genAI.models.generateContent(requestConfig);
+
+      if (!result.text) {
+        throw new GeminiApiError("No text was generated in the response");
+      }
+
+      logger.debug("Object detection analysis completed");
+
+      // Define interface for the expected JSON structure
+      interface ParsedObjectDetectionResult {
+        objects?: Array<{
+          label?: string;
+          description?: string;
+          location?: string;
+          confidence?: number;
+        }>;
+        summary?: string;
+      }
+
+      // Try to parse JSON response
+      let parsedResult: ParsedObjectDetectionResult;
+      try {
+        // Extract JSON from the response (handle cases where response includes markdown code blocks)
+        const jsonMatch = result.text.match(
+          /```(?:json)?\s*(\{[\s\S]*\})\s*```/
+        );
+        const jsonText = jsonMatch ? jsonMatch[1] : result.text.trim();
+        parsedResult = JSON.parse(jsonText) as ParsedObjectDetectionResult;
+      } catch (parseError) {
+        // If JSON parsing fails, create a structured response from the text
+        logger.debug(
+          "Failed to parse JSON response, creating structured response from text"
+        );
+        parsedResult = {
+          objects: [
+            {
+              label: "General Analysis",
+              description:
+                "Multiple objects detected - see raw text for details",
+              location: "Throughout the image",
+            },
+          ],
+          summary:
+            result.text.substring(0, 200) +
+            (result.text.length > 200 ? "..." : ""),
+        };
+      }
+
+      // Format the response to match expected interface
+      const objects = Array.isArray(parsedResult.objects)
+        ? parsedResult.objects.map((obj) => ({
+            label: obj.label || "Unknown Object",
+            description: obj.description,
+            // Note: Gemini vision models don't typically provide precise bounding boxes
+            // without specific fine-tuning, so we include location as text description
+            confidence: obj.confidence || undefined,
+          }))
+        : [
+            {
+              label: "Analysis Result",
+              description: "Objects detected - see raw text for details",
+            },
+          ];
+
+      return {
+        objects,
+        rawText: result.text,
+      };
+    } catch (error: unknown) {
+      logger.error("Error in detectObjects:", error);
+      throw mapGeminiError(error, "detectObjects");
+    }
   }
 
   /**
@@ -438,8 +625,25 @@ export class GeminiService {
               safetyRatings: result.promptSafetyMetadata.safetyRatings?.map(
                 (rating) => ({
                   category: rating.category,
-                  severity: rating.category as any, // Map to expected format
-                  probability: rating.probability as any,
+                  severity: rating.category as
+                    | "SEVERITY_UNSPECIFIED"
+                    | "HARM_CATEGORY_DEROGATORY"
+                    | "HARM_CATEGORY_TOXICITY"
+                    | "HARM_CATEGORY_VIOLENCE"
+                    | "HARM_CATEGORY_SEXUAL"
+                    | "HARM_CATEGORY_MEDICAL"
+                    | "HARM_CATEGORY_DANGEROUS"
+                    | "HARM_CATEGORY_HARASSMENT"
+                    | "HARM_CATEGORY_HATE_SPEECH"
+                    | "HARM_CATEGORY_SEXUALLY_EXPLICIT"
+                    | "HARM_CATEGORY_DANGEROUS_CONTENT",
+                  probability: rating.probability as
+                    | "PROBABILITY_UNSPECIFIED"
+                    | "NEGLIGIBLE"
+                    | "LOW"
+                    | "MEDIUM"
+                    | "HIGH"
+                    | "VERY_HIGH",
                 })
               ),
             }
@@ -510,7 +714,7 @@ export class GeminiService {
    * @returns An async generator yielding text chunks as they become available
    */
   public async *generateContentStream(
-    params: any // Use any temporarily until we can properly fix typing
+    params: GenerateContentParams
   ): AsyncGenerator<string> {
     yield* this.contentService.generateContentStream(params);
   }
@@ -521,8 +725,7 @@ export class GeminiService {
    * @param params An object containing all necessary parameters for content generation
    * @returns A promise resolving to the generated text content
    */
-  public async generateContent(params: any): Promise<string> {
-    // Use any temporarily until we can properly fix typing
+  public async generateContent(params: GenerateContentParams): Promise<string> {
     return this.contentService.generateContent(params);
   }
 
@@ -792,7 +995,6 @@ Forks: ${repoOverview.forks}`;
       | "architecture"
       | "bugs"
       | "general";
-    filesOnly?: boolean;
     excludePatterns?: string[];
     customPrompt?: string;
   }): Promise<string> {
@@ -804,7 +1006,6 @@ Forks: ${repoOverview.forks}`;
         modelName,
         reasoningEffort = "medium",
         reviewFocus = "general",
-        filesOnly = false,
         excludePatterns = [],
         customPrompt,
       } = params;
@@ -861,7 +1062,7 @@ export interface GenerateContentParams {
   safetySettings?: SafetySetting[];
   systemInstruction?: Content | string;
   cachedContentName?: string;
-  fileReferenceOrInlineData?: FileId | ImagePart | string;
+  fileReferenceOrInlineData?: FileId | ImagePart | FileMetadata | string;
   inlineDataMimeType?: string;
 }
 
@@ -905,9 +1106,7 @@ export interface RouteMessageParams {
 }
 
 // Re-export other types for backwards compatibility
-export type { ListFilesResponseType } from "./gemini/GeminiFileService.js";
 export type {
-  ChatSession,
   Content,
   Tool,
   ToolConfig,

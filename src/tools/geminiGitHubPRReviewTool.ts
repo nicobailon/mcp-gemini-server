@@ -67,7 +67,6 @@ export const geminiGitHubPRReviewTool: Tool = async (
         modelName: model,
         reasoningEffort,
         reviewFocus,
-        filesOnly: effectiveFilesOnly,
         excludePatterns,
         customPrompt,
       });

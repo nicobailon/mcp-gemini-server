@@ -1,8 +1,11 @@
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "../utils/logger.js";
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import { SessionStore } from "./session/SessionStore.js";
+import { InMemorySessionStore } from "./session/InMemorySessionStore.js";
+import { SQLiteSessionStore } from "./session/SQLiteSessionStore.js";
 
-export interface SessionState<T = any> {
+export interface SessionState<T = Record<string, unknown>> {
   id: string;
   createdAt: number;
   lastActivity: number;
@@ -11,17 +14,52 @@ export interface SessionState<T = any> {
 }
 
 export class SessionService {
-  private sessions: Map<string, SessionState> = new Map();
+  private store: SessionStore;
   private cleanupInterval: NodeJS.Timeout | null = null;
   private defaultTimeoutSeconds: number;
+  private initialized: Promise<void>;
 
-  constructor(defaultTimeoutSeconds: number = 3600) {
+  constructor(
+    defaultTimeoutSeconds: number = 3600,
+    storeType?: "memory" | "sqlite",
+    dbPath?: string
+  ) {
     // Default 1 hour
     this.defaultTimeoutSeconds = defaultTimeoutSeconds;
-    this.startCleanupInterval();
-    logger.info(
-      `SessionService initialized with default timeout: ${defaultTimeoutSeconds}s`
-    );
+
+    // Initialize the appropriate store based on configuration
+    const effectiveStoreType =
+      storeType || process.env.SESSION_STORE_TYPE || "memory";
+
+    switch (effectiveStoreType) {
+      case "sqlite":
+        this.store = new SQLiteSessionStore(
+          dbPath || process.env.SQLITE_DB_PATH
+        );
+        break;
+      case "memory":
+      default:
+        this.store = new InMemorySessionStore();
+        break;
+    }
+
+    // Initialize the store asynchronously
+    this.initialized = this.initializeStore();
+    this.initialized
+      .then(() => {
+        this.startCleanupInterval();
+        logger.info(
+          `SessionService initialized with ${effectiveStoreType} store and default timeout: ${defaultTimeoutSeconds}s`
+        );
+      })
+      .catch((error) => {
+        logger.error("Failed to initialize session store:", error);
+        throw error;
+      });
+  }
+
+  private async initializeStore(): Promise<void> {
+    await this.store.initialize();
   }
 
   /**
@@ -30,13 +68,18 @@ export class SessionService {
    * @param timeoutSeconds Optional custom timeout for this session.
    * @returns The newly created session ID.
    */
-  public createSession(initialData: any = {}, timeoutSeconds?: number): string {
+  public async createSession<
+    T extends Record<string, unknown> = Record<string, unknown>,
+  >(initialData: T = {} as T, timeoutSeconds?: number): Promise<string> {
+    // Ensure store is initialized
+    await this.initialized;
+
     const sessionId = uuidv4();
     const now = Date.now();
     const effectiveTimeout = timeoutSeconds ?? this.defaultTimeoutSeconds;
     const expiresAt = now + effectiveTimeout * 1000;
 
-    const newSession: SessionState = {
+    const newSession: SessionState<T> = {
       id: sessionId,
       createdAt: now,
       lastActivity: now,
@@ -44,7 +87,7 @@ export class SessionService {
       data: initialData,
     };
 
-    this.sessions.set(sessionId, newSession);
+    await this.store.set(sessionId, newSession);
     logger.debug(
       `Session ${sessionId} created, expires in ${effectiveTimeout}s`
     );
@@ -57,8 +100,11 @@ export class SessionService {
    * @returns The session state.
    * @throws McpError if the session is not found or has expired.
    */
-  public getSession(sessionId: string): SessionState {
-    const session = this.sessions.get(sessionId);
+  public async getSession(sessionId: string): Promise<SessionState> {
+    // Ensure store is initialized
+    await this.initialized;
+
+    const session = await this.store.get(sessionId);
     if (!session) {
       throw new McpError(
         ErrorCode.InvalidRequest,
@@ -66,7 +112,7 @@ export class SessionService {
       );
     }
     if (Date.now() > session.expiresAt) {
-      this.deleteSession(sessionId); // Clean up expired session
+      await this.deleteSession(sessionId); // Clean up expired session
       throw new McpError(
         ErrorCode.InvalidRequest,
         `Session expired: ${sessionId}`
@@ -77,6 +123,7 @@ export class SessionService {
     session.lastActivity = Date.now();
     session.expiresAt =
       session.lastActivity + this.defaultTimeoutSeconds * 1000;
+    await this.store.set(sessionId, session);
     logger.debug(`Session ${sessionId} accessed, expiration extended.`);
     return session;
   }
@@ -87,9 +134,13 @@ export class SessionService {
    * @param partialData Partial data to merge into the session's data.
    * @throws McpError if the session is not found or has expired.
    */
-  public updateSession(sessionId: string, partialData: any): void {
-    const session = this.getSession(sessionId); // This also updates lastActivity
+  public async updateSession(
+    sessionId: string,
+    partialData: Partial<Record<string, unknown>>
+  ): Promise<void> {
+    const session = await this.getSession(sessionId); // This also updates lastActivity
     session.data = { ...session.data, ...partialData };
+    await this.store.set(sessionId, session);
     logger.debug(`Session ${sessionId} updated.`);
   }
 
@@ -98,8 +149,9 @@ export class SessionService {
    * @param sessionId The ID of the session to delete.
    * @returns True if the session was deleted, false otherwise.
    */
-  public deleteSession(sessionId: string): boolean {
-    const deleted = this.sessions.delete(sessionId);
+  public async deleteSession(sessionId: string): Promise<boolean> {
+    await this.initialized;
+    const deleted = await this.store.delete(sessionId);
     if (deleted) {
       logger.debug(`Session ${sessionId} deleted.`);
     } else {
@@ -123,20 +175,17 @@ export class SessionService {
   /**
    * Cleans up all expired sessions.
    */
-  private cleanupExpiredSessions(): void {
-    const now = Date.now();
-    let cleanedCount = 0;
-    for (const [sessionId, session] of this.sessions.entries()) {
-      if (now > session.expiresAt) {
-        this.sessions.delete(sessionId);
-        logger.info(`Cleaned up expired session: ${sessionId}`);
-        cleanedCount++;
+  private async cleanupExpiredSessions(): Promise<void> {
+    try {
+      const now = Date.now();
+      const cleanedCount = await this.store.deleteExpired(now);
+      if (cleanedCount > 0) {
+        logger.info(
+          `SessionService cleaned up ${cleanedCount} expired sessions.`
+        );
       }
-    }
-    if (cleanedCount > 0) {
-      logger.info(
-        `SessionService cleaned up ${cleanedCount} expired sessions.`
-      );
+    } catch (error) {
+      logger.error("Error during session cleanup:", error);
     }
   }
 
@@ -154,7 +203,17 @@ export class SessionService {
   /**
    * Returns the number of active sessions.
    */
-  public getActiveSessionCount(): number {
-    return this.sessions.size;
+  public async getActiveSessionCount(): Promise<number> {
+    await this.initialized;
+    return this.store.count();
+  }
+
+  /**
+   * Closes the session service and cleans up resources.
+   */
+  public async close(): Promise<void> {
+    this.stopCleanupInterval();
+    await this.store.close();
+    logger.info("SessionService closed");
   }
 }

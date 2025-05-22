@@ -29,6 +29,13 @@ interface ESErrorEvent {
 type ESErrorHandler = (event: ESErrorEvent) => void;
 type ESMessageHandler = (event: ESMessageEvent) => void;
 
+// Extended EventSource interface to properly type the handlers
+interface ExtendedEventSource extends EventSource {
+  onopen: (this: EventSource, ev: MessageEvent<any>) => unknown;
+  onmessage: (this: EventSource, ev: MessageEvent) => unknown;
+  onerror: (this: EventSource, ev: Event) => unknown;
+}
+
 export interface McpRequest {
   id: string;
   method: "listTools" | "callTool";

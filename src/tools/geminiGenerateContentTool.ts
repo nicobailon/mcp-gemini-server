@@ -55,7 +55,7 @@ export const geminiGenerateContentTool = (
         prompt,
         modelName,
         generationConfig,
-        safetySettings,
+        safetySettings: safetySettings as SafetySetting[], // Type assertion to match SDK types
         systemInstruction, // The method will handle string conversion internally
         cachedContentName,
       });

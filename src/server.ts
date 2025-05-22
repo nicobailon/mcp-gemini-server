@@ -7,9 +7,9 @@ import {
 } from "./utils/index.js";
 import type { JsonRpcInitializeRequest } from "./types/serverTypes.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { WebSocketServerTransport } from "@modelcontextprotocol/sdk/server/ws.js";
+// import { WebSocketServerTransport } from "@modelcontextprotocol/sdk/server/ws.js"; // Not available in SDK
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import type { Transport } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SessionService } from "./services/SessionService.js";
 import express from "express";
 import { randomUUID } from "node:crypto";
@@ -202,40 +202,57 @@ const main = async () => {
     }
 
     // Choose transport based on environment
-    let transport;
+    let transport: Transport | null;
     // Use MCP_TRANSPORT, but fall back to MCP_TRANSPORT_TYPE for backwards compatibility
     const transportType =
       process.env.MCP_TRANSPORT || process.env.MCP_TRANSPORT_TYPE || "stdio";
 
-    // NOTE: There may be TypeScript build errors due to these changes, but the runtime functionality works correctly.
-    // A full fix would require implementing proper transport types and updating type definitions.
     if (transportType === "sse" || transportType === "ws") {
-      // Use MCP_SERVER_PORT, but fall back to MCP_WS_PORT for backwards compatibility
-      const port = parseInt(
-        process.env.MCP_SERVER_PORT || process.env.MCP_WS_PORT || "8080",
-        10
-      );
-      transport = new WebSocketServerTransport({ port });
-      logger.info(
-        `Using ${transportType === "sse" ? "SSE" : "WebSocket"} transport on port ${port}`
-      );
+      // WebSocket transport is not available in the current SDK version
+      const fallbackReason =
+        "WebSocket/SSE transport not available in current SDK version";
+      logger.warn("Transport fallback", {
+        requested: transportType,
+        selected: "stdio",
+        fallback: true,
+        reason: fallbackReason,
+        timestamp: new Date().toISOString(),
+      });
+      transport = new StdioServerTransport();
+      logger.info("Using stdio transport (fallback)");
     } else if (transportType === "http" || transportType === "streamable") {
       // For HTTP/Streamable transport, we don't need a persistent transport
       // Individual requests will create their own transports
       transport = null; // No persistent transport needed
-      logger.info(
-        "HTTP transport - individual requests will create their own transports"
-      );
+      logger.info("Transport selected", {
+        requested: transportType,
+        selected: "streamable",
+        fallback: false,
+        message:
+          "HTTP transport - individual requests will create their own transports",
+        timestamp: new Date().toISOString(),
+      });
     } else if (transportType === "streaming") {
-      logger.warn(
-        "Streaming transport requested but not currently implemented. Falling back to stdio transport."
-      );
+      const fallbackReason = "Streaming transport not currently implemented";
+      logger.warn("Transport fallback", {
+        requested: transportType,
+        selected: "stdio",
+        fallback: true,
+        reason: fallbackReason,
+        timestamp: new Date().toISOString(),
+      });
       transport = new StdioServerTransport();
       logger.info("Using stdio transport (fallback)");
     } else {
       // Default to stdio for anything else
       transport = new StdioServerTransport();
-      logger.info("Using stdio transport");
+      logger.info("Transport selected", {
+        requested: transportType || "default",
+        selected: "stdio",
+        fallback: false,
+        message: "Using stdio transport",
+        timestamp: new Date().toISOString(),
+      });
     }
 
     serverState.transport = transport;

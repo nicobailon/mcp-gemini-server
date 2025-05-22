@@ -152,3 +152,9 @@ docs/
 .env
 
 **/.claude/settings.local.json
+
+# Session data
+data/
+*.db
+*.db-wal
+*.db-shm

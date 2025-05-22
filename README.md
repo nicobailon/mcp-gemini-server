@@ -803,6 +803,8 @@ The `mcp-gemini-server` also includes tools like `mcpConnectToServer`, `mcpListS
 - `MCP_SERVER_PORT`: Port for network transports when using `sse`, `streamable`, or `http` (default: `8080`)
 - `MCP_ENABLE_STREAMING`: Enable SSE streaming for HTTP transport (options: `true`, `false`; default: `false`)
 - `MCP_SESSION_TIMEOUT`: Session timeout in seconds for HTTP transport (default: `3600` = 1 hour)
+- `SESSION_STORE_TYPE`: Session storage backend (`memory` or `sqlite`; default: `memory`)
+- `SQLITE_DB_PATH`: Path to SQLite database file when using sqlite store (default: `./data/sessions.db`)
 - `MCP_CONNECTION_TOKEN`: Token that clients need to provide when connecting to this server
 - `MCP_CLIENT_ID`: Default ID used when this server acts as a client to other MCP servers 
 
@@ -1168,6 +1170,44 @@ curl http://localhost:3000/health
 You can configure the health check using these environment variables:
 - `ENABLE_HEALTH_CHECK`: Set to "false" to disable the health check server (default: "true")
 - `HEALTH_CHECK_PORT`: Port number for the health check server (default: 3000)
+
+### Session Persistence
+
+The server supports persistent session storage for HTTP/SSE transports, allowing sessions to survive server restarts and enabling horizontal scaling.
+
+#### Storage Backends
+
+1. **In-Memory Store (Default)**
+   - Sessions stored in server memory
+   - Fast performance for development
+   - Sessions lost on server restart
+   - No external dependencies
+
+2. **SQLite Store**
+   - Sessions persisted to local SQLite database
+   - Survives server restarts
+   - Automatic cleanup of expired sessions
+   - Good for single-instance production deployments
+
+#### Configuration
+
+Enable SQLite session persistence:
+```bash
+export SESSION_STORE_TYPE=sqlite
+export SQLITE_DB_PATH=./data/sessions.db  # Optional, this is the default
+```
+
+The SQLite database file and directory will be created automatically on first use. The database includes:
+- Automatic indexing for performance
+- Built-in cleanup of expired sessions
+- ACID compliance for data integrity
+
+#### Session Lifecycle
+
+- Sessions are created when clients connect via HTTP/SSE transport
+- Each session has a configurable timeout (default: 1 hour)
+- Session expiration is extended on each activity
+- Expired sessions are automatically cleaned up every minute
 
 ### Graceful Shutdown
 

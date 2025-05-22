@@ -705,8 +705,8 @@ describe("MCP Client Tools Unit Tests", () => {
     });
 
     it("should close an SSE connection successfully", async () => {
-      // Mock closeSseConnection to return true
-      mockMcpClientService.closeSseConnection.mockReturnValue(true);
+      // Mock disconnect to return true
+      mockMcpClientService.disconnect.mockReturnValue(true);
 
       // Register the tool
       mcpDisconnectFromServerTool(
@@ -727,9 +727,9 @@ describe("MCP Client Tools Unit Tests", () => {
         content: Array<{ type: string; text: string }>;
       };
 
-      // Verify closeSseConnection was called
-      expect(mockMcpClientService.closeSseConnection).toHaveBeenCalledTimes(1);
-      expect(mockMcpClientService.closeSseConnection).toHaveBeenCalledWith(
+      // Verify disconnect was called
+      expect(mockMcpClientService.disconnect).toHaveBeenCalledTimes(1);
+      expect(mockMcpClientService.disconnect).toHaveBeenCalledWith(
         "test-sse-connection-id"
       );
 
@@ -740,7 +740,7 @@ describe("MCP Client Tools Unit Tests", () => {
             type: "text",
             text: JSON.stringify(
               {
-                message: "SSE Connection closed successfully.",
+                message: "Connection closed successfully.",
                 connectionId: "test-sse-connection-id",
               },
               null,
@@ -752,8 +752,8 @@ describe("MCP Client Tools Unit Tests", () => {
     });
 
     it("should close a stdio connection successfully", async () => {
-      // Mock closeStdioConnection to return true
-      mockMcpClientService.closeStdioConnection.mockReturnValue(true);
+      // Mock disconnect to return true
+      mockMcpClientService.disconnect.mockReturnValue(true);
 
       // Register the tool
       mcpDisconnectFromServerTool(
@@ -774,11 +774,9 @@ describe("MCP Client Tools Unit Tests", () => {
         content: Array<{ type: string; text: string }>;
       };
 
-      // Verify closeStdioConnection was called
-      expect(mockMcpClientService.closeStdioConnection).toHaveBeenCalledTimes(
-        1
-      );
-      expect(mockMcpClientService.closeStdioConnection).toHaveBeenCalledWith(
+      // Verify disconnect was called
+      expect(mockMcpClientService.disconnect).toHaveBeenCalledTimes(1);
+      expect(mockMcpClientService.disconnect).toHaveBeenCalledWith(
         "test-stdio-connection-id"
       );
 
@@ -789,7 +787,7 @@ describe("MCP Client Tools Unit Tests", () => {
             type: "text",
             text: JSON.stringify(
               {
-                message: "Stdio Connection closed successfully.",
+                message: "Connection closed successfully.",
                 connectionId: "test-stdio-connection-id",
               },
               null,
@@ -801,6 +799,9 @@ describe("MCP Client Tools Unit Tests", () => {
     });
 
     it("should throw error for non-existent connection", async () => {
+      // Mock disconnect to return false (no connection found)
+      mockMcpClientService.disconnect.mockReturnValue(false);
+
       // Register the tool
       mcpDisconnectFromServerTool(
         mockMcpServer,

@@ -3,6 +3,7 @@
  */
 
 import type { Server as HttpServer } from "http";
+import type { Transport } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 /**
  * Interface for session service implementations
@@ -27,21 +28,12 @@ export interface ServerLike {
 }
 
 /**
- * Transport interface for tracking transport information
- */
-export interface TransportInfo {
-  constructor: {
-    name: string;
-  };
-}
-
-/**
  * Server state interface for tracking the overall server state
  */
 export interface ServerState {
   isRunning: boolean;
   startTime: number | null;
-  transport: TransportInfo | null;
+  transport: Transport | null;
   server: ServerLike | null;
   healthCheckServer: HttpServer | null;
   mcpClientService: McpClientServiceLike | null;

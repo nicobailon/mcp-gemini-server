@@ -35,6 +35,10 @@ export class SQLiteSessionStore implements SessionStore {
       this.db = new Database(this.dbPath);
       logger.info(`SQLite session store initialized at: ${this.dbPath}`);
 
+      // Enable WAL mode for better concurrency and performance
+      this.db.pragma("journal_mode = WAL");
+      logger.debug("SQLite WAL mode enabled");
+
       // Create the sessions table if it doesn't exist
       this.db.exec(`
         CREATE TABLE IF NOT EXISTS sessions (

@@ -5,11 +5,11 @@ describe("Transport Logic Tests", () => {
     const selectTransport = (transportType: string | undefined) => {
       const type = transportType || "stdio";
       
-      if (type === "sse" || type === "ws") {
+      if (type === "sse") {
         return { 
-          selected: "stdio", 
-          fallback: true, 
-          reason: "WebSocket/SSE transport not available in current SDK version" 
+          selected: "streamable", 
+          fallback: false,
+          message: "SSE transport - using StreamableHTTPServerTransport via HTTP endpoint"
         };
       } else if (type === "http" || type === "streamable") {
         return { 
@@ -50,18 +50,11 @@ describe("Transport Logic Tests", () => {
       expect(result.fallback).toBe(false);
     });
 
-    it("should fallback to stdio for WebSocket", () => {
-      const result = selectTransport("ws");
-      expect(result.selected).toBe("stdio");
-      expect(result.fallback).toBe(true);
-      expect(result.reason).toContain("WebSocket/SSE transport not available");
-    });
-
-    it("should fallback to stdio for SSE", () => {
+    it("should select streamable for SSE", () => {
       const result = selectTransport("sse");
-      expect(result.selected).toBe("stdio");
-      expect(result.fallback).toBe(true);
-      expect(result.reason).toContain("WebSocket/SSE transport not available");
+      expect(result.selected).toBe("streamable");
+      expect(result.fallback).toBe(false);
+      expect(result.message).toContain("SSE transport - using StreamableHTTPServerTransport");
     });
 
     it("should fallback to stdio for streaming", () => {

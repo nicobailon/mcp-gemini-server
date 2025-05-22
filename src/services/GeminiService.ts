@@ -8,7 +8,6 @@ import {
   ImageGenerationResult,
 } from "../types/index.js";
 import {
-  GeminiApiError,
   GeminiContentFilterError,
   GeminiModelError,
   GeminiValidationError,
@@ -36,7 +35,6 @@ import {
   FileId,
   CacheId,
   FunctionCall,
-  Part,
   ImagePart,
 } from "./gemini/GeminiTypes.js";
 
@@ -296,9 +294,16 @@ export class GeminiService {
   /**
    * Detect objects in an image using Gemini's vision capabilities
    *
+   * Note: Gemini 1.5 Pro supports bounding box detection when explicitly requested.
+   * To get bounding boxes, include a request in your prompt like:
+   * "Return bounding boxes as [ymin, xmin, ymax, xmax]"
+   *
+   * The model returns coordinates as values between 0-1 scaled to a 1000x1000 grid.
+   * You'll need to convert these to match your original image dimensions.
+   *
    * @param imagePart The image part to analyze
    * @param promptAddition Additional prompt to guide detection
-   * @param modelName Optional model name
+   * @param modelName Optional model name (use gemini-1.5-pro for bounding boxes)
    * @param safetySettings Optional safety settings
    * @returns Detection results with objects array and raw text
    */
@@ -328,7 +333,8 @@ export class GeminiService {
       const basePrompt = `Analyze this image and identify all objects present. For each object you detect, provide:
 1. A clear label/name for the object
 2. A brief description of the object
-3. The object's approximate location in the image (if possible)
+3. Bounding box coordinates as [ymin, xmin, ymax, xmax] (values between 0-1)
+4. A confidence score between 0 and 1 if you can estimate it
 
 Please be thorough and identify both prominent objects and smaller details that are clearly visible.
 
@@ -338,7 +344,8 @@ Format your response as a JSON object with this structure:
     {
       "label": "object name",
       "description": "brief description of the object",
-      "location": "description of where the object is located in the image"
+      "boundingBox": [ymin, xmin, ymax, xmax],
+      "confidence": 0.95
     }
   ],
   "summary": "brief overall description of what you see in the image"
@@ -369,7 +376,7 @@ Format your response as a JSON object with this structure:
         objects?: Array<{
           label?: string;
           description?: string;
-          location?: string;
+          boundingBox?: number[];
           confidence?: number;
         }>;
         summary?: string;
@@ -379,9 +386,7 @@ Format your response as a JSON object with this structure:
       let parsedResult: ParsedObjectDetectionResult;
       try {
         // Extract JSON from the response (handle cases where response includes markdown code blocks)
-        const jsonMatch = result.match(
-          /```(?:json)?\s*(\{[\s\S]*\})\s*```/
-        );
+        const jsonMatch = result.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
         const jsonText = jsonMatch ? jsonMatch[1] : result.trim();
         parsedResult = JSON.parse(jsonText) as ParsedObjectDetectionResult;
       } catch (parseError) {
@@ -395,24 +400,52 @@ Format your response as a JSON object with this structure:
               label: "General Analysis",
               description:
                 "Multiple objects detected - see raw text for details",
-              location: "Throughout the image",
             },
           ],
           summary:
-            result.substring(0, 200) +
-            (result.length > 200 ? "..." : ""),
+            result.substring(0, 200) + (result.length > 200 ? "..." : ""),
         };
       }
 
       // Format the response to match expected interface
       const objects = Array.isArray(parsedResult.objects)
-        ? parsedResult.objects.map((obj) => ({
-            label: obj.label || "Unknown Object",
-            description: obj.description,
-            // Note: Gemini vision models don't typically provide precise bounding boxes
-            // without specific fine-tuning, so we include location as text description
-            confidence: obj.confidence || undefined,
-          }))
+        ? parsedResult.objects.map((obj) => {
+            interface DetectedObject {
+              label: string;
+              description?: string;
+              confidence?: number;
+              boundingBox?: {
+                yMin: number;
+                xMin: number;
+                yMax: number;
+                xMax: number;
+              };
+            }
+
+            const result: DetectedObject = {
+              label: obj.label || "Unknown Object",
+              description: obj.description,
+              confidence: obj.confidence || undefined,
+            };
+
+            // Convert bounding box coordinates if provided
+            if (
+              obj.boundingBox &&
+              Array.isArray(obj.boundingBox) &&
+              obj.boundingBox.length === 4
+            ) {
+              // Gemini returns coordinates as [ymin, xmin, ymax, xmax] with values 0-1
+              const [yMin, xMin, yMax, xMax] = obj.boundingBox;
+              result.boundingBox = {
+                yMin: Math.max(0, Math.min(1, yMin)),
+                xMin: Math.max(0, Math.min(1, xMin)),
+                yMax: Math.max(0, Math.min(1, yMax)),
+                xMax: Math.max(0, Math.min(1, xMax)),
+              };
+            }
+
+            return result;
+          })
         : [
             {
               label: "Analysis Result",

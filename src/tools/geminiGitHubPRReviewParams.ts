@@ -13,6 +13,8 @@ export const GeminiGitHubPRReviewParamsSchema = z.object({
   model: z.string().optional(),
   reasoningEffort: ReasoningEffortSchema.optional().default("medium"),
   reviewFocus: ReviewFocusSchema.optional().default("general"),
+  // Deprecated: filesOnly parameter is no longer used by the service
+  // Kept for backward compatibility in the API but has no effect
   filesOnly: z.boolean().optional().default(false),
   excludePatterns: z.array(z.string()).optional().default([]),
   customPrompt: z.string().optional(),

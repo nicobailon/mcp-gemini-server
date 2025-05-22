@@ -7,7 +7,6 @@ import {
 } from "./utils/index.js";
 import type { JsonRpcInitializeRequest } from "./types/serverTypes.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-// import { WebSocketServerTransport } from "@modelcontextprotocol/sdk/server/ws.js"; // Not available in SDK
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SessionService } from "./services/SessionService.js";
@@ -214,22 +213,10 @@ const main = async () => {
         requested: transportType,
         selected: "streamable",
         fallback: false,
-        message: "SSE transport - using StreamableHTTPServerTransport via HTTP endpoint",
+        message:
+          "SSE transport - using StreamableHTTPServerTransport via HTTP endpoint",
         timestamp: new Date().toISOString(),
       });
-    } else if (transportType === "ws") {
-      // WebSocket transport is not available in the current SDK version
-      const fallbackReason =
-        "WebSocket transport not available in current SDK version";
-      logger.warn("Transport fallback", {
-        requested: transportType,
-        selected: "stdio",
-        fallback: true,
-        reason: fallbackReason,
-        timestamp: new Date().toISOString(),
-      });
-      transport = new StdioServerTransport();
-      logger.info("Using stdio transport (fallback)");
     } else if (transportType === "http" || transportType === "streamable") {
       // For HTTP/Streamable transport, we don't need a persistent transport
       // Individual requests will create their own transports
@@ -274,7 +261,11 @@ const main = async () => {
     }
 
     // Set up HTTP server for streamable/SSE transport if requested
-    if (transportType === "http" || transportType === "streamable" || transportType === "sse") {
+    if (
+      transportType === "http" ||
+      transportType === "streamable" ||
+      transportType === "sse"
+    ) {
       await setupHttpServer(server, sessionService);
     }
 
@@ -285,7 +276,11 @@ const main = async () => {
     logger.info("MCP Server connected and listening.");
 
     // For HTTP-only mode, keep the process alive
-    if (transportType === "http" || transportType === "streamable" || transportType === "sse") {
+    if (
+      transportType === "http" ||
+      transportType === "streamable" ||
+      transportType === "sse"
+    ) {
       // Keep the process alive since we don't have a persistent transport
       // The HTTP server will handle all requests
       process.on("SIGINT", () => shutdown("SIGINT"));

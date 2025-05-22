@@ -88,17 +88,6 @@ declare module "@modelcontextprotocol/sdk/server/mcp.js" {
   }
 }
 
-declare module "@modelcontextprotocol/sdk/server/ws.js" {
-  import { Transport } from "@modelcontextprotocol/sdk/server/mcp.js";
-
-  export class WebSocketServerTransport implements Transport {
-    constructor(options: { port: number });
-    start(): Promise<void>;
-    send(message: unknown): Promise<void>;
-    close(): Promise<void>;
-  }
-}
-
 declare module "@modelcontextprotocol/sdk/server/stdio.js" {
   import { Transport } from "@modelcontextprotocol/sdk/server/mcp.js";
 

@@ -145,4 +145,10 @@ docs/
 .env.local
 .env.development.local
 .env.test.local
+!.env.example
 *workspace*
+*.md
+!README.md
+.env
+
+**/.claude/settings.local.json

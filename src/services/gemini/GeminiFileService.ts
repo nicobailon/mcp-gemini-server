@@ -308,7 +308,7 @@ export class GeminiFileService {
         `https://generativelanguage.googleapis.com/v1beta/${fileData.name}`,
       mimeType: fileData.mimeType || "application/octet-stream",
       displayName: fileData.displayName,
-      sizeBytes: fileData.sizeBytes || "0",
+      sizeBytes: fileData.sizeBytes || 0,
       createTime: fileData.createTime || new Date().toISOString(),
       updateTime: fileData.updateTime || new Date().toISOString(),
       expirationTime: fileData.expirationTime,

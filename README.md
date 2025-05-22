@@ -129,7 +129,7 @@ This server provides the following MCP tools. Parameter schemas are defined usin
   * *Note:* Can handle both multimodal inputs and cached content for improved efficiency
   * *Thinking Budget:* Controls the token budget for model reasoning. Lower values provide faster responses, higher values improve complex reasoning.
 * **`gemini_generateContentStream`**
-  * *Description:* Generates text content via streaming. (Note: Current implementation uses a workaround and collects all chunks before returning the full text).
+  * *Description:* Generates text content via streaming using Server-Sent Events (SSE) for real-time content delivery.
   * *Required Params:* `prompt` (string)
   * *Optional Params:* 
     * `modelName` (string) - Name of the model to use
@@ -796,11 +796,13 @@ The `mcp-gemini-server` also includes tools like `mcpConnectToServer`, `mcpListS
 - `ALLOWED_OUTPUT_PATHS`: A comma-separated list of absolute paths to directories where tools like `mcpCallServerTool` (with outputToFile parameter) and `writeToFileTool` are allowed to write files. Critical security feature to prevent unauthorized file writes. If not set, file output will be disabled for these tools.
 
 ### Optional - Server Configuration:
-- `MCP_TRANSPORT`: Transport to use for MCP server (options: `stdio`, `sse`, `streaming`; default: `stdio`)
+- `MCP_TRANSPORT`: Transport to use for MCP server (options: `stdio`, `sse`, `streamable`, `http`; default: `stdio`)
   - IMPORTANT: SSE (Server-Sent Events) is NOT deprecated and remains a critical component of the MCP protocol
   - SSE is particularly valuable for bidirectional communication, enabling features like dynamic tool updates and sampling
   - Each transport type has specific valid use cases within the MCP ecosystem
-- `MCP_SERVER_PORT`: Port for network transports when using `sse` or `streaming` (default: `8080`)
+- `MCP_SERVER_PORT`: Port for network transports when using `sse`, `streamable`, or `http` (default: `8080`)
+- `MCP_ENABLE_STREAMING`: Enable SSE streaming for HTTP transport (options: `true`, `false`; default: `false`)
+- `MCP_SESSION_TIMEOUT`: Session timeout in seconds for HTTP transport (default: `3600` = 1 hour)
 - `MCP_CONNECTION_TOKEN`: Token that clients need to provide when connecting to this server
 - `MCP_CLIENT_ID`: Default ID used when this server acts as a client to other MCP servers 
 
@@ -828,8 +830,10 @@ GEMINI_SAFE_FILE_BASE_DIR=/var/opt/mcp-gemini-server/gemini_files  # For Gemini 
 ALLOWED_OUTPUT_PATHS=/var/opt/mcp-gemini-server/outputs,/tmp/mcp-gemini-outputs   # For mcpCallServerTool and writeToFileTool
 
 # Server Configuration
-MCP_TRANSPORT=stdio  # Replaced deprecated MCP_TRANSPORT_TYPE
+MCP_TRANSPORT=stdio  # Options: stdio, sse, streamable, http (replaced deprecated MCP_TRANSPORT_TYPE)
 MCP_SERVER_PORT=8080 # For network transports (replaced deprecated MCP_WS_PORT)
+MCP_ENABLE_STREAMING=true # Enable SSE streaming for HTTP transport
+MCP_SESSION_TIMEOUT=3600  # Session timeout in seconds for HTTP transport
 MCP_CONNECTION_TOKEN=your_secure_token_here
 MCP_CLIENT_ID=gemini-sdk-client-001
 ENABLE_HEALTH_CHECK=true
@@ -1178,7 +1182,6 @@ This ensures clean termination when the server is run in containerized environme
 
 ## Known Issues
 
-* **Streaming Limitations:** `gemini_generateContentStream` uses a workaround, collecting all chunks before returning the full text. True streaming to the MCP client is not yet implemented due to current MCP SDK limitations.
 * **Pagination Issues:** `gemini_listFiles` and `gemini_listCaches` may not reliably return `nextPageToken` due to limitations in iterating the SDK's Pager object. A workaround is implemented but has limited reliability.
 * **Path Requirements:** All file operations require absolute paths when run from the server environment. Relative paths are not supported.
 * **API Compatibility:** File Handling & Caching APIs are **not supported with Vertex AI credentials**, only Google AI Studio API keys.

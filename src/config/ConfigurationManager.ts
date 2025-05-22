@@ -19,6 +19,8 @@ interface ManagedConfigs {
     clientId: string;
     logLevel?: "debug" | "info" | "warn" | "error";
     transport?: "stdio" | "sse";
+    enableStreaming?: boolean;
+    sessionTimeoutSeconds?: number;
   };
   // Add other service config types here:
   // yourService: Required<YourServiceConfig>;
@@ -398,6 +400,29 @@ export class ConfigurationManager {
         );
       }
     }
+
+    if (process.env.MCP_ENABLE_STREAMING) {
+      this.config.mcpConfig.enableStreaming =
+        process.env.MCP_ENABLE_STREAMING.toLowerCase() === "true";
+      logger.info(
+        `[ConfigurationManager] MCP streaming enabled: ${this.config.mcpConfig.enableStreaming}`
+      );
+    }
+
+    if (process.env.MCP_SESSION_TIMEOUT) {
+      const timeout = parseInt(process.env.MCP_SESSION_TIMEOUT, 10);
+      if (!isNaN(timeout) && timeout > 0) {
+        this.config.mcpConfig.sessionTimeoutSeconds = timeout;
+        logger.info(
+          `[ConfigurationManager] MCP session timeout set to: ${timeout} seconds`
+        );
+      } else {
+        logger.warn(
+          `[ConfigurationManager] Invalid MCP_SESSION_TIMEOUT: '${process.env.MCP_SESSION_TIMEOUT}'. Using default.`
+        );
+      }
+    }
+
     logger.info("[ConfigurationManager] MCP configuration loaded.");
 
     // Load allowed output paths if provided

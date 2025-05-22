@@ -1,24 +1,9 @@
 import http from "http";
 import { logger } from "./logger.js";
+import type { ServerState, TestServerState } from "../types/serverTypes.js";
 
-// Define an interface for server state
-export interface ServerState {
-  isRunning: boolean;
-  startTime: number | null;
-  transport: {
-    constructor: {
-      name: string;
-    };
-  } | null;
-  server: any; // Could be more specific if server types are known
-  healthCheckServer: http.Server | null;
-  mcpClientService: any | null; // Add McpClientService to server state
-}
-
-// Make mcpClientService optional for tests
-export type TestServerState = Omit<ServerState, "mcpClientService"> & {
-  mcpClientService?: any | null;
-};
+// Re-export types for backward compatibility
+export type { ServerState, TestServerState };
 
 // Reference to the server state from server.ts
 // This will be set from server.ts

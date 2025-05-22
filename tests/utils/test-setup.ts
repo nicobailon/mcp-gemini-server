@@ -37,6 +37,8 @@ export interface TestServerContext {
   port: number;
   /** Function to cleanly shut down the server */
   teardown: () => Promise<void>;
+  /** GeminiService instance for mocking */
+  geminiService: object;
 }
 
 /**
@@ -75,7 +77,16 @@ export async function setupTestServer(
   // Create MCP server instance
   // This is intentionally unused in the test setup but kept for reference
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const mcpServer = createServer();
+  const { server: mcpServer, mcpClientService } = createServer();
+
+  // Type assertion pattern: McpClientService -> { geminiService: object }
+  // This double assertion is necessary because:
+  // 1. McpClientService doesn't formally expose geminiService in its type definition
+  // 2. We need to access it for test mocking purposes
+  // 3. The service implementation actually contains this property at runtime
+  const geminiService = (
+    mcpClientService as unknown as { geminiService: object }
+  ).geminiService;
 
   // Create an HTTP server using the MCP server
   const port = options.port || 0;
@@ -114,6 +125,7 @@ export async function setupTestServer(
     server: httpServer,
     baseUrl,
     port: actualPort,
+    geminiService,
     teardown: async () => {
       // Close the HTTP server
       await new Promise<void>((resolve, reject) => {

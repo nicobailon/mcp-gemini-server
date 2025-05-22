@@ -8,7 +8,7 @@ import {
 import { v4 as uuidv4 } from "uuid";
 // Import node-fetch types only
 // We'll dynamically import the actual implementation later to handle CJS/ESM compatibility
-import type { Response, RequestInit, HeadersInit } from "node-fetch";
+import type { Response, RequestInit } from "node-fetch";
 
 // Define custom types for EventSource events since the eventsource package
 // doesn't export its own types
@@ -31,7 +31,7 @@ type ESMessageHandler = (event: ESMessageEvent) => void;
 
 // Extended EventSource interface to properly type the handlers
 interface ExtendedEventSource extends EventSource {
-  onopen: (this: EventSource, ev: MessageEvent<any>) => unknown;
+  onopen: (this: EventSource, ev: MessageEvent<unknown>) => unknown;
   onmessage: (this: EventSource, ev: MessageEvent) => unknown;
   onerror: (this: EventSource, ev: Event) => unknown;
 }
@@ -462,11 +462,11 @@ export class McpClientService {
       // Close the EventSource and remove listeners
       const eventSource = connection.eventSource;
 
-      // Clean up event listeners by setting handlers to null
+      // Clean up event listeners by setting handlers to empty functions
       // (EventSource doesn't support removeEventListener)
-      (eventSource as any).onopen = null;
-      (eventSource as any).onmessage = null;
-      (eventSource as any).onerror = null;
+      (eventSource as ExtendedEventSource).onopen = () => {};
+      (eventSource as ExtendedEventSource).onmessage = () => {};
+      (eventSource as ExtendedEventSource).onerror = () => {};
 
       // Close the connection
       eventSource.close();

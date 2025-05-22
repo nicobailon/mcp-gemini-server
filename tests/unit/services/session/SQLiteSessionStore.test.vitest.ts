@@ -38,7 +38,7 @@ describe("SQLiteSessionStore", () => {
     it("should clean up expired sessions on startup", async () => {
       // Create a new store instance to test initialization cleanup
       const store2 = new SQLiteSessionStore(testDbPath);
-      
+
       // Add an expired session directly to the database before initialization
       const expiredSession: SessionState = {
         id: "expired-session",
@@ -47,15 +47,15 @@ describe("SQLiteSessionStore", () => {
         expiresAt: Date.now() - 1000, // Expired 1 second ago
         data: { test: "data" },
       };
-      
+
       await store.set("expired-session", expiredSession);
       await store.close();
-      
+
       // Initialize new store - should clean up expired session
       await store2.initialize();
       const retrieved = await store2.get("expired-session");
       expect(retrieved).toBeNull();
-      
+
       await store2.close();
     });
   });
@@ -133,7 +133,7 @@ describe("SQLiteSessionStore", () => {
   describe("deleteExpired", () => {
     it("should delete only expired sessions", async () => {
       const now = Date.now();
-      
+
       const activeSession: SessionState = {
         id: "active",
         createdAt: now,
@@ -167,7 +167,7 @@ describe("SQLiteSessionStore", () => {
 
       // Active session should still exist
       expect(await store.get(activeSession.id)).not.toBeNull();
-      
+
       // Expired sessions should be gone
       expect(await store.get(expiredSession1.id)).toBeNull();
       expect(await store.get(expiredSession2.id)).toBeNull();
@@ -210,7 +210,7 @@ describe("SQLiteSessionStore", () => {
       const uninitializedStore = new SQLiteSessionStore(
         path.join(testDir, "uninitialized.db")
       );
-      
+
       await expect(uninitializedStore.get("test")).rejects.toThrow(
         "SQLite session store not initialized"
       );
@@ -226,7 +226,7 @@ describe("SQLiteSessionStore", () => {
       };
 
       await store.set(session.id, session);
-      
+
       // Manually corrupt the data in the database
       // This is a bit hacky but tests error handling
       const db = (store as any).db;

@@ -17,11 +17,8 @@ import {
   ImagePart,
 } from "./GeminiTypes.js";
 import { ZodError } from "zod";
-import {
-  validateGenerateContentParams,
-  ValidatedGenerateContentParams,
-} from "./GeminiValidationSchemas.js";
-import { RetryService, withRetry } from "../../utils/RetryService.js";
+import { validateGenerateContentParams } from "./GeminiValidationSchemas.js";
+import { RetryService } from "../../utils/RetryService.js";
 
 // Request configuration type definition for reuse
 interface RequestConfig {
@@ -60,7 +57,7 @@ const DEFAULT_RETRY_OPTIONS = {
   jitter: true,
   onRetry: (error: unknown, attempt: number, delayMs: number) => {
     logger.warn(
-      `Retrying Gemini API call after error (attempt ${attempt}): ${error instanceof Error ? error.message : String(error)}`
+      `Retrying Gemini API call after error (attempt ${attempt}, delay: ${delayMs}ms): ${error instanceof Error ? error.message : String(error)}`
     );
   },
 };

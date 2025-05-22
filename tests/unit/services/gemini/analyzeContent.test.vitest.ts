@@ -58,8 +58,9 @@ describe("GeminiService.analyzeContent", () => {
       mimeType: "image/png",
     };
 
-    const mockResponse = "This image contains a chart showing quarterly revenue growth.";
-    
+    const mockResponse =
+      "This image contains a chart showing quarterly revenue growth.";
+
     // Mock the generateContent method
     vi.spyOn(service, "generateContent").mockResolvedValue(mockResponse);
 
@@ -90,8 +91,9 @@ describe("GeminiService.analyzeContent", () => {
       mimeType: "image/png",
     };
 
-    const mockResponse = '```json\n{"title": "Revenue Chart", "type": "bar", "dataPoints": 4}\n```';
-    
+    const mockResponse =
+      '```json\n{"title": "Revenue Chart", "type": "bar", "dataPoints": 4}\n```';
+
     // Mock the generateContent method
     vi.spyOn(service, "generateContent").mockResolvedValue(mockResponse);
 
@@ -103,7 +105,8 @@ describe("GeminiService.analyzeContent", () => {
     );
 
     expect(service.generateContent).toHaveBeenCalledWith({
-      prompt: "Extract the chart data\n\nPlease provide your analysis in a structured JSON format.",
+      prompt:
+        "Extract the chart data\n\nPlease provide your analysis in a structured JSON format.",
       modelName: "gemini-1.5-pro",
       fileReferenceOrInlineData: testImage,
       safetySettings: undefined,
@@ -135,7 +138,7 @@ describe("GeminiService.analyzeContent", () => {
     };
 
     const mockResponse = "This is not valid JSON but describes the chart well.";
-    
+
     // Mock the generateContent method
     vi.spyOn(service, "generateContent").mockResolvedValue(mockResponse);
 
@@ -161,7 +164,7 @@ describe("GeminiService.analyzeContent", () => {
     };
 
     const mockError = new Error("API request failed");
-    
+
     // Mock the generateContent method to throw an error
     vi.spyOn(service, "generateContent").mockRejectedValue(mockError);
 

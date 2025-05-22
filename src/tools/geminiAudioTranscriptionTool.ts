@@ -1,13 +1,8 @@
 import * as fs from "fs";
 import * as path from "path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import { GeminiService } from "../services/index.js";
-import {
-  GeminiApiError,
-  ValidationError,
-  mapToMcpError,
-} from "../utils/errors.js";
+import { ValidationError, mapToMcpError } from "../utils/errors.js";
 import { logger, validateAndResolvePath } from "../utils/index.js";
 import {
   TOOL_NAME_AUDIO_TRANSCRIPTION,
@@ -118,10 +113,6 @@ export function geminiAudioTranscriptionTool(server: McpServer) {
               error instanceof Error &&
               error.message?.includes("File API is not supported")
             ) {
-              const apiError = new Error(
-                "Audio file exceeds 20MB limit for inline processing. The File API requires a Google AI Studio API key, which is not available or configured."
-              );
-              // Add details property so our mapper can use it
               // Enhanced error with more details
               const enhancedError = new Error(
                 `Audio file exceeds 20MB limit for inline processing. The File API requires a Google AI Studio API key, which is not available or configured. Details: ${error instanceof Error ? error.message : String(error)}`

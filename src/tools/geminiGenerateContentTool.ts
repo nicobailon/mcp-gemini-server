@@ -1,5 +1,4 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import {
   GEMINI_GENERATE_CONTENT_TOOL_NAME,
@@ -8,9 +7,9 @@ import {
 } from "./geminiGenerateContentParams.js";
 import { GeminiService } from "../services/index.js";
 import { logger } from "../utils/index.js";
-import { GeminiApiError, mapAnyErrorToMcpError } from "../utils/errors.js"; // Import custom error and mapping utility
+import { mapAnyErrorToMcpError } from "../utils/errors.js"; // Import custom error and mapping utility
 // Import SDK types used in parameters for type safety if needed, although Zod infer should handle it
-import type { GenerationConfig, SafetySetting, Content } from "@google/genai";
+import type { SafetySetting } from "@google/genai";
 
 // Define the type for the arguments object based on the Zod schema
 // This provides type safety within the processRequest function.

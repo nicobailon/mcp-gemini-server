@@ -112,7 +112,7 @@ export class GeminiContentService {
     this.fileSecurityService = fileSecurityService || new FileSecurityService();
     this.retryService = new RetryService(DEFAULT_RETRY_OPTIONS);
     this.configManager = ConfigurationManager.getInstance();
-    this.urlContextService = new GeminiUrlContextService(this.configManager, logger);
+    this.urlContextService = new GeminiUrlContextService(this.configManager);
   }
 
   /**
@@ -188,7 +188,9 @@ export class GeminiContentService {
    * @returns A properly formatted request configuration object
    * @throws GeminiApiError if parameters are invalid or model name is missing
    */
-  private async createRequestConfig(params: GenerateContentParams): Promise<RequestConfig> {
+  private async createRequestConfig(
+    params: GenerateContentParams
+  ): Promise<RequestConfig> {
     const {
       prompt,
       modelName,
@@ -216,61 +218,71 @@ export class GeminiContentService {
     // Process URL context first if provided
     if (urlContext?.urls && urlContext.urls.length > 0) {
       const urlConfig = this.configManager.getUrlContextConfig();
-      
+
       if (!urlConfig.enabled) {
         throw new GeminiValidationError(
-          'URL context feature is not enabled. Set GOOGLE_GEMINI_ENABLE_URL_CONTEXT=true to enable.',
-          'urlContext'
+          "URL context feature is not enabled. Set GOOGLE_GEMINI_ENABLE_URL_CONTEXT=true to enable.",
+          "urlContext"
         );
       }
 
       try {
         logger.debug(`Processing ${urlContext.urls.length} URLs for context`);
-        
+
         const urlFetchOptions = {
-          maxContentLength: (urlContext.fetchOptions?.maxContentKb || urlConfig.defaultMaxContentKb) * 1024,
-          timeout: urlContext.fetchOptions?.timeoutMs || urlConfig.defaultTimeoutMs,
-          includeMetadata: urlContext.fetchOptions?.includeMetadata ?? urlConfig.includeMetadata,
-          convertToMarkdown: urlContext.fetchOptions?.convertToMarkdown ?? urlConfig.convertToMarkdown,
-          allowedDomains: urlContext.fetchOptions?.allowedDomains || urlConfig.allowedDomains,
-          userAgent: urlContext.fetchOptions?.userAgent || urlConfig.userAgent
+          maxContentLength:
+            (urlContext.fetchOptions?.maxContentKb ||
+              urlConfig.defaultMaxContentKb) * 1024,
+          timeout:
+            urlContext.fetchOptions?.timeoutMs || urlConfig.defaultTimeoutMs,
+          includeMetadata:
+            urlContext.fetchOptions?.includeMetadata ??
+            urlConfig.includeMetadata,
+          convertToMarkdown:
+            urlContext.fetchOptions?.convertToMarkdown ??
+            urlConfig.convertToMarkdown,
+          allowedDomains:
+            urlContext.fetchOptions?.allowedDomains || urlConfig.allowedDomains,
+          userAgent: urlContext.fetchOptions?.userAgent || urlConfig.userAgent,
         };
 
-        const { contents: urlContents, batchResult } = await this.urlContextService.processUrlsForContext(
-          urlContext.urls,
-          urlFetchOptions
-        );
+        const { contents: urlContents, batchResult } =
+          await this.urlContextService.processUrlsForContext(
+            urlContext.urls,
+            urlFetchOptions
+          );
 
         // Log the batch result for monitoring
-        logger.info('URL context processing completed', {
+        logger.info("URL context processing completed", {
           totalUrls: batchResult.summary.totalUrls,
           successful: batchResult.summary.successCount,
           failed: batchResult.summary.failureCount,
           totalContentSize: batchResult.summary.totalContentSize,
-          avgResponseTime: batchResult.summary.averageResponseTime
+          avgResponseTime: batchResult.summary.averageResponseTime,
         });
 
         // Add URL content parts to the beginning (before the user's prompt)
         for (const urlContent of urlContents) {
-          contentParts.push(...urlContent.parts);
+          if (urlContent.parts) {
+            contentParts.push(...urlContent.parts);
+          }
         }
 
         // Log any failed URLs as warnings
         if (batchResult.failed.length > 0) {
           for (const failure of batchResult.failed) {
-            logger.warn('Failed to fetch URL for context', {
+            logger.warn("Failed to fetch URL for context", {
               url: failure.url,
               error: failure.error.message,
-              errorCode: failure.errorCode
+              errorCode: failure.errorCode,
             });
           }
         }
-
       } catch (error) {
-        logger.error('URL context processing failed', { error });
+        logger.error("URL context processing failed", { error });
         // Depending on configuration, we could either fail the request or continue without URL context
         // For now, we'll throw the error to fail fast
-        throw mapGeminiError(error, 'URL context processing');
+        throw mapGeminiError(error, "URL context processing");
       }
     }
 

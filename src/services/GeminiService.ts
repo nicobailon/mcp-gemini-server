@@ -1194,11 +1194,24 @@ export interface GenerateContentParams {
   cachedContentName?: string;
   fileReferenceOrInlineData?: FileId | ImagePart | FileMetadata | string;
   inlineDataMimeType?: string;
+  urlContext?: {
+    urls: string[];
+    fetchOptions?: {
+      maxContentKb?: number;
+      timeoutMs?: number;
+      includeMetadata?: boolean;
+      convertToMarkdown?: boolean;
+      allowedDomains?: string[];
+      userAgent?: string;
+    };
+  };
   preferQuality?: boolean;
   preferSpeed?: boolean;
   preferCost?: boolean;
   complexityHint?: "simple" | "medium" | "complex";
   taskType?: ModelSelectionCriteria["taskType"];
+  urlCount?: number;
+  estimatedUrlContentSize?: number;
 }
 
 export interface StartChatParams {

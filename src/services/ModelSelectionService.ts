@@ -383,10 +383,13 @@ export class ModelSelectionService {
       }
 
       // Bonus for estimated content size handling
-      if (criteria.estimatedUrlContentSize && criteria.estimatedUrlContentSize > 0) {
+      if (
+        criteria.estimatedUrlContentSize &&
+        criteria.estimatedUrlContentSize > 0
+      ) {
         const sizeInTokens = criteria.estimatedUrlContentSize / 4; // Rough estimate: 4 chars per token
         const contextUtilization = sizeInTokens / capabilities.contextWindow;
-        
+
         // Prefer models that won't be overwhelmed by the content size
         if (contextUtilization < 0.3) {
           score += 1.5; // Comfortable fit
@@ -398,7 +401,7 @@ export class ModelSelectionService {
       }
 
       // Slight bonus for models that support URL context natively (Gemini 2.5 models)
-      if (model.includes('gemini-2.5')) {
+      if (model.includes("gemini-2.5")) {
         score += 0.5;
       }
     }

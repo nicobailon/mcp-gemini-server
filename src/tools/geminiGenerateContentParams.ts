@@ -158,13 +158,15 @@ export const urlContextSchema = z
         userAgent: z
           .string()
           .optional()
-          .describe("Custom User-Agent header for URL requests")
+          .describe("Custom User-Agent header for URL requests"),
       })
       .optional()
-      .describe("Configuration options for URL fetching")
+      .describe("Configuration options for URL fetching"),
   })
   .optional()
-  .describe("Optional URL context to fetch and include web content in the prompt");
+  .describe(
+    "Optional URL context to fetch and include web content in the prompt"
+  );
 
 export const GEMINI_GENERATE_CONTENT_PARAMS = {
   modelName: ModelNameSchema,

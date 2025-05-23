@@ -36,6 +36,10 @@ This server aims to simplify integration with Gemini models by providing a consi
 * **Object Detection:** Detect objects in images and return bounding box coordinates (`gemini_objectDetection`) with custom prompt additions and output format options.
 * **Visual Content Understanding:** Extract information from charts, diagrams, and other visual content (`gemini_contentUnderstanding`) with structured output options.
 * **Audio Transcription:** Transcribe audio files with optional timestamps and multilingual support (`gemini_audioTranscription`) for both small and large files.
+* **URL Context Processing:** Fetch and analyze web content directly from URLs with advanced security, caching, and content processing capabilities.
+  * `gemini_generateContent`: Enhanced with URL context support for including web content in prompts
+  * `gemini_generateContentStream`: Streaming generation with URL context integration
+  * `gemini_url_analysis`: Specialized tool for advanced URL content analysis with multiple analysis types
 * **MCP Client:** Connect to and interact with external MCP servers.
   * `mcpConnectToServer`: Establishes a connection to an external MCP server.
   * `mcpListServerTools`: Lists available tools on a connected MCP server.
@@ -115,7 +119,7 @@ This server provides the following MCP tools. Parameter schemas are defined usin
 ### Core Generation
 
 * **`gemini_generateContent`**
-  * *Description:* Generates non-streaming text content from a prompt.
+  * *Description:* Generates non-streaming text content from a prompt with optional URL context support.
   * *Required Params:* `prompt` (string)
   * *Optional Params:* 
     * `modelName` (string) - Name of the model to use
@@ -126,10 +130,20 @@ This server provides the following MCP tools. Parameter schemas are defined usin
     * `safetySettings` (array) - Controls content filtering by harm category
     * `systemInstruction` (string or object) - System instruction to guide model behavior
     * `cachedContentName` (string) - Identifier for cached content to use with this request
-  * *Note:* Can handle both multimodal inputs and cached content for improved efficiency
+    * `urlContext` (object) - Fetch and include web content from URLs
+      * `urls` (array) - URLs to fetch and include as context (max 20)
+      * `fetchOptions` (object) - Configuration for URL fetching
+        * `maxContentKb` (number) - Maximum content size per URL in KB (default: 100)
+        * `timeoutMs` (number) - Fetch timeout per URL in milliseconds (default: 10000)
+        * `includeMetadata` (boolean) - Include URL metadata in context (default: true)
+        * `convertToMarkdown` (boolean) - Convert HTML to markdown (default: true)
+        * `allowedDomains` (array) - Specific domains to allow for this request
+        * `userAgent` (string) - Custom User-Agent header for URL requests
+    * `modelPreferences` (object) - Model selection preferences
+  * *Note:* Can handle multimodal inputs, cached content, and URL context for comprehensive content generation
   * *Thinking Budget:* Controls the token budget for model reasoning. Lower values provide faster responses, higher values improve complex reasoning.
 * **`gemini_generateContentStream`**
-  * *Description:* Generates text content via streaming using Server-Sent Events (SSE) for real-time content delivery.
+  * *Description:* Generates text content via streaming using Server-Sent Events (SSE) for real-time content delivery with URL context support.
   * *Required Params:* `prompt` (string)
   * *Optional Params:* 
     * `modelName` (string) - Name of the model to use
@@ -140,6 +154,8 @@ This server provides the following MCP tools. Parameter schemas are defined usin
     * `safetySettings` (array) - Controls content filtering by harm category
     * `systemInstruction` (string or object) - System instruction to guide model behavior
     * `cachedContentName` (string) - Identifier for cached content to use with this request
+    * `urlContext` (object) - Same URL context options as `gemini_generateContent`
+    * `modelPreferences` (object) - Model selection preferences
 
 ### Function Calling
 
@@ -309,6 +325,34 @@ This server provides the following MCP tools. Parameter schemas are defined usin
     * Files over 20MB require a Google AI Studio API key and use the File API
     * The actual upper file size limit when using File API is determined by the Gemini API itself
     * Transcription quality may vary based on audio quality, background noise, and number of speakers
+
+### URL Content Analysis
+
+* **`gemini_url_analysis`**
+  * *Description:* Advanced URL analysis tool that fetches content from web pages and performs specialized analysis tasks with comprehensive security and performance optimizations.
+  * *Required Params:* 
+    * `urls` (array) - URLs to analyze (1-20 URLs supported)
+    * `analysisType` (string enum) - Type of analysis to perform:
+      * `summary` - Comprehensive content summarization
+      * `comparison` - Multi-URL content comparison
+      * `extraction` - Structured information extraction
+      * `qa` - Question-based content analysis
+      * `sentiment` - Emotional tone analysis
+      * `fact-check` - Credibility assessment
+      * `content-classification` - Topic and type categorization
+      * `readability` - Accessibility and complexity analysis
+      * `seo-analysis` - Search optimization evaluation
+  * *Optional Params:*
+    * `query` (string) - Specific query or instruction for the analysis
+    * `extractionSchema` (object) - JSON schema for structured data extraction
+    * `questions` (array) - List of specific questions to answer (for Q&A analysis)
+    * `compareBy` (array) - Specific aspects to compare when using comparison analysis
+    * `outputFormat` (string enum: "text", "json", "markdown", "structured") - Desired output format
+    * `includeMetadata` (boolean) - Include URL metadata in the analysis (default: true)
+    * `fetchOptions` (object) - Advanced URL fetching options (same as urlContext fetchOptions)
+    * `modelName` (string) - Specific Gemini model to use (auto-selected if not specified)
+  * *Security Features:* Multi-layer URL validation, domain restrictions, private network protection, and rate limiting
+  * *Performance Features:* Intelligent caching, concurrent processing, and optimal model selection based on content complexity
 
 ### MCP Client Tools
 
@@ -690,6 +734,108 @@ The response will be a JSON string containing both the text response and which m
 }
 ```
 
+**Example 13: Using URL Context with Content Generation**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateContent</tool_name>
+  <arguments>
+    {
+      "prompt": "Summarize the main points from these articles and compare their approaches to sustainable technology",
+      "urlContext": {
+        "urls": [
+          "https://example.com/sustainable-tech-2024",
+          "https://techblog.com/green-innovation"
+        ],
+        "fetchOptions": {
+          "maxContentKb": 150,
+          "includeMetadata": true,
+          "convertToMarkdown": true
+        }
+      },
+      "modelPreferences": {
+        "preferQuality": true,
+        "taskType": "reasoning"
+      }
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 14: Advanced URL Analysis**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_url_analysis</tool_name>
+  <arguments>
+    {
+      "urls": ["https://company.com/about", "https://company.com/products"],
+      "analysisType": "extraction",
+      "extractionSchema": {
+        "companyName": "string",
+        "foundedYear": "number",
+        "numberOfEmployees": "string",
+        "mainProducts": "array",
+        "headquarters": "string",
+        "financialInfo": "object"
+      },
+      "outputFormat": "json",
+      "query": "Extract comprehensive company information including business details and product offerings"
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 15: Multi-URL Content Comparison**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_url_analysis</tool_name>
+  <arguments>
+    {
+      "urls": [
+        "https://site1.com/pricing",
+        "https://site2.com/pricing", 
+        "https://site3.com/pricing"
+      ],
+      "analysisType": "comparison",
+      "compareBy": ["pricing models", "features", "target audience", "value proposition"],
+      "outputFormat": "markdown",
+      "includeMetadata": true
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 16: URL Content with Security Restrictions**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateContent</tool_name>
+  <arguments>
+    {
+      "prompt": "Analyze the content from these trusted news sources",
+      "urlContext": {
+        "urls": [
+          "https://reuters.com/article/tech-news",
+          "https://bbc.com/news/technology"
+        ],
+        "fetchOptions": {
+          "allowedDomains": ["reuters.com", "bbc.com"],
+          "maxContentKb": 200,
+          "timeoutMs": 15000,
+          "userAgent": "Research-Bot/1.0"
+        }
+      }
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
 **Example 8: Connecting to an External MCP Server (SSE)**
 
 ```xml
@@ -792,6 +938,18 @@ The `mcp-gemini-server` also includes tools like `mcpConnectToServer`, `mcpListS
 - `GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS`: JSON array of supported image formats (e.g., `["image/jpeg","image/png","image/webp"]`)
 - `GEMINI_SAFE_FILE_BASE_DIR`: Restricts Gemini-specific file operations (like uploads managed by `gemini_uploadFile`) to a specific directory for security (defaults to current working directory). This is primarily used for files that will be processed by Gemini API services.
 
+### Optional - URL Context Configuration:
+- `GOOGLE_GEMINI_ENABLE_URL_CONTEXT`: Enable URL context features (options: `true`, `false`; default: `false`)
+- `GOOGLE_GEMINI_URL_MAX_COUNT`: Maximum URLs per request (default: `20`)
+- `GOOGLE_GEMINI_URL_MAX_CONTENT_KB`: Maximum content size per URL in KB (default: `100`)
+- `GOOGLE_GEMINI_URL_FETCH_TIMEOUT_MS`: Fetch timeout per URL in milliseconds (default: `10000`)
+- `GOOGLE_GEMINI_URL_ALLOWED_DOMAINS`: Comma-separated list or JSON array of allowed domains (default: `*` for all domains)
+- `GOOGLE_GEMINI_URL_BLOCKLIST`: Comma-separated list or JSON array of blocked domains (default: empty)
+- `GOOGLE_GEMINI_URL_CONVERT_TO_MARKDOWN`: Convert HTML content to markdown (options: `true`, `false`; default: `true`)
+- `GOOGLE_GEMINI_URL_INCLUDE_METADATA`: Include URL metadata in context (options: `true`, `false`; default: `true`)
+- `GOOGLE_GEMINI_URL_ENABLE_CACHING`: Enable URL content caching (options: `true`, `false`; default: `true`)
+- `GOOGLE_GEMINI_URL_USER_AGENT`: Custom User-Agent header for URL requests (default: `MCP-Gemini-Server/1.0`)
+
 ### Optional - Security Configuration:
 - `ALLOWED_OUTPUT_PATHS`: A comma-separated list of absolute paths to directories where tools like `mcpCallServerTool` (with outputToFile parameter) and `writeToFileTool` are allowed to write files. Critical security feature to prevent unauthorized file writes. If not set, file output will be disabled for these tools.
 
@@ -830,6 +988,18 @@ GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS=["image/jpeg","image/png","image/webp"]
 # Security Configuration
 GEMINI_SAFE_FILE_BASE_DIR=/var/opt/mcp-gemini-server/gemini_files  # For Gemini API file operations
 ALLOWED_OUTPUT_PATHS=/var/opt/mcp-gemini-server/outputs,/tmp/mcp-gemini-outputs   # For mcpCallServerTool and writeToFileTool
+
+# URL Context Configuration
+GOOGLE_GEMINI_ENABLE_URL_CONTEXT=true  # Enable URL context features
+GOOGLE_GEMINI_URL_MAX_COUNT=20          # Maximum URLs per request
+GOOGLE_GEMINI_URL_MAX_CONTENT_KB=100    # Maximum content size per URL in KB
+GOOGLE_GEMINI_URL_FETCH_TIMEOUT_MS=10000 # Fetch timeout per URL in milliseconds
+GOOGLE_GEMINI_URL_ALLOWED_DOMAINS=*     # Allowed domains (* for all, or comma-separated list)
+GOOGLE_GEMINI_URL_BLOCKLIST=malicious.com,spam.net # Blocked domains (comma-separated)
+GOOGLE_GEMINI_URL_CONVERT_TO_MARKDOWN=true # Convert HTML to markdown
+GOOGLE_GEMINI_URL_INCLUDE_METADATA=true # Include URL metadata in context
+GOOGLE_GEMINI_URL_ENABLE_CACHING=true   # Enable URL content caching
+GOOGLE_GEMINI_URL_USER_AGENT=MCP-Gemini-Server/1.0 # Custom User-Agent
 
 # Server Configuration
 MCP_TRANSPORT=stdio  # Options: stdio, sse, streamable, http (replaced deprecated MCP_TRANSPORT_TYPE)
@@ -878,6 +1048,27 @@ This server implements several security measures to protect against common vulne
    - Must be kept secure and never exposed in client-side code or logs
    - Use environment variables or secure secret management systems to inject this value
 
+### URL Context Security
+
+1. **Multi-Layer URL Validation**
+   - **Protocol Validation**: Only HTTP/HTTPS protocols are allowed
+   - **Private Network Protection**: Blocks access to localhost, private IP ranges, and internal domains
+   - **Domain Control**: Configurable allowlist/blocklist with wildcard support
+   - **Suspicious Pattern Detection**: Identifies potential path traversal, dangerous characters, and malicious patterns
+   - **IDN Homograph Attack Prevention**: Detects potentially confusing Unicode domain names
+
+2. **Rate Limiting and Resource Protection**
+   - **Per-domain rate limiting**: Default 10 requests per minute per domain
+   - **Content size limits**: Configurable maximum content size per URL (default 100KB)
+   - **Request timeout controls**: Prevents hanging requests (default 10 seconds)
+   - **Concurrent request limits**: Controlled batch processing to prevent overload
+
+3. **Content Security**
+   - **Content type validation**: Only processes text-based content types
+   - **HTML sanitization**: Removes script tags, style blocks, and dangerous content
+   - **Metadata extraction**: Safely parses HTML metadata without executing code
+   - **Memory protection**: Content truncation prevents memory exhaustion attacks
+
 ### Network Security
 
 1. **Transport Options**
@@ -903,6 +1094,14 @@ This server implements several security measures to protect against common vulne
 3. **Secrets Management**
    - Use a secure secrets management solution instead of .env files in production
    - Rotate API keys and connection tokens regularly
+
+4. **URL Context Security**
+   - Enable URL context only when needed: Set `GOOGLE_GEMINI_ENABLE_URL_CONTEXT=false` if not required
+   - Use restrictive domain allowlists: Avoid `GOOGLE_GEMINI_URL_ALLOWED_DOMAINS=*` in production
+   - Configure comprehensive blocklists: Add known malicious domains to `GOOGLE_GEMINI_URL_BLOCKLIST`
+   - Set conservative resource limits: Use appropriate values for `GOOGLE_GEMINI_URL_MAX_CONTENT_KB` and `GOOGLE_GEMINI_URL_MAX_COUNT`
+   - Monitor URL access patterns: Review logs for suspicious URL access attempts
+   - Consider network-level protection: Use firewalls or proxies to add additional URL filtering
 
 ## Error Handling
 
@@ -1235,3 +1434,9 @@ This ensures clean termination when the server is run in containerized environme
   * Base64-encoded images are streamed in chunks to handle large file sizes efficiently.
   * Visual content understanding may perform differently across various types of visual content (charts vs. diagrams vs. documents).
   * Audio transcription accuracy depends on audio quality, number of speakers, and background noise.
+* **URL Context Features:**
+  * URL context is disabled by default and must be explicitly enabled via `GOOGLE_GEMINI_ENABLE_URL_CONTEXT=true`
+  * JavaScript-rendered content is not supported - only static HTML content is processed
+  * Some websites may block automated access or require authentication that is not currently supported
+  * Content extraction quality may vary depending on website structure and formatting
+  * Rate limiting per domain (10 requests/minute by default) may affect bulk processing scenarios

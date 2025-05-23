@@ -4,11 +4,11 @@ import { GitHubUrlParser } from "../../../../src/services/gemini/GitHubUrlParser
 describe("GitHubUrlParser", () => {
   describe("parse()", () => {
     it("should parse repository URLs correctly", () => {
-      const url = "https://github.com/nicobailon/mcp-gemini-server";
+      const url = "https://github.com/bsmi021/mcp-gemini-server";
       const result = GitHubUrlParser.parse(url);
 
       expect(result?.type).toBe("repository");
-      expect(result?.owner).toBe("nicobailon");
+      expect(result?.owner).toBe("bsmi021");
       expect(result?.repo).toBe("mcp-gemini-server");
       expect(result?.branch).toBeUndefined();
       expect(result?.prNumber).toBeUndefined();
@@ -17,11 +17,11 @@ describe("GitHubUrlParser", () => {
 
     it("should parse branch URLs correctly", () => {
       const url =
-        "https://github.com/nicobailon/mcp-gemini-server/tree/feature/add-reasoning-effort-option";
+        "https://github.com/bsmi021/mcp-gemini-server/tree/feature/add-reasoning-effort-option";
       const result = GitHubUrlParser.parse(url);
 
       expect(result?.type).toBe("branch");
-      expect(result?.owner).toBe("nicobailon");
+      expect(result?.owner).toBe("bsmi021");
       expect(result?.repo).toBe("mcp-gemini-server");
       expect(result?.branch).toBe("feature/add-reasoning-effort-option");
       expect(result?.prNumber).toBeUndefined();
@@ -29,11 +29,11 @@ describe("GitHubUrlParser", () => {
     });
 
     it("should parse pull request URLs correctly", () => {
-      const url = "https://github.com/nicobailon/mcp-gemini-server/pull/2";
+      const url = "https://github.com/bsmi021/mcp-gemini-server/pull/2";
       const result = GitHubUrlParser.parse(url);
 
       expect(result?.type).toBe("pull_request");
-      expect(result?.owner).toBe("nicobailon");
+      expect(result?.owner).toBe("bsmi021");
       expect(result?.repo).toBe("mcp-gemini-server");
       expect(result?.branch).toBeUndefined();
       expect(result?.prNumber).toBe("2");
@@ -41,12 +41,11 @@ describe("GitHubUrlParser", () => {
     });
 
     it("should parse pull request files URLs correctly", () => {
-      const url =
-        "https://github.com/nicobailon/mcp-gemini-server/pull/2/files";
+      const url = "https://github.com/bsmi021/mcp-gemini-server/pull/2/files";
       const result = GitHubUrlParser.parse(url);
 
       expect(result?.type).toBe("pr_files");
-      expect(result?.owner).toBe("nicobailon");
+      expect(result?.owner).toBe("bsmi021");
       expect(result?.repo).toBe("mcp-gemini-server");
       expect(result?.branch).toBeUndefined();
       expect(result?.prNumber).toBe("2");
@@ -55,11 +54,11 @@ describe("GitHubUrlParser", () => {
     });
 
     it("should parse issue URLs correctly", () => {
-      const url = "https://github.com/nicobailon/mcp-gemini-server/issues/5";
+      const url = "https://github.com/bsmi021/mcp-gemini-server/issues/5";
       const result = GitHubUrlParser.parse(url);
 
       expect(result?.type).toBe("issue");
-      expect(result?.owner).toBe("nicobailon");
+      expect(result?.owner).toBe("bsmi021");
       expect(result?.repo).toBe("mcp-gemini-server");
       expect(result?.branch).toBeUndefined();
       expect(result?.prNumber).toBeUndefined();
@@ -70,8 +69,8 @@ describe("GitHubUrlParser", () => {
       const urls = [
         "https://example.com",
         "https://github.com",
-        "https://github.com/nicobailon",
-        "https://github.com/nicobailon/mcp-gemini-server/unknown",
+        "https://github.com/bsmi021",
+        "https://github.com/bsmi021/mcp-gemini-server/unknown",
         "not a url at all",
       ];
 
@@ -84,11 +83,11 @@ describe("GitHubUrlParser", () => {
   describe("isValidGitHubUrl()", () => {
     it("should return true for valid GitHub URLs", () => {
       const urls = [
-        "https://github.com/nicobailon/mcp-gemini-server",
-        "https://github.com/nicobailon/mcp-gemini-server/tree/main",
-        "https://github.com/nicobailon/mcp-gemini-server/pull/2",
-        "https://github.com/nicobailon/mcp-gemini-server/pull/2/files",
-        "https://github.com/nicobailon/mcp-gemini-server/issues/5",
+        "https://github.com/bsmi021/mcp-gemini-server",
+        "https://github.com/bsmi021/mcp-gemini-server/tree/main",
+        "https://github.com/bsmi021/mcp-gemini-server/pull/2",
+        "https://github.com/bsmi021/mcp-gemini-server/pull/2/files",
+        "https://github.com/bsmi021/mcp-gemini-server/issues/5",
       ];
 
       for (const url of urls) {
@@ -100,8 +99,8 @@ describe("GitHubUrlParser", () => {
       const urls = [
         "https://example.com",
         "https://github.com",
-        "https://github.com/nicobailon",
-        "https://github.com/nicobailon/mcp-gemini-server/unknown",
+        "https://github.com/bsmi021",
+        "https://github.com/bsmi021/mcp-gemini-server/unknown",
         "not a url at all",
       ];
 
@@ -113,38 +112,37 @@ describe("GitHubUrlParser", () => {
 
   describe("getApiEndpoint()", () => {
     it("should return the correct API endpoint for repository URLs", () => {
-      const url = "https://github.com/nicobailon/mcp-gemini-server";
+      const url = "https://github.com/bsmi021/mcp-gemini-server";
       expect(GitHubUrlParser.getApiEndpoint(url)).toBe(
-        "repos/nicobailon/mcp-gemini-server"
+        "repos/bsmi021/mcp-gemini-server"
       );
     });
 
     it("should return the correct API endpoint for branch URLs", () => {
-      const url = "https://github.com/nicobailon/mcp-gemini-server/tree/main";
+      const url = "https://github.com/bsmi021/mcp-gemini-server/tree/main";
       expect(GitHubUrlParser.getApiEndpoint(url)).toBe(
-        "repos/nicobailon/mcp-gemini-server/branches/main"
+        "repos/bsmi021/mcp-gemini-server/branches/main"
       );
     });
 
     it("should return the correct API endpoint for PR URLs", () => {
-      const url = "https://github.com/nicobailon/mcp-gemini-server/pull/2";
+      const url = "https://github.com/bsmi021/mcp-gemini-server/pull/2";
       expect(GitHubUrlParser.getApiEndpoint(url)).toBe(
-        "repos/nicobailon/mcp-gemini-server/pulls/2"
+        "repos/bsmi021/mcp-gemini-server/pulls/2"
       );
     });
 
     it("should return the correct API endpoint for PR files URLs", () => {
-      const url =
-        "https://github.com/nicobailon/mcp-gemini-server/pull/2/files";
+      const url = "https://github.com/bsmi021/mcp-gemini-server/pull/2/files";
       expect(GitHubUrlParser.getApiEndpoint(url)).toBe(
-        "repos/nicobailon/mcp-gemini-server/pulls/2"
+        "repos/bsmi021/mcp-gemini-server/pulls/2"
       );
     });
 
     it("should return the correct API endpoint for issue URLs", () => {
-      const url = "https://github.com/nicobailon/mcp-gemini-server/issues/5";
+      const url = "https://github.com/bsmi021/mcp-gemini-server/issues/5";
       expect(GitHubUrlParser.getApiEndpoint(url)).toBe(
-        "repos/nicobailon/mcp-gemini-server/issues/5"
+        "repos/bsmi021/mcp-gemini-server/issues/5"
       );
     });
 
@@ -157,15 +155,15 @@ describe("GitHubUrlParser", () => {
   describe("getRepositoryInfo()", () => {
     it("should return repository info for valid GitHub URLs", () => {
       const urls = [
-        "https://github.com/nicobailon/mcp-gemini-server",
-        "https://github.com/nicobailon/mcp-gemini-server/tree/main",
-        "https://github.com/nicobailon/mcp-gemini-server/pull/2",
-        "https://github.com/nicobailon/mcp-gemini-server/issues/5",
+        "https://github.com/bsmi021/mcp-gemini-server",
+        "https://github.com/bsmi021/mcp-gemini-server/tree/main",
+        "https://github.com/bsmi021/mcp-gemini-server/pull/2",
+        "https://github.com/bsmi021/mcp-gemini-server/issues/5",
       ];
 
       for (const url of urls) {
         const info = GitHubUrlParser.getRepositoryInfo(url);
-        expect(info?.owner).toBe("nicobailon");
+        expect(info?.owner).toBe("bsmi021");
         expect(info?.repo).toBe("mcp-gemini-server");
       }
     });

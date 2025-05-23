@@ -1,6 +1,6 @@
-import { ConfigurationManager } from '../config/ConfigurationManager.js';
-import { GeminiUrlValidationError } from './geminiErrors.js';
-import { Logger } from './logger.js';
+import { ConfigurationManager } from "../config/ConfigurationManager.js";
+import { GeminiUrlValidationError } from "./geminiErrors.js";
+import { Logger } from "./logger.js";
 
 export interface UrlValidationResult {
   valid: boolean;
@@ -23,12 +23,19 @@ export interface SecurityMetrics {
 export class UrlSecurityService {
   private readonly logger: Logger;
   private readonly securityMetrics: SecurityMetrics;
-  
+
   // Known dangerous TLDs and patterns
   private readonly dangerousTlds = new Set([
-    'tk', 'ml', 'ga', 'cf', // Free domains often used for malicious purposes
-    'bit', 'link', 'click', // URL shorteners that can hide destinations
-    'download', 'zip', 'exe' // File-like TLDs
+    "tk",
+    "ml",
+    "ga",
+    "cf", // Free domains often used for malicious purposes
+    "bit",
+    "link",
+    "click", // URL shorteners that can hide destinations
+    "download",
+    "zip",
+    "exe", // File-like TLDs
   ]);
 
   // Suspicious URL patterns
@@ -51,11 +58,11 @@ export class UrlSecurityService {
 
   // Known malicious domains and patterns (expandable list)
   private readonly knownMaliciousDomains = new Set([
-    'malware.com',
-    'phishing.com',
-    'spam.com',
-    'virus.com',
-    'trojan.com'
+    "malware.com",
+    "phishing.com",
+    "spam.com",
+    "virus.com",
+    "trojan.com",
   ]);
 
   // Private/internal network ranges
@@ -71,13 +78,13 @@ export class UrlSecurityService {
   ];
 
   constructor(private readonly config: ConfigurationManager) {
-    this.logger = new Logger({ component: 'UrlSecurityService' });
+    this.logger = new Logger({ component: "UrlSecurityService" });
     this.securityMetrics = {
       validationAttempts: 0,
       validationFailures: 0,
       blockedDomains: new Set(),
       suspiciousPatterns: [],
-      rateLimitViolations: 0
+      rateLimitViolations: 0,
     };
   }
 
@@ -93,32 +100,38 @@ export class UrlSecurityService {
       try {
         parsedUrl = new URL(url);
       } catch (error) {
-        this.logSecurityEvent('Invalid URL format', { url, error });
+        this.logSecurityEvent("Invalid URL format", { url, error });
         throw new GeminiUrlValidationError(
           `Invalid URL format: ${url}`,
           url,
-          'invalid_format'
+          "invalid_format"
         );
       }
 
       // Protocol validation
       if (!this.isAllowedProtocol(parsedUrl.protocol)) {
-        this.logSecurityEvent('Blocked protocol', { url, protocol: parsedUrl.protocol });
+        this.logSecurityEvent("Blocked protocol", {
+          url,
+          protocol: parsedUrl.protocol,
+        });
         throw new GeminiUrlValidationError(
           `Protocol not allowed: ${parsedUrl.protocol}`,
           url,
-          'blocked_domain'
+          "blocked_domain"
         );
       }
 
       // Check for suspicious patterns
       const suspiciousCheck = this.checkSuspiciousPatterns(url, parsedUrl);
       if (!suspiciousCheck.valid) {
-        this.logSecurityEvent('Suspicious pattern detected', { url, reason: suspiciousCheck.reason });
-        throw new GeminiUrlValidationError(
-          suspiciousCheck.reason || 'Suspicious URL pattern detected',
+        this.logSecurityEvent("Suspicious pattern detected", {
           url,
-          'suspicious_pattern'
+          reason: suspiciousCheck.reason,
+        });
+        throw new GeminiUrlValidationError(
+          suspiciousCheck.reason || "Suspicious URL pattern detected",
+          url,
+          "suspicious_pattern"
         );
       }
 
@@ -127,12 +140,15 @@ export class UrlSecurityService {
 
       // Check for known malicious domains
       if (this.isKnownMaliciousDomain(parsedUrl.hostname)) {
-        this.logSecurityEvent('Known malicious domain', { url, domain: parsedUrl.hostname });
+        this.logSecurityEvent("Known malicious domain", {
+          url,
+          domain: parsedUrl.hostname,
+        });
         this.securityMetrics.blockedDomains.add(parsedUrl.hostname);
         throw new GeminiUrlValidationError(
           `Access to known malicious domain blocked: ${parsedUrl.hostname}`,
           url,
-          'blocked_domain'
+          "blocked_domain"
         );
       }
 
@@ -142,8 +158,10 @@ export class UrlSecurityService {
       // Additional security checks
       await this.performAdvancedSecurityChecks(parsedUrl);
 
-      this.logger.debug('URL validation passed', { url, domain: parsedUrl.hostname });
-
+      this.logger.debug("URL validation passed", {
+        url,
+        domain: parsedUrl.hostname,
+      });
     } catch (error) {
       this.securityMetrics.validationFailures++;
       if (error instanceof GeminiUrlValidationError) {
@@ -152,7 +170,7 @@ export class UrlSecurityService {
       throw new GeminiUrlValidationError(
         `URL validation failed: ${error instanceof Error ? error.message : String(error)}`,
         url,
-        'invalid_format'
+        "invalid_format"
       );
     }
   }
@@ -163,15 +181,15 @@ export class UrlSecurityService {
   async checkUrlAccessibility(url: string): Promise<boolean> {
     try {
       const response = await fetch(url, {
-        method: 'HEAD',
+        method: "HEAD",
         timeout: 5000,
         headers: {
-          'User-Agent': 'MCP-Gemini-Server-HealthCheck/1.0'
-        }
+          "User-Agent": "MCP-Gemini-Server-HealthCheck/1.0",
+        },
       });
       return response.ok;
     } catch (error) {
-      this.logger.debug('URL accessibility check failed', { url, error });
+      this.logger.debug("URL accessibility check failed", { url, error });
       return false;
     }
   }
@@ -183,7 +201,7 @@ export class UrlSecurityService {
     return {
       ...this.securityMetrics,
       blockedDomains: new Set(this.securityMetrics.blockedDomains),
-      suspiciousPatterns: [...this.securityMetrics.suspiciousPatterns]
+      suspiciousPatterns: [...this.securityMetrics.suspiciousPatterns],
     };
   }
 
@@ -203,21 +221,24 @@ export class UrlSecurityService {
    */
   addMaliciousDomain(domain: string): void {
     this.knownMaliciousDomains.add(domain.toLowerCase());
-    this.logger.info('Added domain to malicious blocklist', { domain });
+    this.logger.info("Added domain to malicious blocklist", { domain });
   }
 
   /**
    * Check if protocol is allowed
    */
   private isAllowedProtocol(protocol: string): boolean {
-    const allowedProtocols = ['http:', 'https:'];
+    const allowedProtocols = ["http:", "https:"];
     return allowedProtocols.includes(protocol.toLowerCase());
   }
 
   /**
    * Check for suspicious URL patterns
    */
-  private checkSuspiciousPatterns(url: string, parsedUrl: URL): UrlValidationResult {
+  private checkSuspiciousPatterns(
+    url: string,
+    parsedUrl: URL
+  ): UrlValidationResult {
     const warnings: string[] = [];
 
     // Check each suspicious pattern
@@ -230,22 +251,22 @@ export class UrlSecurityService {
     }
 
     // Check for dangerous TLDs
-    const tld = parsedUrl.hostname.split('.').pop()?.toLowerCase();
+    const tld = parsedUrl.hostname.split(".").pop()?.toLowerCase();
     if (tld && this.dangerousTlds.has(tld)) {
       warnings.push(`Potentially dangerous TLD: .${tld}`);
     }
 
     // Check for IDN homograph attacks
     if (this.detectIdnHomograph(parsedUrl.hostname)) {
-      return { 
-        valid: false, 
-        reason: 'Potential IDN homograph attack detected in domain name' 
+      return {
+        valid: false,
+        reason: "Potential IDN homograph attack detected in domain name",
       };
     }
 
     // Check for URL shorteners (could hide destination)
     if (this.isUrlShortener(parsedUrl.hostname)) {
-      warnings.push('URL shortener detected - destination cannot be verified');
+      warnings.push("URL shortener detected - destination cannot be verified");
     }
 
     return { valid: true, warnings };
@@ -254,7 +275,10 @@ export class UrlSecurityService {
   /**
    * Validate domain against whitelist/blacklist
    */
-  private async validateDomain(parsedUrl: URL, allowedDomains?: string[]): Promise<void> {
+  private async validateDomain(
+    parsedUrl: URL,
+    allowedDomains?: string[]
+  ): Promise<void> {
     const hostname = parsedUrl.hostname.toLowerCase();
     const urlConfig = this.config.getUrlContextConfig();
 
@@ -266,7 +290,7 @@ export class UrlSecurityService {
           throw new GeminiUrlValidationError(
             `Domain is blocked: ${hostname}`,
             parsedUrl.href,
-            'blocked_domain'
+            "blocked_domain"
           );
         }
       }
@@ -274,7 +298,7 @@ export class UrlSecurityService {
 
     // Check allowlist if specified
     const domainsToCheck = allowedDomains || urlConfig.allowedDomains;
-    if (domainsToCheck.length > 0 && !domainsToCheck.includes('*')) {
+    if (domainsToCheck.length > 0 && !domainsToCheck.includes("*")) {
       let allowed = false;
       for (const allowedPattern of domainsToCheck) {
         if (this.matchesDomainPattern(hostname, allowedPattern)) {
@@ -282,12 +306,12 @@ export class UrlSecurityService {
           break;
         }
       }
-      
+
       if (!allowed) {
         throw new GeminiUrlValidationError(
           `Domain not in allowlist: ${hostname}`,
           parsedUrl.href,
-          'blocked_domain'
+          "blocked_domain"
         );
       }
     }
@@ -297,7 +321,7 @@ export class UrlSecurityService {
       throw new GeminiUrlValidationError(
         `Access to private/internal addresses blocked: ${hostname}`,
         parsedUrl.href,
-        'blocked_domain'
+        "blocked_domain"
       );
     }
   }
@@ -306,15 +330,15 @@ export class UrlSecurityService {
    * Check if domain matches a pattern (supports wildcards)
    */
   private matchesDomainPattern(domain: string, pattern: string): boolean {
-    if (pattern === '*') {
+    if (pattern === "*") {
       return true;
     }
-    
-    if (pattern.startsWith('*.')) {
+
+    if (pattern.startsWith("*.")) {
       const suffix = pattern.slice(2);
-      return domain === suffix || domain.endsWith('.' + suffix);
+      return domain === suffix || domain.endsWith("." + suffix);
     }
-    
+
     return domain === pattern;
   }
 
@@ -325,14 +349,17 @@ export class UrlSecurityService {
     // Check if it's an IP address
     const ipv4Regex = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
     const ipv6Regex = /^([0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4}$/i;
-    
+
     if (ipv4Regex.test(hostname) || ipv6Regex.test(hostname)) {
-      return this.privateNetworkRanges.some(range => range.test(hostname));
+      return this.privateNetworkRanges.some((range) => range.test(hostname));
     }
 
     // Check for internal domain patterns
-    return /\.(local|internal|private|corp|lan|test|dev|localhost)$/i.test(hostname) ||
-           hostname === 'localhost';
+    return (
+      /\.(local|internal|private|corp|lan|test|dev|localhost)$/i.test(
+        hostname
+      ) || hostname === "localhost"
+    );
   }
 
   /**
@@ -340,8 +367,16 @@ export class UrlSecurityService {
    */
   private isUrlShortener(hostname: string): boolean {
     const shorteners = [
-      'bit.ly', 'tinyurl.com', 'short.link', 'ow.ly', 't.co',
-      'goo.gl', 'tiny.cc', 'is.gd', 'buff.ly', 'bitly.com'
+      "bit.ly",
+      "tinyurl.com",
+      "short.link",
+      "ow.ly",
+      "t.co",
+      "goo.gl",
+      "tiny.cc",
+      "is.gd",
+      "buff.ly",
+      "bitly.com",
     ];
     return shorteners.includes(hostname);
   }
@@ -354,9 +389,11 @@ export class UrlSecurityService {
     const hasLatin = /[a-zA-Z]/.test(hostname);
     const hasCyrillic = /[\u0400-\u04FF]/.test(hostname);
     const hasGreek = /[\u0370-\u03FF]/.test(hostname);
-    
+
     // Mixed scripts could indicate homograph attack
-    const scriptCount = [hasLatin, hasCyrillic, hasGreek].filter(Boolean).length;
+    const scriptCount = [hasLatin, hasCyrillic, hasGreek].filter(
+      Boolean
+    ).length;
     if (scriptCount > 1) {
       return true;
     }
@@ -375,7 +412,7 @@ export class UrlSecurityService {
    */
   private isKnownMaliciousDomain(hostname: string): boolean {
     const lowerHostname = hostname.toLowerCase();
-    
+
     // Check exact matches
     if (this.knownMaliciousDomains.has(lowerHostname)) {
       return true;
@@ -383,7 +420,7 @@ export class UrlSecurityService {
 
     // Check subdomains of known malicious domains
     for (const maliciousDomain of this.knownMaliciousDomains) {
-      if (lowerHostname.endsWith('.' + maliciousDomain)) {
+      if (lowerHostname.endsWith("." + maliciousDomain)) {
         return true;
       }
     }
@@ -398,9 +435,9 @@ export class UrlSecurityService {
     // Check URL length
     if (parsedUrl.href.length > 2048) {
       throw new GeminiUrlValidationError(
-        'URL too long (max 2048 characters)',
+        "URL too long (max 2048 characters)",
         parsedUrl.href,
-        'invalid_format'
+        "invalid_format"
       );
     }
 
@@ -413,7 +450,7 @@ export class UrlSecurityService {
         throw new GeminiUrlValidationError(
           `Port not allowed: ${port}`,
           parsedUrl.href,
-          'blocked_domain'
+          "blocked_domain"
         );
       }
     }
@@ -425,21 +462,24 @@ export class UrlSecurityService {
   private async performAdvancedSecurityChecks(parsedUrl: URL): Promise<void> {
     // Check for recently registered domains (simplified check)
     const hostname = parsedUrl.hostname;
-    const parts = hostname.split('.');
-    
+    const parts = hostname.split(".");
+
     // Very new domains might be suspicious
     if (parts.length === 2 && parts[0].length < 3) {
-      this.logger.warn('Potentially suspicious short domain', { hostname });
+      this.logger.warn("Potentially suspicious short domain", { hostname });
     }
 
     // Check for excessive subdomains (possible DGA)
     if (parts.length > 5) {
-      this.logger.warn('Excessive subdomain levels detected', { hostname, levels: parts.length });
+      this.logger.warn("Excessive subdomain levels detected", {
+        hostname,
+        levels: parts.length,
+      });
     }
 
     // Check for random-looking domains
     if (this.looksRandomlyGenerated(hostname)) {
-      this.logger.warn('Potentially randomly generated domain', { hostname });
+      this.logger.warn("Potentially randomly generated domain", { hostname });
     }
   }
 
@@ -447,18 +487,24 @@ export class UrlSecurityService {
    * Check if domain name looks randomly generated
    */
   private looksRandomlyGenerated(hostname: string): boolean {
-    const mainDomain = hostname.split('.')[0];
-    
+    const mainDomain = hostname.split(".")[0];
+
     // Check for patterns indicating random generation
     const hasRepeatingChars = /(.)\1{3,}/.test(mainDomain);
     const hasAlternatingPattern = /([a-z])([0-9])\1\2/.test(mainDomain);
-    const hasExcessiveNumbers = (mainDomain.match(/[0-9]/g) || []).length > mainDomain.length * 0.5;
+    const hasExcessiveNumbers =
+      (mainDomain.match(/[0-9]/g) || []).length > mainDomain.length * 0.5;
     const hasNoVowels = !/[aeiou]/i.test(mainDomain);
     const isVeryShort = mainDomain.length < 4;
     const isVeryLong = mainDomain.length > 20;
-    
-    return hasRepeatingChars || hasAlternatingPattern || hasExcessiveNumbers || 
-           (hasNoVowels && !isVeryShort) || isVeryLong;
+
+    return (
+      hasRepeatingChars ||
+      hasAlternatingPattern ||
+      hasExcessiveNumbers ||
+      (hasNoVowels && !isVeryShort) ||
+      isVeryLong
+    );
   }
 
   /**

@@ -100,7 +100,8 @@ export class ConfigurationManager {
         cacheExpiryMinutes: 15,
         maxCacheSize: 1000,
         rateLimitPerDomainPerMinute: 10,
-        userAgent: "MCP-Gemini-Server/1.0 (+https://github.com/nicobailon/mcp-gemini-server)"
+        userAgent:
+          "MCP-Gemini-Server/1.0 (+https://github.com/bsmi021/mcp-gemini-server)",
       },
 
       // Initialize other service configs with defaults:
@@ -485,8 +486,11 @@ export class ConfigurationManager {
 
     // Load URL Context Configuration
     if (process.env.GOOGLE_GEMINI_ENABLE_URL_CONTEXT) {
-      this.config.urlContext.enabled = process.env.GOOGLE_GEMINI_ENABLE_URL_CONTEXT.toLowerCase() === 'true';
-      logger.info(`[ConfigurationManager] URL context feature enabled: ${this.config.urlContext.enabled}`);
+      this.config.urlContext.enabled =
+        process.env.GOOGLE_GEMINI_ENABLE_URL_CONTEXT.toLowerCase() === "true";
+      logger.info(
+        `[ConfigurationManager] URL context feature enabled: ${this.config.urlContext.enabled}`
+      );
     }
 
     if (process.env.GOOGLE_GEMINI_URL_MAX_COUNT) {
@@ -495,7 +499,9 @@ export class ConfigurationManager {
         this.config.urlContext.maxUrlsPerRequest = maxCount;
         logger.info(`[ConfigurationManager] URL max count set to: ${maxCount}`);
       } else {
-        logger.warn(`[ConfigurationManager] Invalid URL max count '${process.env.GOOGLE_GEMINI_URL_MAX_COUNT}'. Must be between 1 and 20.`);
+        logger.warn(
+          `[ConfigurationManager] Invalid URL max count '${process.env.GOOGLE_GEMINI_URL_MAX_COUNT}'. Must be between 1 and 20.`
+        );
       }
     }
 
@@ -503,60 +509,97 @@ export class ConfigurationManager {
       const maxKb = parseInt(process.env.GOOGLE_GEMINI_URL_MAX_CONTENT_KB, 10);
       if (!isNaN(maxKb) && maxKb > 0 && maxKb <= 1000) {
         this.config.urlContext.defaultMaxContentKb = maxKb;
-        logger.info(`[ConfigurationManager] URL max content size set to: ${maxKb}KB`);
+        logger.info(
+          `[ConfigurationManager] URL max content size set to: ${maxKb}KB`
+        );
       } else {
-        logger.warn(`[ConfigurationManager] Invalid URL max content size '${process.env.GOOGLE_GEMINI_URL_MAX_CONTENT_KB}'. Must be between 1 and 1000 KB.`);
+        logger.warn(
+          `[ConfigurationManager] Invalid URL max content size '${process.env.GOOGLE_GEMINI_URL_MAX_CONTENT_KB}'. Must be between 1 and 1000 KB.`
+        );
       }
     }
 
     if (process.env.GOOGLE_GEMINI_URL_FETCH_TIMEOUT_MS) {
-      const timeout = parseInt(process.env.GOOGLE_GEMINI_URL_FETCH_TIMEOUT_MS, 10);
+      const timeout = parseInt(
+        process.env.GOOGLE_GEMINI_URL_FETCH_TIMEOUT_MS,
+        10
+      );
       if (!isNaN(timeout) && timeout >= 1000 && timeout <= 30000) {
         this.config.urlContext.defaultTimeoutMs = timeout;
-        logger.info(`[ConfigurationManager] URL fetch timeout set to: ${timeout}ms`);
+        logger.info(
+          `[ConfigurationManager] URL fetch timeout set to: ${timeout}ms`
+        );
       } else {
-        logger.warn(`[ConfigurationManager] Invalid URL fetch timeout '${process.env.GOOGLE_GEMINI_URL_FETCH_TIMEOUT_MS}'. Must be between 1000 and 30000 ms.`);
+        logger.warn(
+          `[ConfigurationManager] Invalid URL fetch timeout '${process.env.GOOGLE_GEMINI_URL_FETCH_TIMEOUT_MS}'. Must be between 1000 and 30000 ms.`
+        );
       }
     }
 
     if (process.env.GOOGLE_GEMINI_URL_ALLOWED_DOMAINS) {
       try {
-        const domains = this.parseStringArray(process.env.GOOGLE_GEMINI_URL_ALLOWED_DOMAINS);
+        const domains = this.parseStringArray(
+          process.env.GOOGLE_GEMINI_URL_ALLOWED_DOMAINS
+        );
         this.config.urlContext.allowedDomains = domains;
-        logger.info(`[ConfigurationManager] URL allowed domains set to: ${domains.join(', ')}`);
+        logger.info(
+          `[ConfigurationManager] URL allowed domains set to: ${domains.join(", ")}`
+        );
       } catch (error) {
-        logger.warn(`[ConfigurationManager] Invalid URL allowed domains format: ${error}`);
+        logger.warn(
+          `[ConfigurationManager] Invalid URL allowed domains format: ${error}`
+        );
       }
     }
 
     if (process.env.GOOGLE_GEMINI_URL_BLOCKLIST) {
       try {
-        const domains = this.parseStringArray(process.env.GOOGLE_GEMINI_URL_BLOCKLIST);
+        const domains = this.parseStringArray(
+          process.env.GOOGLE_GEMINI_URL_BLOCKLIST
+        );
         this.config.urlContext.blocklistedDomains = domains;
-        logger.info(`[ConfigurationManager] URL blocklisted domains set to: ${domains.join(', ')}`);
+        logger.info(
+          `[ConfigurationManager] URL blocklisted domains set to: ${domains.join(", ")}`
+        );
       } catch (error) {
-        logger.warn(`[ConfigurationManager] Invalid URL blocklist format: ${error}`);
+        logger.warn(
+          `[ConfigurationManager] Invalid URL blocklist format: ${error}`
+        );
       }
     }
 
     if (process.env.GOOGLE_GEMINI_URL_CONVERT_TO_MARKDOWN) {
-      this.config.urlContext.convertToMarkdown = process.env.GOOGLE_GEMINI_URL_CONVERT_TO_MARKDOWN.toLowerCase() === 'true';
-      logger.info(`[ConfigurationManager] URL markdown conversion enabled: ${this.config.urlContext.convertToMarkdown}`);
+      this.config.urlContext.convertToMarkdown =
+        process.env.GOOGLE_GEMINI_URL_CONVERT_TO_MARKDOWN.toLowerCase() ===
+        "true";
+      logger.info(
+        `[ConfigurationManager] URL markdown conversion enabled: ${this.config.urlContext.convertToMarkdown}`
+      );
     }
 
     if (process.env.GOOGLE_GEMINI_URL_INCLUDE_METADATA) {
-      this.config.urlContext.includeMetadata = process.env.GOOGLE_GEMINI_URL_INCLUDE_METADATA.toLowerCase() === 'true';
-      logger.info(`[ConfigurationManager] URL metadata inclusion enabled: ${this.config.urlContext.includeMetadata}`);
+      this.config.urlContext.includeMetadata =
+        process.env.GOOGLE_GEMINI_URL_INCLUDE_METADATA.toLowerCase() === "true";
+      logger.info(
+        `[ConfigurationManager] URL metadata inclusion enabled: ${this.config.urlContext.includeMetadata}`
+      );
     }
 
     if (process.env.GOOGLE_GEMINI_URL_ENABLE_CACHING) {
-      this.config.urlContext.enableCaching = process.env.GOOGLE_GEMINI_URL_ENABLE_CACHING.toLowerCase() === 'true';
-      logger.info(`[ConfigurationManager] URL caching enabled: ${this.config.urlContext.enableCaching}`);
+      this.config.urlContext.enableCaching =
+        process.env.GOOGLE_GEMINI_URL_ENABLE_CACHING.toLowerCase() === "true";
+      logger.info(
+        `[ConfigurationManager] URL caching enabled: ${this.config.urlContext.enableCaching}`
+      );
     }
 
     if (process.env.GOOGLE_GEMINI_URL_USER_AGENT) {
-      this.config.urlContext.userAgent = process.env.GOOGLE_GEMINI_URL_USER_AGENT;
-      logger.info(`[ConfigurationManager] URL user agent set to: ${this.config.urlContext.userAgent}`);
+      this.config.urlContext.userAgent =
+        process.env.GOOGLE_GEMINI_URL_USER_AGENT;
+
+      logger.info(
+        `[ConfigurationManager] URL user agent set to: ${this.config.urlContext.userAgent}`
+      );
     }
 
     logger.info("[ConfigurationManager] URL context configuration loaded.");
@@ -866,18 +909,21 @@ export class ConfigurationManager {
    * Parse a comma-separated string or JSON array into a string array
    */
   private parseStringArray(value: string): string[] {
-    if (!value || value.trim() === '') {
+    if (!value || value.trim() === "") {
       return [];
     }
 
     // Try to parse as JSON first
-    if (value.trim().startsWith('[')) {
+    if (value.trim().startsWith("[")) {
       try {
         const parsed = JSON.parse(value);
-        if (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) {
+        if (
+          Array.isArray(parsed) &&
+          parsed.every((item) => typeof item === "string")
+        ) {
           return parsed;
         }
-        throw new Error('Not a string array');
+        throw new Error("Not a string array");
       } catch (error) {
         throw new Error(`Invalid JSON array format: ${error}`);
       }
@@ -885,8 +931,8 @@ export class ConfigurationManager {
 
     // Parse as comma-separated string
     return value
-      .split(',')
-      .map(item => item.trim())
-      .filter(item => item.length > 0);
+      .split(",")
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
   }
 }

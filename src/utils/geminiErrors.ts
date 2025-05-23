@@ -120,7 +120,10 @@ export class GeminiUrlValidationError extends GeminiApiError {
   constructor(
     message: string,
     public readonly url: string,
-    public readonly reason: 'blocked_domain' | 'invalid_format' | 'suspicious_pattern',
+    public readonly reason:
+      | "blocked_domain"
+      | "invalid_format"
+      | "suspicious_pattern",
     cause?: unknown
   ) {
     super(message, cause);

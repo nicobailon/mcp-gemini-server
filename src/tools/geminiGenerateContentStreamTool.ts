@@ -58,7 +58,7 @@ export const geminiGenerateContentStreamTool = (
       // Calculate URL context metrics for model selection
       let urlCount = 0;
       let estimatedUrlContentSize = 0;
-      
+
       if (urlContext?.urls) {
         urlCount = urlContext.urls.length;
         // Estimate content size based on configured limits

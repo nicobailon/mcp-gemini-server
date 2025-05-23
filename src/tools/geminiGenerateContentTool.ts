@@ -9,23 +9,7 @@ import { GeminiService } from "../services/index.js";
 import { logger } from "../utils/index.js";
 import { mapAnyErrorToMcpError } from "../utils/errors.js"; // Import custom error and mapping utility
 // Import SDK types used in parameters for type safety if needed, although Zod infer should handle it
-import type {
-  SafetySetting,
-  HarmCategory,
-  HarmBlockThreshold,
-} from "@google/genai";
-
-// Helper function to convert safety settings from schema to SDK types
-const convertSafetySettings = (
-  safetySettings?: Array<{ category: string; threshold: string }>
-): SafetySetting[] | undefined => {
-  if (!safetySettings) return undefined;
-
-  return safetySettings.map((setting) => ({
-    category: setting.category as HarmCategory,
-    threshold: setting.threshold as HarmBlockThreshold,
-  }));
-};
+import type { HarmCategory, HarmBlockThreshold } from "@google/genai";
 
 // Define the type for the arguments object based on the Zod schema
 // This provides type safety within the processRequest function.
@@ -70,7 +54,7 @@ export const geminiGenerateContentTool = (
       // Calculate URL context metrics for model selection
       let urlCount = 0;
       let estimatedUrlContentSize = 0;
-      
+
       if (urlContext?.urls) {
         urlCount = urlContext.urls.length;
         // Estimate content size based on configured limits
@@ -82,10 +66,18 @@ export const geminiGenerateContentTool = (
         prompt,
         modelName,
         generationConfig,
-        safetySettings: convertSafetySettings(safetySettings),
+        safetySettings: safetySettings?.map((setting) => ({
+          category: setting.category as HarmCategory,
+          threshold: setting.threshold as HarmBlockThreshold,
+        })),
         systemInstruction,
         cachedContentName,
-        urlContext,
+        urlContext: urlContext?.urls
+          ? {
+              urls: urlContext.urls,
+              fetchOptions: urlContext.fetchOptions,
+            }
+          : undefined,
         preferQuality: modelPreferences?.preferQuality,
         preferSpeed: modelPreferences?.preferSpeed,
         preferCost: modelPreferences?.preferCost,

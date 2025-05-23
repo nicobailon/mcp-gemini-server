@@ -53,6 +53,8 @@ export interface ModelSelectionCriteria {
   preferQuality?: boolean;
   requiredCapabilities?: (keyof ModelCapabilities)[];
   fallbackModel?: string;
+  urlCount?: number;
+  estimatedUrlContentSize?: number;
 }
 
 export interface ModelScore {

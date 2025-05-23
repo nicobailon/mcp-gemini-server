@@ -21,10 +21,10 @@ describe("geminiGitHubPRReviewTool", () => {
   beforeEach(() => {
     // Mock the GitHubUrlParser
     vi.spyOn(GitHubUrlParser, "parse").mockImplementation((url: string) => {
-      if (url === "https://github.com/nicobailon/mcp-gemini-server/pull/2") {
+      if (url === "https://github.com/bsmi021/mcp-gemini-server/pull/2") {
         return {
           type: "pull_request",
-          owner: "nicobailon",
+          owner: "bsmi021",
           repo: "mcp-gemini-server",
           prNumber: "2",
         };
@@ -40,6 +40,7 @@ describe("geminiGitHubPRReviewTool", () => {
     mockGeminiService = {
       reviewGitHubPullRequest: vi.fn().mockImplementation((params) => {
         // Capture and pass through the parameters for assertion
+        console.log("Mock called with params:", params);
         return Promise.resolve("Mock PR review from Gemini Flash 2.0");
       }),
     };
@@ -53,15 +54,15 @@ describe("geminiGitHubPRReviewTool", () => {
     // Create new mocks for each test
     mockRequest = createMockRequest({
       query: {
-        prUrl: "https://github.com/nicobailon/mcp-gemini-server/pull/2",
+        prUrl: "https://github.com/bsmi021/mcp-gemini-server/pull/2",
         model: "gemini-flash-2.0",
         reviewFocus: "general",
       },
     });
 
     mockResponse = createMockResponse({
-      json: function (data: any): Response {
-        responseData = data;
+      json: function (data?: Record<string, unknown>): Response {
+        responseData = data || {};
         return this as Response;
       },
       status: function (code: number): Response {
@@ -82,7 +83,7 @@ describe("geminiGitHubPRReviewTool", () => {
     expect(mockGeminiService.reviewGitHubPullRequest).toHaveBeenCalledTimes(1);
 
     const params = mockGeminiService.reviewGitHubPullRequest.mock.calls[0][0];
-    expect(params.owner).toBe("nicobailon");
+    expect(params.owner).toBe("bsmi021");
     expect(params.repo).toBe("mcp-gemini-server");
     expect(params.prNumber).toBe(2);
     expect(params.modelName).toBe("gemini-flash-2.0");
@@ -92,15 +93,15 @@ describe("geminiGitHubPRReviewTool", () => {
     // Create new mocks for each test
     mockRequest = createMockRequest({
       query: {
-        prUrl: "https://github.com/nicobailon/mcp-gemini-server/pull/2",
+        prUrl: "https://github.com/bsmi021/mcp-gemini-server/pull/2",
         model: "gemini-flash-2.0",
         reasoningEffort: "low",
       },
     });
 
     mockResponse = createMockResponse({
-      json: function (data: any): Response {
-        responseData = data;
+      json: function (data?: Record<string, unknown>): Response {
+        responseData = data || {};
         return this as Response;
       },
       status: function (code: number): Response {
@@ -128,15 +129,15 @@ describe("geminiGitHubPRReviewTool", () => {
     // Create new mocks for each test
     mockRequest = createMockRequest({
       query: {
-        prUrl: "https://github.com/nicobailon/mcp-gemini-server/pull/2",
+        prUrl: "https://github.com/bsmi021/mcp-gemini-server/pull/2",
         model: "gemini-flash-2.0",
         reviewFocus: "security",
       },
     });
 
     mockResponse = createMockResponse({
-      json: function (data: any): Response {
-        responseData = data;
+      json: function (data?: Record<string, unknown>): Response {
+        responseData = data || {};
         return this as Response;
       },
       status: function (code: number): Response {
@@ -170,8 +171,8 @@ describe("geminiGitHubPRReviewTool", () => {
     });
 
     mockResponse = createMockResponse({
-      json: function (data: any): Response {
-        responseData = data;
+      json: function (data?: Record<string, unknown>): Response {
+        responseData = data || {};
         return this as Response;
       },
       status: function (code: number): Response {

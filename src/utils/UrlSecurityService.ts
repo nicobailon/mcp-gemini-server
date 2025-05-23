@@ -1,6 +1,6 @@
 import { ConfigurationManager } from "../config/ConfigurationManager.js";
 import { GeminiUrlValidationError } from "./geminiErrors.js";
-import { Logger } from "./logger.js";
+import { logger } from "./logger.js";
 
 export interface UrlValidationResult {
   valid: boolean;
@@ -21,7 +21,7 @@ export interface SecurityMetrics {
  * Prevents access to malicious, private, or restricted URLs
  */
 export class UrlSecurityService {
-  private readonly logger: Logger;
+  private readonly logger: typeof logger;
   private readonly securityMetrics: SecurityMetrics;
 
   // Known dangerous TLDs and patterns
@@ -40,8 +40,8 @@ export class UrlSecurityService {
 
   // Suspicious URL patterns
   private readonly suspiciousPatterns = [
-    /[\u0000-\u001f\u007f-\u009f]/, // Control characters
-    /[^\x00-\x7F].*[^\x00-\x7F]/, // Multiple non-ASCII characters (potential IDN homograph)
+    /[\x00-\x1f\x7f-\x9f]/, // Control characters
+    /[^\x20-\x7E].*[^\x20-\x7E]/, // Multiple non-printable characters (potential IDN homograph)
     /\.\./, // Path traversal
     /@.*@/, // Multiple @ symbols
     /javascript:/i, // JavaScript protocol
@@ -78,7 +78,7 @@ export class UrlSecurityService {
   ];
 
   constructor(private readonly config: ConfigurationManager) {
-    this.logger = new Logger({ component: "UrlSecurityService" });
+    this.logger = logger;
     this.securityMetrics = {
       validationAttempts: 0,
       validationFailures: 0,
@@ -182,7 +182,6 @@ export class UrlSecurityService {
     try {
       const response = await fetch(url, {
         method: "HEAD",
-        timeout: 5000,
         headers: {
           "User-Agent": "MCP-Gemini-Server-HealthCheck/1.0",
         },

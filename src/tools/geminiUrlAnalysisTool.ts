@@ -178,9 +178,9 @@ export const geminiUrlAnalysisTool = (
         prompt,
         modelName,
         urlContext,
-        taskType,
+        taskType: taskType as "text-generation" | "image-generation" | "video-generation" | "code-review" | "multimodal" | "reasoning",
         preferQuality: true, // Prefer quality for analysis tasks
-        complexityHint: urlCount > 5 ? "high" : "medium",
+        complexityHint: urlCount > 5 ? "complex" : "medium",
         urlCount,
         estimatedUrlContentSize,
         systemInstruction: getSystemInstructionForAnalysis(

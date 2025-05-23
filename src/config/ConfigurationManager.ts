@@ -144,12 +144,21 @@ export class ConfigurationManager {
       return;
     }
 
-    const requiredVars = [
-      "GOOGLE_GEMINI_API_KEY",
-      "MCP_SERVER_HOST",
-      "MCP_SERVER_PORT",
-      "MCP_CONNECTION_TOKEN",
-    ];
+    // Always require Gemini API key
+    const requiredVars = ["GOOGLE_GEMINI_API_KEY"];
+    
+    // Check transport type to determine if MCP server variables are required
+    const transportType = process.env.MCP_TRANSPORT || process.env.MCP_TRANSPORT_TYPE || "stdio";
+    
+    // Only require MCP server variables for HTTP/SSE transport modes
+    if (transportType === "http" || transportType === "sse" || transportType === "streamable") {
+      requiredVars.push(
+        "MCP_SERVER_HOST",
+        "MCP_SERVER_PORT", 
+        "MCP_CONNECTION_TOKEN"
+      );
+    }
+    
     const missingVars = requiredVars.filter((varName) => !process.env[varName]);
 
     if (missingVars.length > 0) {

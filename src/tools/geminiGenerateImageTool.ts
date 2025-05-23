@@ -1,6 +1,4 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import { z } from "zod";
 import {
   TOOL_NAME_GENERATE_IMAGE,
   TOOL_DESCRIPTION_GENERATE_IMAGE,
@@ -9,9 +7,25 @@ import {
 } from "./geminiGenerateImageParams.js";
 import { GeminiService } from "../services/index.js";
 import { logger } from "../utils/index.js";
-import { GeminiApiError, mapToMcpError } from "../utils/errors.js";
-import type { SafetySetting } from "@google/genai";
+import { mapToMcpError } from "../utils/errors.js";
+import type {
+  SafetySetting,
+  HarmCategory,
+  HarmBlockThreshold,
+} from "@google/genai";
 import { ImageGenerationResult } from "../types/index.js";
+
+// Helper function to convert safety settings from schema to SDK types
+const convertSafetySettings = (
+  safetySettings?: Array<{ category: string; threshold: string }>
+): SafetySetting[] | undefined => {
+  if (!safetySettings) return undefined;
+
+  return safetySettings.map((setting) => ({
+    category: setting.category as HarmCategory,
+    threshold: setting.threshold as HarmBlockThreshold,
+  }));
+};
 
 /**
  * Registers the gemini_generateImage tool with the MCP server.
@@ -27,17 +41,7 @@ export const geminiGenerateImageTool = (server: McpServer): void => {
    * @param args - The arguments object matching GEMINI_GENERATE_IMAGE_PARAMS.
    * @returns Base64-encoded generated images with metadata for MCP.
    */
-  const processRequest = async (args: {
-    prompt: string;
-    modelName?: string;
-    safetySettings?: SafetySetting[];
-    resolution?: "512x512" | "1024x1024" | "1536x1536";
-    numberOfImages?: number;
-    negativePrompt?: string;
-    stylePreset?: string;
-    seed?: number;
-    styleStrength?: number;
-  }) => {
+  const processRequest = async (args: GeminiGenerateImageArgs) => {
     logger.debug(`Received ${TOOL_NAME_GENERATE_IMAGE} request:`, {
       model: args.modelName,
       resolution: args.resolution,
@@ -56,19 +60,21 @@ export const geminiGenerateImageTool = (server: McpServer): void => {
         stylePreset,
         seed,
         styleStrength,
+        modelPreferences,
       } = args;
 
-      // Call the service method with all parameters
       const result: ImageGenerationResult = await serviceInstance.generateImage(
         prompt,
         modelName,
         resolution,
         numberOfImages,
-        safetySettings,
+        convertSafetySettings(safetySettings),
         negativePrompt,
         stylePreset,
         seed,
-        styleStrength
+        styleStrength,
+        modelPreferences?.preferQuality,
+        modelPreferences?.preferSpeed
       );
 
       // Check if images were generated

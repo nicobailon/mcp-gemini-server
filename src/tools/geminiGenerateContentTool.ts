@@ -9,7 +9,23 @@ import { GeminiService } from "../services/index.js";
 import { logger } from "../utils/index.js";
 import { mapAnyErrorToMcpError } from "../utils/errors.js"; // Import custom error and mapping utility
 // Import SDK types used in parameters for type safety if needed, although Zod infer should handle it
-import type { SafetySetting } from "@google/genai";
+import type {
+  SafetySetting,
+  HarmCategory,
+  HarmBlockThreshold,
+} from "@google/genai";
+
+// Helper function to convert safety settings from schema to SDK types
+const convertSafetySettings = (
+  safetySettings?: Array<{ category: string; threshold: string }>
+): SafetySetting[] | undefined => {
+  if (!safetySettings) return undefined;
+
+  return safetySettings.map((setting) => ({
+    category: setting.category as HarmCategory,
+    threshold: setting.threshold as HarmBlockThreshold,
+  }));
+};
 
 // Define the type for the arguments object based on the Zod schema
 // This provides type safety within the processRequest function.
@@ -47,16 +63,21 @@ export const geminiGenerateContentTool = (
         safetySettings,
         systemInstruction,
         cachedContentName,
+        modelPreferences,
       } = args;
 
-      // Call the service method with the new parameter object format
       const resultText = await serviceInstance.generateContent({
         prompt,
         modelName,
         generationConfig,
-        safetySettings: safetySettings as SafetySetting[], // Type assertion to match SDK types
-        systemInstruction, // The method will handle string conversion internally
+        safetySettings: convertSafetySettings(safetySettings),
+        systemInstruction,
         cachedContentName,
+        preferQuality: modelPreferences?.preferQuality,
+        preferSpeed: modelPreferences?.preferSpeed,
+        preferCost: modelPreferences?.preferCost,
+        complexityHint: modelPreferences?.complexityHint,
+        taskType: modelPreferences?.taskType,
       });
 
       // Format the successful output for MCP

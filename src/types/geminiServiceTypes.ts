@@ -4,19 +4,91 @@ import { z } from "zod";
  * Type definitions specific to the GeminiService.
  */
 
+export interface ModelCapabilities {
+  textGeneration: boolean;
+  imageInput: boolean;
+  videoInput: boolean;
+  audioInput: boolean;
+  imageGeneration: boolean;
+  videoGeneration: boolean;
+  codeExecution: "none" | "basic" | "good" | "excellent";
+  complexReasoning: "none" | "basic" | "good" | "excellent";
+  costTier: "low" | "medium" | "high";
+  speedTier: "fast" | "medium" | "slow";
+  maxTokens: number;
+  contextWindow: number;
+  supportsFunctionCalling: boolean;
+  supportsSystemInstructions: boolean;
+  supportsCaching: boolean;
+}
+
+export type ModelCapabilitiesMap = Record<string, ModelCapabilities>;
+
+export interface ModelConfiguration {
+  default: string;
+  textGeneration: string[];
+  imageGeneration: string[];
+  videoGeneration: string[];
+  codeReview: string[];
+  complexReasoning: string[];
+  capabilities: ModelCapabilitiesMap;
+  routing: {
+    preferCostEffective: boolean;
+    preferSpeed: boolean;
+    preferQuality: boolean;
+  };
+}
+
+export interface ModelSelectionCriteria {
+  taskType:
+    | "text-generation"
+    | "image-generation"
+    | "video-generation"
+    | "code-review"
+    | "multimodal"
+    | "reasoning";
+  complexityLevel?: "simple" | "medium" | "complex";
+  preferCost?: boolean;
+  preferSpeed?: boolean;
+  preferQuality?: boolean;
+  requiredCapabilities?: (keyof ModelCapabilities)[];
+  fallbackModel?: string;
+}
+
+export interface ModelScore {
+  model: string;
+  score: number;
+  capabilities: ModelCapabilities;
+}
+
+export interface ModelSelectionHistory {
+  timestamp: Date;
+  criteria: ModelSelectionCriteria;
+  selectedModel: string;
+  candidateModels: string[];
+  scores: ModelScore[];
+  selectionTime: number;
+}
+
+export interface ModelPerformanceMetrics {
+  totalCalls: number;
+  avgLatency: number;
+  successRate: number;
+  lastUpdated: Date;
+}
+
 /**
  * Configuration interface for the GeminiService.
  * Contains API key, model settings, and image processing configurations.
  */
 export interface GeminiServiceConfig {
   apiKey: string;
-  defaultModel?: string; // Optional default model name from env var
-  // Image-specific settings
+  defaultModel?: string;
   defaultImageResolution?: "512x512" | "1024x1024" | "1536x1536";
-  maxImageSizeMB: number; // Default: 10MB
-  supportedImageFormats: string[]; // Default: ["image/jpeg", "image/png", "image/webp"]
-  // Reasoning control settings
-  defaultThinkingBudget?: number; // Optional default thinking budget in tokens (0-24576)
+  maxImageSizeMB: number;
+  supportedImageFormats: string[];
+  defaultThinkingBudget?: number;
+  modelConfiguration?: ModelConfiguration;
 }
 
 /**
@@ -159,7 +231,7 @@ export interface ImageGenerationResult {
    * Additional metadata specific to the image generation process,
    * such as model-specific parameters or generation statistics.
    */
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**

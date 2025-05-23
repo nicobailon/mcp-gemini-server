@@ -13,8 +13,34 @@ vi.mock("../../../../src/config/ConfigurationManager.js", () => ({
       })),
       getSecureFileBasePath: vi.fn(() => null),
       getGitHubApiToken: vi.fn(() => "test-github-token"),
+      getModelConfiguration: vi.fn(() => ({
+        default: "gemini-2.5-flash",
+        textGeneration: ["gemini-2.5-flash"],
+        imageGeneration: ["imagen-3.0-generate-002"],
+        capabilities: {
+          "gemini-2.5-flash": {
+            textGeneration: true,
+            costTier: "medium",
+            speedTier: "fast",
+          },
+        },
+        routing: {
+          preferQuality: true,
+          preferSpeed: false,
+          preferCost: false,
+        },
+      })),
     })),
   },
+}));
+
+vi.mock("../../../../src/services/ModelSelectionService.js", () => ({
+  ModelSelectionService: vi.fn().mockImplementation(() => ({
+    selectOptimalModel: vi.fn(() => Promise.resolve("gemini-2.5-flash")),
+    isModelAvailable: vi.fn(() => true),
+    getAvailableModels: vi.fn(() => ["gemini-2.5-flash"]),
+    validateModelForTask: vi.fn(() => true),
+  })),
 }));
 
 vi.mock("@google/genai", () => ({

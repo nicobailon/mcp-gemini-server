@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  ModelNameSchema,
+  ModelPreferencesSchema,
+} from "./schemas/CommonSchemas.js";
 
 // Tool Name
 export const GEMINI_GENERATE_CONTENT_TOOL_NAME = "gemini_generateContent";
@@ -114,13 +118,7 @@ export const safetySettingSchema = z
   );
 
 export const GEMINI_GENERATE_CONTENT_PARAMS = {
-  modelName: z
-    .string()
-    .min(1)
-    .optional() // Make optional
-    .describe(
-      "Optional. The name of the Gemini model to use (e.g., 'gemini-1.5-flash'). If omitted, the server's default model (from GOOGLE_GEMINI_MODEL env var) will be used."
-    ),
+  modelName: ModelNameSchema,
   prompt: z
     .string()
     .min(1)
@@ -147,6 +145,7 @@ export const GEMINI_GENERATE_CONTENT_PARAMS = {
     .describe(
       "Optional. Identifier for cached content in format 'cachedContents/...' to use with this request."
     ),
+  modelPreferences: ModelPreferencesSchema,
 };
 
 // Optional: Define a Zod schema for the entire input object if needed later

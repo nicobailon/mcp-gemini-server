@@ -1,11 +1,13 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import type { SafetySetting as GoogleSafetySetting } from "@google/genai";
 import { ConfigurationManager } from "../config/ConfigurationManager.js";
+import { ModelSelectionService } from "./ModelSelectionService.js";
 import { logger } from "../utils/logger.js";
 import {
   FileMetadata,
   CachedContentMetadata,
   ImageGenerationResult,
+  ModelSelectionCriteria,
 } from "../types/index.js";
 import {
   GeminiContentFilterError,
@@ -45,8 +47,9 @@ import {
 export class GeminiService {
   private genAI: GoogleGenAI;
   private defaultModelName?: string;
+  private modelSelector: ModelSelectionService;
+  private configManager: ConfigurationManager;
 
-  // Specialized services
   private fileService: GeminiFileService;
   private chatService: GeminiChatService;
   private contentService: GeminiContentService;
@@ -56,8 +59,12 @@ export class GeminiService {
   private gitHubApiService: GitHubApiService;
 
   constructor() {
-    const configManager = ConfigurationManager.getInstance();
-    const config = configManager.getGeminiServiceConfig();
+    this.configManager = ConfigurationManager.getInstance();
+    const config = this.configManager.getGeminiServiceConfig();
+
+    this.modelSelector = new ModelSelectionService(
+      this.configManager.getModelConfiguration()
+    );
 
     if (!config.apiKey) {
       throw new Error("Gemini API key is required");
@@ -68,8 +75,7 @@ export class GeminiService {
     this.defaultModelName = config.defaultModel;
 
     // Initialize file security service first as it's used by other services
-    // Set secure base path if configured
-    const secureBasePath = configManager.getSecureFileBasePath();
+    const secureBasePath = this.configManager.getSecureFileBasePath();
     if (secureBasePath) {
       this.fileSecurityService = new FileSecurityService(
         [secureBasePath],
@@ -116,8 +122,7 @@ export class GeminiService {
       config.defaultThinkingBudget
     );
 
-    // Initialize GitHub API service with token from config manager
-    const githubApiToken = configManager.getGitHubApiToken();
+    const githubApiToken = this.configManager.getGitHubApiToken();
     this.gitHubApiService = new GitHubApiService(githubApiToken);
   }
 
@@ -496,7 +501,9 @@ Format your response as a JSON object with this structure:
     negativePrompt?: string,
     stylePreset?: string,
     seed?: number,
-    styleStrength?: number
+    styleStrength?: number,
+    preferQuality?: boolean,
+    preferSpeed?: boolean
   ): Promise<ImageGenerationResult> {
     // Log with truncated prompt for privacy/security
     logger.debug(`Generating image with prompt: ${prompt.substring(0, 30)}...`);
@@ -519,10 +526,14 @@ Format your response as a JSON object with this structure:
         styleStrength
       );
 
-      // Default model for image generation if not specified
-      // Using the latest Imagen 3.1 model for improved quality (as of April 2025)
-      const defaultImageModel = "imagen-3.1-generate-003";
-      const effectiveModel = validatedParams.modelName || defaultImageModel;
+      const effectiveModel =
+        validatedParams.modelName ||
+        (await this.modelSelector.selectOptimalModel({
+          taskType: "image-generation",
+          preferQuality,
+          preferSpeed,
+          fallbackModel: "imagen-3.0-generate-002",
+        }));
 
       // Get the imagen model from the SDK
       // Use the models property with the type from our declaration file
@@ -702,27 +713,38 @@ Format your response as a JSON object with this structure:
     return this.fileSecurityService.getSecureBasePath();
   }
 
-  /**
-   * Streams content generation using the Gemini model.
-   * Returns an async generator that yields text chunks as they are generated.
-   *
-   * @param params An object containing all necessary parameters for content generation
-   * @returns An async generator yielding text chunks as they become available
-   */
   public async *generateContentStream(
-    params: GenerateContentParams
+    params: GenerateContentParams & {
+      preferQuality?: boolean;
+      preferSpeed?: boolean;
+      preferCost?: boolean;
+      complexityHint?: "simple" | "medium" | "complex";
+      taskType?: ModelSelectionCriteria["taskType"];
+    }
   ): AsyncGenerator<string> {
-    yield* this.contentService.generateContentStream(params);
+    const selectedModel = await this.selectModelForGeneration(params);
+    yield* this.contentService.generateContentStream({
+      ...params,
+      modelName: selectedModel,
+    });
   }
 
-  /**
-   * Generates content using the Gemini model.
-   *
-   * @param params An object containing all necessary parameters for content generation
-   * @returns A promise resolving to the generated text content
-   */
-  public async generateContent(params: GenerateContentParams): Promise<string> {
-    return this.contentService.generateContent(params);
+  public async generateContent(
+    params: GenerateContentParams & {
+      preferQuality?: boolean;
+      preferSpeed?: boolean;
+      preferCost?: boolean;
+      complexityHint?: "simple" | "medium" | "complex";
+      taskType?: ModelSelectionCriteria["taskType"];
+    }
+  ): Promise<string> {
+    const selectedModel = await this.selectModelForGeneration(params);
+    const result = await this.contentService.generateContent({
+      ...params,
+      modelName: selectedModel,
+    });
+
+    return result;
   }
 
   /**
@@ -1048,6 +1070,118 @@ Description: ${pullRequest.body || "No description"}`;
       throw error;
     }
   }
+
+  private async selectModelForGeneration(params: {
+    modelName?: string;
+    preferQuality?: boolean;
+    preferSpeed?: boolean;
+    preferCost?: boolean;
+    complexityHint?: "simple" | "medium" | "complex";
+    taskType?: ModelSelectionCriteria["taskType"];
+    prompt?: string;
+  }): Promise<string> {
+    if (params.modelName) {
+      return params.modelName;
+    }
+
+    const complexity =
+      params.complexityHint ||
+      this.analyzePromptComplexity(params.prompt || "");
+
+    return this.modelSelector.selectOptimalModel({
+      taskType: params.taskType || "text-generation",
+      complexityLevel: complexity,
+      preferQuality: params.preferQuality,
+      preferSpeed: params.preferSpeed,
+      preferCost: params.preferCost,
+      fallbackModel:
+        this.defaultModelName ||
+        this.configManager.getModelConfiguration().default,
+    });
+  }
+
+  private analyzePromptComplexity(
+    prompt: string
+  ): "simple" | "medium" | "complex" {
+    const complexKeywords = [
+      "analyze",
+      "compare",
+      "evaluate",
+      "synthesize",
+      "reasoning",
+      "complex",
+      "detailed analysis",
+      "comprehensive",
+      "explain why",
+      "what are the implications",
+      "trade-offs",
+      "pros and cons",
+      "algorithm",
+      "architecture",
+      "design pattern",
+    ];
+
+    const codeKeywords = [
+      "function",
+      "class",
+      "import",
+      "export",
+      "const",
+      "let",
+      "var",
+      "if",
+      "else",
+      "for",
+      "while",
+      "return",
+      "async",
+      "await",
+    ];
+
+    const wordCount = prompt.split(/\s+/).length;
+    const hasComplexKeywords = complexKeywords.some((keyword) =>
+      prompt.toLowerCase().includes(keyword.toLowerCase())
+    );
+    const hasCodeKeywords = codeKeywords.some((keyword) =>
+      prompt.toLowerCase().includes(keyword.toLowerCase())
+    );
+
+    if (hasComplexKeywords || hasCodeKeywords || wordCount > 100) {
+      return "complex";
+    } else if (wordCount > 20) {
+      return "medium";
+    } else {
+      return "simple";
+    }
+  }
+
+  public getModelSelector(): ModelSelectionService {
+    return this.modelSelector;
+  }
+
+  public async getOptimalModelForTask(
+    criteria: ModelSelectionCriteria
+  ): Promise<string> {
+    return this.modelSelector.selectOptimalModel(criteria);
+  }
+
+  public isModelAvailable(modelName: string): boolean {
+    return this.modelSelector.isModelAvailable(modelName);
+  }
+
+  public getAvailableModels(): string[] {
+    return this.modelSelector.getAvailableModels();
+  }
+
+  public validateModelForTask(
+    modelName: string,
+    taskType: ModelSelectionCriteria["taskType"]
+  ): boolean {
+    return this.modelSelector.validateModelForTask(modelName, taskType);
+  }
+
+  // Model selection history and performance metrics methods removed
+  // These were not implemented in ModelSelectionService
 }
 
 // Define interfaces directly to avoid circular dependencies
@@ -1060,6 +1194,11 @@ export interface GenerateContentParams {
   cachedContentName?: string;
   fileReferenceOrInlineData?: FileId | ImagePart | FileMetadata | string;
   inlineDataMimeType?: string;
+  preferQuality?: boolean;
+  preferSpeed?: boolean;
+  preferCost?: boolean;
+  complexityHint?: "simple" | "medium" | "complex";
+  taskType?: ModelSelectionCriteria["taskType"];
 }
 
 export interface StartChatParams {

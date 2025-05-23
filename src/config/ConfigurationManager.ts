@@ -1,7 +1,12 @@
-// Import config types for services as they are added
 import * as path from "path";
-import { ExampleServiceConfig, GeminiServiceConfig } from "../types/index.js";
+import {
+  ExampleServiceConfig,
+  GeminiServiceConfig,
+  ModelConfiguration,
+  ModelCapabilitiesMap,
+} from "../types/index.js";
 import { FileSecurityService } from "../utils/FileSecurityService.js";
+import { ModelMigrationService } from "../services/gemini/ModelMigrationService.js";
 import { logger } from "../utils/logger.js";
 
 // Define the structure for all configurations managed
@@ -22,8 +27,7 @@ interface ManagedConfigs {
     enableStreaming?: boolean;
     sessionTimeoutSeconds?: number;
   };
-  // Add other service config types here:
-  // yourService: Required<YourServiceConfig>;
+  modelConfiguration: ModelConfiguration;
 }
 
 /**
@@ -45,17 +49,14 @@ export class ConfigurationManager {
         enableDetailedLogs: false,
       },
       geminiService: {
-        // Default API key is empty; MUST be overridden by environment variable
         apiKey: "",
-        // defaultModel is initially undefined, loaded from env var later
         defaultModel: undefined,
-        // Default image processing settings
         defaultImageResolution: "1024x1024",
         maxImageSizeMB: 10,
         supportedImageFormats: ["image/jpeg", "image/png", "image/webp"],
-        // Reasoning control settings
         defaultThinkingBudget: undefined,
       },
+      modelConfiguration: this.buildDefaultModelConfiguration(),
       github: {
         // Default GitHub API token is empty; will be loaded from environment variable
         apiToken: "",
@@ -78,13 +79,27 @@ export class ConfigurationManager {
       // },
     };
 
+    const migrationService = ModelMigrationService.getInstance();
+    migrationService.migrateEnvironmentVariables();
+
+    const validation = migrationService.validateConfiguration();
+    if (!validation.isValid) {
+      logger.error("[ConfigurationManager] Configuration validation failed", {
+        errors: validation.errors,
+      });
+    }
+
+    const deprecated = migrationService.getDeprecatedFeatures();
+    if (deprecated.length > 0) {
+      logger.warn("[ConfigurationManager] Deprecated features detected", {
+        deprecated,
+      });
+    }
+
     this.validateRequiredEnvVars();
     this.loadEnvironmentOverrides();
+    this.config.modelConfiguration = this.parseModelConfiguration();
 
-    // Initialize and validate FileSecurityService configuration from environment
-    // This performs an initial validation of the configured file security paths
-    // but doesn't store an instance - services will create their own instances as needed.
-    // This call is primarily for early validation and logging of path configurations.
     FileSecurityService.configureFromEnvironment();
   }
 
@@ -170,6 +185,10 @@ export class ConfigurationManager {
   // Getter specifically for the default model name
   public getDefaultModelName(): string | undefined {
     return this.config.geminiService.defaultModel;
+  }
+
+  public getModelConfiguration(): ModelConfiguration {
+    return { ...this.config.modelConfiguration };
   }
 
   /**
@@ -425,8 +444,6 @@ export class ConfigurationManager {
 
     logger.info("[ConfigurationManager] MCP configuration loaded.");
 
-    // Load allowed output paths if provided
-    // Initialize to an empty array to ensure it's always string[]
     this.config.allowedOutputPaths = [];
     const allowedOutputPathsEnv = process.env.ALLOWED_OUTPUT_PATHS;
 
@@ -454,5 +471,277 @@ export class ConfigurationManager {
         "[ConfigurationManager] ALLOWED_OUTPUT_PATHS environment variable not set or is empty. File writing might be restricted or disabled."
       );
     }
+  }
+
+  private buildDefaultModelConfiguration(): ModelConfiguration {
+    return {
+      default: "gemini-2.5-flash-preview-05-20",
+      textGeneration: [
+        "gemini-2.5-pro-preview-05-06",
+        "gemini-2.5-flash-preview-05-20",
+        "gemini-2.0-flash",
+        "gemini-1.5-pro",
+        "gemini-1.5-flash",
+      ],
+      imageGeneration: [
+        "imagen-3.0-generate-002",
+        "gemini-2.0-flash-preview-image-generation",
+      ],
+      videoGeneration: ["veo-2.0-generate-001"],
+      codeReview: [
+        "gemini-2.5-pro-preview-05-06",
+        "gemini-2.5-flash-preview-05-20",
+        "gemini-2.0-flash",
+      ],
+      complexReasoning: [
+        "gemini-2.5-pro-preview-05-06",
+        "gemini-2.5-flash-preview-05-20",
+      ],
+      capabilities: this.buildCapabilitiesMap(),
+      routing: {
+        preferCostEffective: false,
+        preferSpeed: false,
+        preferQuality: true,
+      },
+    };
+  }
+
+  private buildCapabilitiesMap(): ModelCapabilitiesMap {
+    return {
+      "gemini-2.5-pro-preview-05-06": {
+        textGeneration: true,
+        imageInput: true,
+        videoInput: true,
+        audioInput: true,
+        imageGeneration: false,
+        videoGeneration: false,
+        codeExecution: "excellent",
+        complexReasoning: "excellent",
+        costTier: "high",
+        speedTier: "medium",
+        maxTokens: 65536,
+        contextWindow: 1048576,
+        supportsFunctionCalling: true,
+        supportsSystemInstructions: true,
+        supportsCaching: true,
+      },
+      "gemini-2.5-flash-preview-05-20": {
+        textGeneration: true,
+        imageInput: true,
+        videoInput: true,
+        audioInput: true,
+        imageGeneration: false,
+        videoGeneration: false,
+        codeExecution: "excellent",
+        complexReasoning: "excellent",
+        costTier: "medium",
+        speedTier: "fast",
+        maxTokens: 65536,
+        contextWindow: 1048576,
+        supportsFunctionCalling: true,
+        supportsSystemInstructions: true,
+        supportsCaching: true,
+      },
+      "gemini-2.0-flash": {
+        textGeneration: true,
+        imageInput: true,
+        videoInput: true,
+        audioInput: true,
+        imageGeneration: false,
+        videoGeneration: false,
+        codeExecution: "good",
+        complexReasoning: "good",
+        costTier: "medium",
+        speedTier: "fast",
+        maxTokens: 8192,
+        contextWindow: 1048576,
+        supportsFunctionCalling: true,
+        supportsSystemInstructions: true,
+        supportsCaching: true,
+      },
+      "gemini-2.0-flash-preview-image-generation": {
+        textGeneration: true,
+        imageInput: true,
+        videoInput: false,
+        audioInput: false,
+        imageGeneration: true,
+        videoGeneration: false,
+        codeExecution: "basic",
+        complexReasoning: "basic",
+        costTier: "medium",
+        speedTier: "medium",
+        maxTokens: 8192,
+        contextWindow: 32000,
+        supportsFunctionCalling: false,
+        supportsSystemInstructions: true,
+        supportsCaching: false,
+      },
+      "gemini-1.5-pro": {
+        textGeneration: true,
+        imageInput: true,
+        videoInput: true,
+        audioInput: true,
+        imageGeneration: false,
+        videoGeneration: false,
+        codeExecution: "good",
+        complexReasoning: "good",
+        costTier: "high",
+        speedTier: "medium",
+        maxTokens: 8192,
+        contextWindow: 2000000,
+        supportsFunctionCalling: true,
+        supportsSystemInstructions: true,
+        supportsCaching: true,
+      },
+      "gemini-1.5-flash": {
+        textGeneration: true,
+        imageInput: true,
+        videoInput: true,
+        audioInput: true,
+        imageGeneration: false,
+        videoGeneration: false,
+        codeExecution: "basic",
+        complexReasoning: "basic",
+        costTier: "low",
+        speedTier: "fast",
+        maxTokens: 8192,
+        contextWindow: 1000000,
+        supportsFunctionCalling: true,
+        supportsSystemInstructions: true,
+        supportsCaching: true,
+      },
+      "gemini-1.5-flash-latest": {
+        textGeneration: true,
+        imageInput: true,
+        videoInput: true,
+        audioInput: true,
+        imageGeneration: false,
+        videoGeneration: false,
+        codeExecution: "basic",
+        complexReasoning: "basic",
+        costTier: "low",
+        speedTier: "fast",
+        maxTokens: 8192,
+        contextWindow: 1000000,
+        supportsFunctionCalling: true,
+        supportsSystemInstructions: true,
+        supportsCaching: true,
+      },
+      "imagen-3.0-generate-002": {
+        textGeneration: false,
+        imageInput: false,
+        videoInput: false,
+        audioInput: false,
+        imageGeneration: true,
+        videoGeneration: false,
+        codeExecution: "none",
+        complexReasoning: "none",
+        costTier: "medium",
+        speedTier: "medium",
+        maxTokens: 0,
+        contextWindow: 0,
+        supportsFunctionCalling: false,
+        supportsSystemInstructions: false,
+        supportsCaching: false,
+      },
+      "veo-2.0-generate-001": {
+        textGeneration: false,
+        imageInput: true,
+        videoInput: false,
+        audioInput: false,
+        imageGeneration: false,
+        videoGeneration: true,
+        codeExecution: "none",
+        complexReasoning: "none",
+        costTier: "high",
+        speedTier: "slow",
+        maxTokens: 0,
+        contextWindow: 0,
+        supportsFunctionCalling: false,
+        supportsSystemInstructions: true,
+        supportsCaching: false,
+      },
+    };
+  }
+
+  private parseModelConfiguration(): ModelConfiguration {
+    const textModels = this.parseModelArray("GOOGLE_GEMINI_MODELS") ||
+      this.parseModelArray("GOOGLE_GEMINI_TEXT_MODELS") || [
+        process.env.GOOGLE_GEMINI_MODEL || "gemini-2.5-flash-preview-05-20",
+      ];
+
+    const imageModels = this.parseModelArray("GOOGLE_GEMINI_IMAGE_MODELS") || [
+      "imagen-3.0-generate-002",
+      "gemini-2.0-flash-preview-image-generation",
+    ];
+
+    const videoModels = this.parseModelArray("GOOGLE_GEMINI_VIDEO_MODELS") || [
+      "veo-2.0-generate-001",
+    ];
+
+    const codeModels = this.parseModelArray("GOOGLE_GEMINI_CODE_MODELS") || [
+      "gemini-2.5-pro-preview-05-06",
+      "gemini-2.5-flash-preview-05-20",
+      "gemini-2.0-flash",
+    ];
+
+    return {
+      default: process.env.GOOGLE_GEMINI_DEFAULT_MODEL || textModels[0],
+      textGeneration: textModels,
+      imageGeneration: imageModels,
+      videoGeneration: videoModels,
+      codeReview: codeModels,
+      complexReasoning: textModels.filter((m) => this.isHighReasoningModel(m)),
+      capabilities: this.buildCapabilitiesMap(),
+      routing: this.parseRoutingPreferences(),
+    };
+  }
+
+  private parseModelArray(envVarName: string): string[] | null {
+    const envValue = process.env[envVarName];
+    if (!envValue) return null;
+
+    try {
+      const parsed = JSON.parse(envValue);
+      if (
+        Array.isArray(parsed) &&
+        parsed.every((item) => typeof item === "string")
+      ) {
+        return parsed;
+      }
+      logger.warn(
+        `[ConfigurationManager] Invalid ${envVarName} format: expected JSON array of strings`
+      );
+      return null;
+    } catch (error) {
+      logger.warn(
+        `[ConfigurationManager] Failed to parse ${envVarName}: ${error}`
+      );
+      return null;
+    }
+  }
+
+  private isHighReasoningModel(modelName: string): boolean {
+    const highReasoningModels = [
+      "gemini-2.5-pro-preview-05-06",
+      "gemini-2.5-flash-preview-05-20",
+      "gemini-1.5-pro",
+    ];
+    return highReasoningModels.includes(modelName);
+  }
+
+  private parseRoutingPreferences(): ModelConfiguration["routing"] {
+    return {
+      preferCostEffective:
+        process.env.GOOGLE_GEMINI_ROUTING_PREFER_COST?.toLowerCase() === "true",
+      preferSpeed:
+        process.env.GOOGLE_GEMINI_ROUTING_PREFER_SPEED?.toLowerCase() ===
+        "true",
+      preferQuality:
+        process.env.GOOGLE_GEMINI_ROUTING_PREFER_QUALITY?.toLowerCase() ===
+          "true" ||
+        (!process.env.GOOGLE_GEMINI_ROUTING_PREFER_COST &&
+          !process.env.GOOGLE_GEMINI_ROUTING_PREFER_SPEED),
+    };
   }
 }

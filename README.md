@@ -72,16 +72,48 @@ This server aims to simplify integration with Gemini models by providing a consi
     ```
 
     This command uses the TypeScript compiler (`tsc`) and outputs the JavaScript files to the `./dist` directory (as specified by `outDir` in `tsconfig.json`). The main server entry point will be `dist/server.js`.
-4. **Configure MCP Client:** Add the server configuration to your MCP client's settings file (e.g., `cline_mcp_settings.json` for Cline/VSCode, or `claude_desktop_config.json` for Claude Desktop App). Replace `/path/to/mcp-gemini-server` with the actual path on your system and `YOUR_API_KEY` with your Google AI Studio key.
+4. **Generate Connection Token:** Create a strong, unique connection token for secure communication between your MCP client and the server. This is a shared secret that you generate and configure on both the server and client sides.
+
+    **Generate a secure token using one of these methods:**
+
+    **Option A: Using Node.js crypto (Recommended)**
+    ```bash
+    node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+    ```
+
+    **Option B: Using OpenSSL**
+    ```bash
+    openssl rand -hex 32
+    ```
+
+    **Option C: Using PowerShell (Windows)**
+    ```powershell
+    [System.Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+    ```
+
+    **Option D: Online Generator (Use with caution)**
+    Use a reputable password generator like [1Password](https://1password.com/password-generator/) or [Bitwarden](https://bitwarden.com/password-generator/) to generate a 64-character random string.
+
+    **Important Security Notes:**
+    - The token should be at least 32 characters long and contain random characters
+    - Never share this token or commit it to version control
+    - Use a different token for each server instance
+    - Store the token securely (environment variables, secrets manager, etc.)
+    - Save this token - you'll need to use the exact same value in both server and client configurations
+
+5. **Configure MCP Client:** Add the server configuration to your MCP client's settings file (e.g., `cline_mcp_settings.json` for Cline/VSCode, or `claude_desktop_config.json` for Claude Desktop App). Replace `/path/to/mcp-gemini-server` with the actual **absolute path** on your system, `YOUR_API_KEY` with your Google AI Studio key, and `YOUR_GENERATED_CONNECTION_TOKEN` with the token you generated in step 4.
 
     ```json
     {
       "mcpServers": {
         "gemini-server": { // Or your preferred name
           "command": "node",
-          "args": ["/path/to/mcp-gemini-server/dist/server.js"], // Path to the compiled server entry point
+          "args": ["/path/to/mcp-gemini-server/dist/server.js"], // Absolute path to the compiled server entry point
           "env": {
             "GOOGLE_GEMINI_API_KEY": "YOUR_API_KEY",
+            "MCP_SERVER_HOST": "localhost",       // Required: Server host
+            "MCP_SERVER_PORT": "8080",            // Required: Server port  
+            "MCP_CONNECTION_TOKEN": "YOUR_GENERATED_CONNECTION_TOKEN", // Required: Use the token from step 4
             "GOOGLE_GEMINI_MODEL": "gemini-1.5-flash", // Optional: Set a default model
             "GEMINI_SAFE_FILE_BASE_DIR": "/var/opt/mcp-gemini-server/gemini_files", // Optional: Restrict file operations
             "ALLOWED_OUTPUT_PATHS": "/var/opt/mcp-gemini-server/outputs,/tmp/mcp-gemini-outputs" // Optional: Comma-separated list of allowed output directories for mcpCallServerTool and writeToFileTool
@@ -94,7 +126,12 @@ This server aims to simplify integration with Gemini models by providing a consi
     }
     ```
 
-5. **Restart MCP Client:** Restart your MCP client application (e.g., VS Code with Cline extension, Claude Desktop App) to load the new server configuration. The MCP client will manage starting and stopping the server process.
+    **Important Notes:**
+    - The path in `args` must be the **absolute path** to the compiled `dist/server.js` file
+    - `MCP_SERVER_HOST`, `MCP_SERVER_PORT`, and `MCP_CONNECTION_TOKEN` are required unless `NODE_ENV` is set to `test`
+    - `MCP_CONNECTION_TOKEN` must be the exact same value you generated in step 4
+    - Ensure the path exists and the server has been built using `npm run build`
+6. **Restart MCP Client:** Restart your MCP client application (e.g., VS Code with Cline extension, Claude Desktop App) to load the new server configuration. The MCP client will manage starting and stopping the server process.
 
 ## Configuration
 
@@ -930,6 +967,11 @@ The `mcp-gemini-server` also includes tools like `mcpConnectToServer`, `mcpListS
 ### Required:
 - `GOOGLE_GEMINI_API_KEY`: Your Google Gemini API key (required)
 
+### Required for Production (unless NODE_ENV=test):
+- `MCP_SERVER_HOST`: Server host address (e.g., "localhost")
+- `MCP_SERVER_PORT`: Port for network transports (e.g., "8080")
+- `MCP_CONNECTION_TOKEN`: A strong, unique shared secret token that clients must provide when connecting to this server. This is NOT provided by Google or any external service - you must generate it yourself using a cryptographically secure method. See the installation instructions (step 4) for generation methods. This token must be identical on both the server and all connecting clients.
+
 ### Optional - Gemini API Configuration:
 - `GOOGLE_GEMINI_MODEL`: Default model to use (e.g., `gemini-1.5-pro-latest`, `gemini-1.5-flash-latest`)
 - `GOOGLE_GEMINI_DEFAULT_THINKING_BUDGET`: Default thinking budget in tokens (0-24576) for controlling model reasoning
@@ -954,17 +996,19 @@ The `mcp-gemini-server` also includes tools like `mcpConnectToServer`, `mcpListS
 - `ALLOWED_OUTPUT_PATHS`: A comma-separated list of absolute paths to directories where tools like `mcpCallServerTool` (with outputToFile parameter) and `writeToFileTool` are allowed to write files. Critical security feature to prevent unauthorized file writes. If not set, file output will be disabled for these tools.
 
 ### Optional - Server Configuration:
+- `MCP_CLIENT_ID`: Default client ID used when this server acts as a client to other MCP servers (defaults to "gemini-sdk-client")
 - `MCP_TRANSPORT`: Transport to use for MCP server (options: `stdio`, `sse`, `streamable`, `http`; default: `stdio`)
   - IMPORTANT: SSE (Server-Sent Events) is NOT deprecated and remains a critical component of the MCP protocol
   - SSE is particularly valuable for bidirectional communication, enabling features like dynamic tool updates and sampling
   - Each transport type has specific valid use cases within the MCP ecosystem
-- `MCP_SERVER_PORT`: Port for network transports when using `sse`, `streamable`, or `http` (default: `8080`)
+- `MCP_LOG_LEVEL`: Log level for MCP operations (options: `debug`, `info`, `warn`, `error`; default: `info`)
 - `MCP_ENABLE_STREAMING`: Enable SSE streaming for HTTP transport (options: `true`, `false`; default: `false`)
 - `MCP_SESSION_TIMEOUT`: Session timeout in seconds for HTTP transport (default: `3600` = 1 hour)
 - `SESSION_STORE_TYPE`: Session storage backend (`memory` or `sqlite`; default: `memory`)
 - `SQLITE_DB_PATH`: Path to SQLite database file when using sqlite store (default: `./data/sessions.db`)
-- `MCP_CONNECTION_TOKEN`: Token that clients need to provide when connecting to this server
-- `MCP_CLIENT_ID`: Default ID used when this server acts as a client to other MCP servers 
+
+### Optional - GitHub Integration:
+- `GITHUB_API_TOKEN`: Personal Access Token for GitHub API access (required for GitHub code review features). For public repos, token needs 'public_repo' and 'read:user' scopes. For private repos, token needs 'repo' scope.
 
 ### Optional - Legacy Server Configuration (Deprecated):
 - `MCP_TRANSPORT_TYPE`: Deprecated - Use `MCP_TRANSPORT` instead
@@ -977,6 +1021,11 @@ You can create a `.env` file in the root directory with these variables:
 ```env
 # Required API Configuration
 GOOGLE_GEMINI_API_KEY=your_api_key_here
+
+# Required for Production (unless NODE_ENV=test)
+MCP_SERVER_HOST=localhost
+MCP_SERVER_PORT=8080
+MCP_CONNECTION_TOKEN=your_secure_token_here
 
 # Optional API Configuration
 GOOGLE_GEMINI_MODEL=gemini-1.5-pro-latest
@@ -1002,14 +1051,18 @@ GOOGLE_GEMINI_URL_ENABLE_CACHING=true   # Enable URL content caching
 GOOGLE_GEMINI_URL_USER_AGENT=MCP-Gemini-Server/1.0 # Custom User-Agent
 
 # Server Configuration
+MCP_CLIENT_ID=gemini-sdk-client  # Optional: Default client ID for MCP connections (defaults to "gemini-sdk-client")
 MCP_TRANSPORT=stdio  # Options: stdio, sse, streamable, http (replaced deprecated MCP_TRANSPORT_TYPE)
-MCP_SERVER_PORT=8080 # For network transports (replaced deprecated MCP_WS_PORT)
+MCP_LOG_LEVEL=info   # Optional: Log level for MCP operations (debug, info, warn, error)
 MCP_ENABLE_STREAMING=true # Enable SSE streaming for HTTP transport
 MCP_SESSION_TIMEOUT=3600  # Session timeout in seconds for HTTP transport
-MCP_CONNECTION_TOKEN=your_secure_token_here
-MCP_CLIENT_ID=gemini-sdk-client-001
+SESSION_STORE_TYPE=memory  # Options: memory, sqlite
+SQLITE_DB_PATH=./data/sessions.db  # Path to SQLite database file when using sqlite store
 ENABLE_HEALTH_CHECK=true
 HEALTH_CHECK_PORT=3000
+
+# GitHub Integration
+GITHUB_API_TOKEN=your_github_token_here
 ```
 
 ## Security Considerations

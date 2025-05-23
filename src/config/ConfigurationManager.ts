@@ -82,7 +82,7 @@ export class ConfigurationManager {
         host: "localhost",
         port: 8080,
         connectionToken: "", // Must be set via env
-        clientId: "gemini-sdk-client-default", // Must be set via env
+        clientId: "gemini-sdk-client",
         logLevel: "info",
         transport: "stdio",
       },
@@ -149,7 +149,6 @@ export class ConfigurationManager {
       "MCP_SERVER_HOST",
       "MCP_SERVER_PORT",
       "MCP_CONNECTION_TOKEN",
-      "MCP_CLIENT_ID",
     ];
     const missingVars = requiredVars.filter((varName) => !process.env[varName]);
 

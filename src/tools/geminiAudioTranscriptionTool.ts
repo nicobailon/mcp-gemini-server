@@ -1,13 +1,8 @@
 import * as fs from "fs";
 import * as path from "path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import { GeminiService } from "../services/index.js";
-import {
-  GeminiApiError,
-  ValidationError,
-  mapToMcpError,
-} from "../utils/errors.js";
+import { ValidationError, mapToMcpError } from "../utils/errors.js";
 import { logger, validateAndResolvePath } from "../utils/index.js";
 import {
   TOOL_NAME_AUDIO_TRANSCRIPTION,
@@ -110,18 +105,14 @@ export function geminiAudioTranscriptionTool(server: McpServer) {
             transcriptionResult = await geminiService.generateContent({
               prompt,
               modelName: params.modelName,
-              // Avoid passing uploadedFile which appears incompatible
-              parts: [{ text: prompt }, { fileData: uploadedFile }],
+              // Use fileReferenceOrInlineData for the uploaded file
+              fileReferenceOrInlineData: uploadedFile,
             });
           } catch (error) {
             if (
               error instanceof Error &&
               error.message?.includes("File API is not supported")
             ) {
-              const apiError = new Error(
-                "Audio file exceeds 20MB limit for inline processing. The File API requires a Google AI Studio API key, which is not available or configured."
-              );
-              // Add details property so our mapper can use it
               // Enhanced error with more details
               const enhancedError = new Error(
                 `Audio file exceeds 20MB limit for inline processing. The File API requires a Google AI Studio API key, which is not available or configured. Details: ${error instanceof Error ? error.message : String(error)}`
@@ -160,16 +151,9 @@ export function geminiAudioTranscriptionTool(server: McpServer) {
             transcriptionResult = await geminiService.generateContent({
               prompt,
               modelName: params.modelName,
-              // Use parts array for audio data
-              parts: [
-                { text: prompt },
-                {
-                  inlineData: {
-                    data: audioBase64,
-                    mimeType: mimeType,
-                  },
-                },
-              ],
+              // Use fileReferenceOrInlineData for base64 audio data
+              fileReferenceOrInlineData: audioBase64,
+              inlineDataMimeType: mimeType,
             });
           } catch (error) {
             if (error instanceof Error && error.message.includes("read file")) {

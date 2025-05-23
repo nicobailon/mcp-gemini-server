@@ -51,7 +51,20 @@ export const geminiGenerateContentStreamTool = (
         safetySettings,
         systemInstruction,
         cachedContentName,
+        urlContext,
+        modelPreferences,
       } = args;
+
+      // Calculate URL context metrics for model selection
+      let urlCount = 0;
+      let estimatedUrlContentSize = 0;
+
+      if (urlContext?.urls) {
+        urlCount = urlContext.urls.length;
+        // Estimate content size based on configured limits
+        const maxContentKb = urlContext.fetchOptions?.maxContentKb || 100;
+        estimatedUrlContentSize = urlCount * maxContentKb * 1024; // Convert to bytes
+      }
 
       // Call the service's streaming method with the new parameter object format
       const sdkStream = serviceInstance.generateContentStream({
@@ -61,6 +74,14 @@ export const geminiGenerateContentStreamTool = (
         safetySettings: safetySettings as SafetySetting[] | undefined,
         systemInstruction, // The method will handle string conversion internally
         cachedContentName,
+        urlContext,
+        preferQuality: modelPreferences?.preferQuality,
+        preferSpeed: modelPreferences?.preferSpeed,
+        preferCost: modelPreferences?.preferCost,
+        complexityHint: modelPreferences?.complexityHint,
+        taskType: modelPreferences?.taskType,
+        urlCount,
+        estimatedUrlContentSize,
       });
 
       // Iterate over the async generator from the service and collect chunks

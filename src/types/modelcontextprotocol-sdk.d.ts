@@ -88,17 +88,6 @@ declare module "@modelcontextprotocol/sdk/server/mcp.js" {
   }
 }
 
-declare module "@modelcontextprotocol/sdk/server/ws.js" {
-  import { Transport } from "@modelcontextprotocol/sdk/server/mcp.js";
-
-  export class WebSocketServerTransport implements Transport {
-    constructor(options: { port: number });
-    start(): Promise<void>;
-    send(message: unknown): Promise<void>;
-    close(): Promise<void>;
-  }
-}
-
 declare module "@modelcontextprotocol/sdk/server/stdio.js" {
   import { Transport } from "@modelcontextprotocol/sdk/server/mcp.js";
 
@@ -107,5 +96,27 @@ declare module "@modelcontextprotocol/sdk/server/stdio.js" {
     start(): Promise<void>;
     send(message: unknown): Promise<void>;
     close(): Promise<void>;
+  }
+}
+
+declare module "@modelcontextprotocol/sdk/server/streamableHttp.js" {
+  import { Transport } from "@modelcontextprotocol/sdk/server/mcp.js";
+  import type { Request, Response } from "express";
+
+  export interface StreamableHTTPServerTransportOptions {
+    sessionIdGenerator?: () => string;
+    onsessioninitialized?: (sessionId: string) => void;
+  }
+
+  export class StreamableHTTPServerTransport implements Transport {
+    constructor(options?: StreamableHTTPServerTransportOptions);
+    start(): Promise<void>;
+    send(message: unknown): Promise<void>;
+    close(): Promise<void>;
+
+    readonly sessionId?: string;
+    onclose?: () => void;
+
+    handleRequest(req: Request, res: Response, body?: unknown): Promise<void>;
   }
 }

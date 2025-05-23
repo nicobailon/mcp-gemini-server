@@ -1,5 +1,4 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import {
   GEMINI_GENERATE_CONTENT_TOOL_NAME,
@@ -8,9 +7,9 @@ import {
 } from "./geminiGenerateContentParams.js";
 import { GeminiService } from "../services/index.js";
 import { logger } from "../utils/index.js";
-import { GeminiApiError, mapAnyErrorToMcpError } from "../utils/errors.js"; // Import custom error and mapping utility
+import { mapAnyErrorToMcpError } from "../utils/errors.js"; // Import custom error and mapping utility
 // Import SDK types used in parameters for type safety if needed, although Zod infer should handle it
-import type { GenerationConfig, SafetySetting, Content } from "@google/genai";
+import type { HarmCategory, HarmBlockThreshold } from "@google/genai";
 
 // Define the type for the arguments object based on the Zod schema
 // This provides type safety within the processRequest function.
@@ -48,16 +47,44 @@ export const geminiGenerateContentTool = (
         safetySettings,
         systemInstruction,
         cachedContentName,
+        urlContext,
+        modelPreferences,
       } = args;
 
-      // Call the service method with the new parameter object format
+      // Calculate URL context metrics for model selection
+      let urlCount = 0;
+      let estimatedUrlContentSize = 0;
+
+      if (urlContext?.urls) {
+        urlCount = urlContext.urls.length;
+        // Estimate content size based on configured limits
+        const maxContentKb = urlContext.fetchOptions?.maxContentKb || 100;
+        estimatedUrlContentSize = urlCount * maxContentKb * 1024; // Convert to bytes
+      }
+
       const resultText = await serviceInstance.generateContent({
         prompt,
         modelName,
         generationConfig,
-        safetySettings,
-        systemInstruction, // The method will handle string conversion internally
+        safetySettings: safetySettings?.map((setting) => ({
+          category: setting.category as HarmCategory,
+          threshold: setting.threshold as HarmBlockThreshold,
+        })),
+        systemInstruction,
         cachedContentName,
+        urlContext: urlContext?.urls
+          ? {
+              urls: urlContext.urls,
+              fetchOptions: urlContext.fetchOptions,
+            }
+          : undefined,
+        preferQuality: modelPreferences?.preferQuality,
+        preferSpeed: modelPreferences?.preferSpeed,
+        preferCost: modelPreferences?.preferCost,
+        complexityHint: modelPreferences?.complexityHint,
+        taskType: modelPreferences?.taskType,
+        urlCount,
+        estimatedUrlContentSize,
       });
 
       // Format the successful output for MCP

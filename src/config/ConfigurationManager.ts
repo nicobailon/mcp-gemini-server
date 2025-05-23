@@ -1,7 +1,12 @@
-// Import config types for services as they are added
 import * as path from "path";
-import { ExampleServiceConfig, GeminiServiceConfig } from "../types/index.js";
+import {
+  ExampleServiceConfig,
+  GeminiServiceConfig,
+  ModelConfiguration,
+  ModelCapabilitiesMap,
+} from "../types/index.js";
 import { FileSecurityService } from "../utils/FileSecurityService.js";
+import { ModelMigrationService } from "../services/gemini/ModelMigrationService.js";
 import { logger } from "../utils/logger.js";
 
 // Define the structure for all configurations managed
@@ -22,8 +27,22 @@ interface ManagedConfigs {
     enableStreaming?: boolean;
     sessionTimeoutSeconds?: number;
   };
-  // Add other service config types here:
-  // yourService: Required<YourServiceConfig>;
+  urlContext: {
+    enabled: boolean;
+    maxUrlsPerRequest: number;
+    defaultMaxContentKb: number;
+    defaultTimeoutMs: number;
+    allowedDomains: string[];
+    blocklistedDomains: string[];
+    convertToMarkdown: boolean;
+    includeMetadata: boolean;
+    enableCaching: boolean;
+    cacheExpiryMinutes: number;
+    maxCacheSize: number;
+    rateLimitPerDomainPerMinute: number;
+    userAgent: string;
+  };
+  modelConfiguration: ModelConfiguration;
 }
 
 /**
@@ -45,17 +64,14 @@ export class ConfigurationManager {
         enableDetailedLogs: false,
       },
       geminiService: {
-        // Default API key is empty; MUST be overridden by environment variable
         apiKey: "",
-        // defaultModel is initially undefined, loaded from env var later
         defaultModel: undefined,
-        // Default image processing settings
         defaultImageResolution: "1024x1024",
         maxImageSizeMB: 10,
         supportedImageFormats: ["image/jpeg", "image/png", "image/webp"],
-        // Reasoning control settings
         defaultThinkingBudget: undefined,
       },
+      modelConfiguration: this.buildDefaultModelConfiguration(),
       github: {
         // Default GitHub API token is empty; will be loaded from environment variable
         apiToken: "",
@@ -70,6 +86,23 @@ export class ConfigurationManager {
         logLevel: "info",
         transport: "stdio",
       },
+      urlContext: {
+        // Initialize URL context config with secure defaults
+        enabled: false, // Disabled by default for security
+        maxUrlsPerRequest: 20,
+        defaultMaxContentKb: 100,
+        defaultTimeoutMs: 10000,
+        allowedDomains: ["*"], // Allow all by default (can be restricted)
+        blocklistedDomains: [], // Empty by default
+        convertToMarkdown: true,
+        includeMetadata: true,
+        enableCaching: true,
+        cacheExpiryMinutes: 15,
+        maxCacheSize: 1000,
+        rateLimitPerDomainPerMinute: 10,
+        userAgent:
+          "MCP-Gemini-Server/1.0 (+https://github.com/bsmi021/mcp-gemini-server)",
+      },
 
       // Initialize other service configs with defaults:
       // yourService: {
@@ -78,13 +111,27 @@ export class ConfigurationManager {
       // },
     };
 
+    const migrationService = ModelMigrationService.getInstance();
+    migrationService.migrateEnvironmentVariables();
+
+    const validation = migrationService.validateConfiguration();
+    if (!validation.isValid) {
+      logger.error("[ConfigurationManager] Configuration validation failed", {
+        errors: validation.errors,
+      });
+    }
+
+    const deprecated = migrationService.getDeprecatedFeatures();
+    if (deprecated.length > 0) {
+      logger.warn("[ConfigurationManager] Deprecated features detected", {
+        deprecated,
+      });
+    }
+
     this.validateRequiredEnvVars();
     this.loadEnvironmentOverrides();
+    this.config.modelConfiguration = this.parseModelConfiguration();
 
-    // Initialize and validate FileSecurityService configuration from environment
-    // This performs an initial validation of the configured file security paths
-    // but doesn't store an instance - services will create their own instances as needed.
-    // This call is primarily for early validation and logging of path configurations.
     FileSecurityService.configureFromEnvironment();
   }
 
@@ -172,6 +219,10 @@ export class ConfigurationManager {
     return this.config.geminiService.defaultModel;
   }
 
+  public getModelConfiguration(): ModelConfiguration {
+    return { ...this.config.modelConfiguration };
+  }
+
   /**
    * Returns the secure file base path for file operations
    * @returns The configured safe file base directory or undefined if not set
@@ -195,6 +246,14 @@ export class ConfigurationManager {
   public getAllowedOutputPaths(): string[] {
     // Return a copy to prevent accidental modification
     return [...this.config.allowedOutputPaths];
+  }
+
+  /**
+   * Returns the URL context configuration
+   * @returns A copy of the URL context configuration
+   */
+  public getUrlContextConfig(): Required<ManagedConfigs["urlContext"]> {
+    return { ...this.config.urlContext };
   }
 
   // Add getters for other service configs:
@@ -425,8 +484,126 @@ export class ConfigurationManager {
 
     logger.info("[ConfigurationManager] MCP configuration loaded.");
 
-    // Load allowed output paths if provided
-    // Initialize to an empty array to ensure it's always string[]
+    // Load URL Context Configuration
+    if (process.env.GOOGLE_GEMINI_ENABLE_URL_CONTEXT) {
+      this.config.urlContext.enabled =
+        process.env.GOOGLE_GEMINI_ENABLE_URL_CONTEXT.toLowerCase() === "true";
+      logger.info(
+        `[ConfigurationManager] URL context feature enabled: ${this.config.urlContext.enabled}`
+      );
+    }
+
+    if (process.env.GOOGLE_GEMINI_URL_MAX_COUNT) {
+      const maxCount = parseInt(process.env.GOOGLE_GEMINI_URL_MAX_COUNT, 10);
+      if (!isNaN(maxCount) && maxCount > 0 && maxCount <= 20) {
+        this.config.urlContext.maxUrlsPerRequest = maxCount;
+        logger.info(`[ConfigurationManager] URL max count set to: ${maxCount}`);
+      } else {
+        logger.warn(
+          `[ConfigurationManager] Invalid URL max count '${process.env.GOOGLE_GEMINI_URL_MAX_COUNT}'. Must be between 1 and 20.`
+        );
+      }
+    }
+
+    if (process.env.GOOGLE_GEMINI_URL_MAX_CONTENT_KB) {
+      const maxKb = parseInt(process.env.GOOGLE_GEMINI_URL_MAX_CONTENT_KB, 10);
+      if (!isNaN(maxKb) && maxKb > 0 && maxKb <= 1000) {
+        this.config.urlContext.defaultMaxContentKb = maxKb;
+        logger.info(
+          `[ConfigurationManager] URL max content size set to: ${maxKb}KB`
+        );
+      } else {
+        logger.warn(
+          `[ConfigurationManager] Invalid URL max content size '${process.env.GOOGLE_GEMINI_URL_MAX_CONTENT_KB}'. Must be between 1 and 1000 KB.`
+        );
+      }
+    }
+
+    if (process.env.GOOGLE_GEMINI_URL_FETCH_TIMEOUT_MS) {
+      const timeout = parseInt(
+        process.env.GOOGLE_GEMINI_URL_FETCH_TIMEOUT_MS,
+        10
+      );
+      if (!isNaN(timeout) && timeout >= 1000 && timeout <= 30000) {
+        this.config.urlContext.defaultTimeoutMs = timeout;
+        logger.info(
+          `[ConfigurationManager] URL fetch timeout set to: ${timeout}ms`
+        );
+      } else {
+        logger.warn(
+          `[ConfigurationManager] Invalid URL fetch timeout '${process.env.GOOGLE_GEMINI_URL_FETCH_TIMEOUT_MS}'. Must be between 1000 and 30000 ms.`
+        );
+      }
+    }
+
+    if (process.env.GOOGLE_GEMINI_URL_ALLOWED_DOMAINS) {
+      try {
+        const domains = this.parseStringArray(
+          process.env.GOOGLE_GEMINI_URL_ALLOWED_DOMAINS
+        );
+        this.config.urlContext.allowedDomains = domains;
+        logger.info(
+          `[ConfigurationManager] URL allowed domains set to: ${domains.join(", ")}`
+        );
+      } catch (error) {
+        logger.warn(
+          `[ConfigurationManager] Invalid URL allowed domains format: ${error}`
+        );
+      }
+    }
+
+    if (process.env.GOOGLE_GEMINI_URL_BLOCKLIST) {
+      try {
+        const domains = this.parseStringArray(
+          process.env.GOOGLE_GEMINI_URL_BLOCKLIST
+        );
+        this.config.urlContext.blocklistedDomains = domains;
+        logger.info(
+          `[ConfigurationManager] URL blocklisted domains set to: ${domains.join(", ")}`
+        );
+      } catch (error) {
+        logger.warn(
+          `[ConfigurationManager] Invalid URL blocklist format: ${error}`
+        );
+      }
+    }
+
+    if (process.env.GOOGLE_GEMINI_URL_CONVERT_TO_MARKDOWN) {
+      this.config.urlContext.convertToMarkdown =
+        process.env.GOOGLE_GEMINI_URL_CONVERT_TO_MARKDOWN.toLowerCase() ===
+        "true";
+      logger.info(
+        `[ConfigurationManager] URL markdown conversion enabled: ${this.config.urlContext.convertToMarkdown}`
+      );
+    }
+
+    if (process.env.GOOGLE_GEMINI_URL_INCLUDE_METADATA) {
+      this.config.urlContext.includeMetadata =
+        process.env.GOOGLE_GEMINI_URL_INCLUDE_METADATA.toLowerCase() === "true";
+      logger.info(
+        `[ConfigurationManager] URL metadata inclusion enabled: ${this.config.urlContext.includeMetadata}`
+      );
+    }
+
+    if (process.env.GOOGLE_GEMINI_URL_ENABLE_CACHING) {
+      this.config.urlContext.enableCaching =
+        process.env.GOOGLE_GEMINI_URL_ENABLE_CACHING.toLowerCase() === "true";
+      logger.info(
+        `[ConfigurationManager] URL caching enabled: ${this.config.urlContext.enableCaching}`
+      );
+    }
+
+    if (process.env.GOOGLE_GEMINI_URL_USER_AGENT) {
+      this.config.urlContext.userAgent =
+        process.env.GOOGLE_GEMINI_URL_USER_AGENT;
+
+      logger.info(
+        `[ConfigurationManager] URL user agent set to: ${this.config.urlContext.userAgent}`
+      );
+    }
+
+    logger.info("[ConfigurationManager] URL context configuration loaded.");
+
     this.config.allowedOutputPaths = [];
     const allowedOutputPathsEnv = process.env.ALLOWED_OUTPUT_PATHS;
 
@@ -454,5 +631,308 @@ export class ConfigurationManager {
         "[ConfigurationManager] ALLOWED_OUTPUT_PATHS environment variable not set or is empty. File writing might be restricted or disabled."
       );
     }
+  }
+
+  private buildDefaultModelConfiguration(): ModelConfiguration {
+    return {
+      default: "gemini-2.5-flash-preview-05-20",
+      textGeneration: [
+        "gemini-2.5-pro-preview-05-06",
+        "gemini-2.5-flash-preview-05-20",
+        "gemini-2.0-flash",
+        "gemini-1.5-pro",
+        "gemini-1.5-flash",
+      ],
+      imageGeneration: [
+        "imagen-3.0-generate-002",
+        "gemini-2.0-flash-preview-image-generation",
+      ],
+      videoGeneration: ["veo-2.0-generate-001"],
+      codeReview: [
+        "gemini-2.5-pro-preview-05-06",
+        "gemini-2.5-flash-preview-05-20",
+        "gemini-2.0-flash",
+      ],
+      complexReasoning: [
+        "gemini-2.5-pro-preview-05-06",
+        "gemini-2.5-flash-preview-05-20",
+      ],
+      capabilities: this.buildCapabilitiesMap(),
+      routing: {
+        preferCostEffective: false,
+        preferSpeed: false,
+        preferQuality: true,
+      },
+    };
+  }
+
+  private buildCapabilitiesMap(): ModelCapabilitiesMap {
+    return {
+      "gemini-2.5-pro-preview-05-06": {
+        textGeneration: true,
+        imageInput: true,
+        videoInput: true,
+        audioInput: true,
+        imageGeneration: false,
+        videoGeneration: false,
+        codeExecution: "excellent",
+        complexReasoning: "excellent",
+        costTier: "high",
+        speedTier: "medium",
+        maxTokens: 65536,
+        contextWindow: 1048576,
+        supportsFunctionCalling: true,
+        supportsSystemInstructions: true,
+        supportsCaching: true,
+      },
+      "gemini-2.5-flash-preview-05-20": {
+        textGeneration: true,
+        imageInput: true,
+        videoInput: true,
+        audioInput: true,
+        imageGeneration: false,
+        videoGeneration: false,
+        codeExecution: "excellent",
+        complexReasoning: "excellent",
+        costTier: "medium",
+        speedTier: "fast",
+        maxTokens: 65536,
+        contextWindow: 1048576,
+        supportsFunctionCalling: true,
+        supportsSystemInstructions: true,
+        supportsCaching: true,
+      },
+      "gemini-2.0-flash": {
+        textGeneration: true,
+        imageInput: true,
+        videoInput: true,
+        audioInput: true,
+        imageGeneration: false,
+        videoGeneration: false,
+        codeExecution: "good",
+        complexReasoning: "good",
+        costTier: "medium",
+        speedTier: "fast",
+        maxTokens: 8192,
+        contextWindow: 1048576,
+        supportsFunctionCalling: true,
+        supportsSystemInstructions: true,
+        supportsCaching: true,
+      },
+      "gemini-2.0-flash-preview-image-generation": {
+        textGeneration: true,
+        imageInput: true,
+        videoInput: false,
+        audioInput: false,
+        imageGeneration: true,
+        videoGeneration: false,
+        codeExecution: "basic",
+        complexReasoning: "basic",
+        costTier: "medium",
+        speedTier: "medium",
+        maxTokens: 8192,
+        contextWindow: 32000,
+        supportsFunctionCalling: false,
+        supportsSystemInstructions: true,
+        supportsCaching: false,
+      },
+      "gemini-1.5-pro": {
+        textGeneration: true,
+        imageInput: true,
+        videoInput: true,
+        audioInput: true,
+        imageGeneration: false,
+        videoGeneration: false,
+        codeExecution: "good",
+        complexReasoning: "good",
+        costTier: "high",
+        speedTier: "medium",
+        maxTokens: 8192,
+        contextWindow: 2000000,
+        supportsFunctionCalling: true,
+        supportsSystemInstructions: true,
+        supportsCaching: true,
+      },
+      "gemini-1.5-flash": {
+        textGeneration: true,
+        imageInput: true,
+        videoInput: true,
+        audioInput: true,
+        imageGeneration: false,
+        videoGeneration: false,
+        codeExecution: "basic",
+        complexReasoning: "basic",
+        costTier: "low",
+        speedTier: "fast",
+        maxTokens: 8192,
+        contextWindow: 1000000,
+        supportsFunctionCalling: true,
+        supportsSystemInstructions: true,
+        supportsCaching: true,
+      },
+      "gemini-1.5-flash-latest": {
+        textGeneration: true,
+        imageInput: true,
+        videoInput: true,
+        audioInput: true,
+        imageGeneration: false,
+        videoGeneration: false,
+        codeExecution: "basic",
+        complexReasoning: "basic",
+        costTier: "low",
+        speedTier: "fast",
+        maxTokens: 8192,
+        contextWindow: 1000000,
+        supportsFunctionCalling: true,
+        supportsSystemInstructions: true,
+        supportsCaching: true,
+      },
+      "imagen-3.0-generate-002": {
+        textGeneration: false,
+        imageInput: false,
+        videoInput: false,
+        audioInput: false,
+        imageGeneration: true,
+        videoGeneration: false,
+        codeExecution: "none",
+        complexReasoning: "none",
+        costTier: "medium",
+        speedTier: "medium",
+        maxTokens: 0,
+        contextWindow: 0,
+        supportsFunctionCalling: false,
+        supportsSystemInstructions: false,
+        supportsCaching: false,
+      },
+      "veo-2.0-generate-001": {
+        textGeneration: false,
+        imageInput: true,
+        videoInput: false,
+        audioInput: false,
+        imageGeneration: false,
+        videoGeneration: true,
+        codeExecution: "none",
+        complexReasoning: "none",
+        costTier: "high",
+        speedTier: "slow",
+        maxTokens: 0,
+        contextWindow: 0,
+        supportsFunctionCalling: false,
+        supportsSystemInstructions: true,
+        supportsCaching: false,
+      },
+    };
+  }
+
+  private parseModelConfiguration(): ModelConfiguration {
+    const textModels = this.parseModelArray("GOOGLE_GEMINI_MODELS") ||
+      this.parseModelArray("GOOGLE_GEMINI_TEXT_MODELS") || [
+        process.env.GOOGLE_GEMINI_MODEL || "gemini-2.5-flash-preview-05-20",
+      ];
+
+    const imageModels = this.parseModelArray("GOOGLE_GEMINI_IMAGE_MODELS") || [
+      "imagen-3.0-generate-002",
+      "gemini-2.0-flash-preview-image-generation",
+    ];
+
+    const videoModels = this.parseModelArray("GOOGLE_GEMINI_VIDEO_MODELS") || [
+      "veo-2.0-generate-001",
+    ];
+
+    const codeModels = this.parseModelArray("GOOGLE_GEMINI_CODE_MODELS") || [
+      "gemini-2.5-pro-preview-05-06",
+      "gemini-2.5-flash-preview-05-20",
+      "gemini-2.0-flash",
+    ];
+
+    return {
+      default: process.env.GOOGLE_GEMINI_DEFAULT_MODEL || textModels[0],
+      textGeneration: textModels,
+      imageGeneration: imageModels,
+      videoGeneration: videoModels,
+      codeReview: codeModels,
+      complexReasoning: textModels.filter((m) => this.isHighReasoningModel(m)),
+      capabilities: this.buildCapabilitiesMap(),
+      routing: this.parseRoutingPreferences(),
+    };
+  }
+
+  private parseModelArray(envVarName: string): string[] | null {
+    const envValue = process.env[envVarName];
+    if (!envValue) return null;
+
+    try {
+      const parsed = JSON.parse(envValue);
+      if (
+        Array.isArray(parsed) &&
+        parsed.every((item) => typeof item === "string")
+      ) {
+        return parsed;
+      }
+      logger.warn(
+        `[ConfigurationManager] Invalid ${envVarName} format: expected JSON array of strings`
+      );
+      return null;
+    } catch (error) {
+      logger.warn(
+        `[ConfigurationManager] Failed to parse ${envVarName}: ${error}`
+      );
+      return null;
+    }
+  }
+
+  private isHighReasoningModel(modelName: string): boolean {
+    const highReasoningModels = [
+      "gemini-2.5-pro-preview-05-06",
+      "gemini-2.5-flash-preview-05-20",
+      "gemini-1.5-pro",
+    ];
+    return highReasoningModels.includes(modelName);
+  }
+
+  private parseRoutingPreferences(): ModelConfiguration["routing"] {
+    return {
+      preferCostEffective:
+        process.env.GOOGLE_GEMINI_ROUTING_PREFER_COST?.toLowerCase() === "true",
+      preferSpeed:
+        process.env.GOOGLE_GEMINI_ROUTING_PREFER_SPEED?.toLowerCase() ===
+        "true",
+      preferQuality:
+        process.env.GOOGLE_GEMINI_ROUTING_PREFER_QUALITY?.toLowerCase() ===
+          "true" ||
+        (!process.env.GOOGLE_GEMINI_ROUTING_PREFER_COST &&
+          !process.env.GOOGLE_GEMINI_ROUTING_PREFER_SPEED),
+    };
+  }
+
+  /**
+   * Parse a comma-separated string or JSON array into a string array
+   */
+  private parseStringArray(value: string): string[] {
+    if (!value || value.trim() === "") {
+      return [];
+    }
+
+    // Try to parse as JSON first
+    if (value.trim().startsWith("[")) {
+      try {
+        const parsed = JSON.parse(value);
+        if (
+          Array.isArray(parsed) &&
+          parsed.every((item) => typeof item === "string")
+        ) {
+          return parsed;
+        }
+        throw new Error("Not a string array");
+      } catch (error) {
+        throw new Error(`Invalid JSON array format: ${error}`);
+      }
+    }
+
+    // Parse as comma-separated string
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
   }
 }

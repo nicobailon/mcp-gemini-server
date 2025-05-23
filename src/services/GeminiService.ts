@@ -1,14 +1,15 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import type { SafetySetting as GoogleSafetySetting } from "@google/genai";
 import { ConfigurationManager } from "../config/ConfigurationManager.js";
+import { ModelSelectionService } from "./ModelSelectionService.js";
 import { logger } from "../utils/logger.js";
 import {
   FileMetadata,
   CachedContentMetadata,
   ImageGenerationResult,
+  ModelSelectionCriteria,
 } from "../types/index.js";
 import {
-  GeminiApiError,
   GeminiContentFilterError,
   GeminiModelError,
   GeminiValidationError,
@@ -22,16 +23,12 @@ import {
 import { GitHubApiService } from "./gemini/GitHubApiService.js";
 
 // Import specialized services
-import {
-  GeminiFileService,
-  ListFilesResponseType,
-} from "./gemini/GeminiFileService.js";
+import { GeminiFileService } from "./gemini/GeminiFileService.js";
 import { GeminiChatService } from "./gemini/GeminiChatService.js";
 import { GeminiContentService } from "./gemini/GeminiContentService.js";
 import { GeminiCacheService } from "./gemini/GeminiCacheService.js";
 import { FileSecurityService } from "../utils/FileSecurityService.js";
 import {
-  ChatSession,
   Content,
   Tool,
   ToolConfig,
@@ -40,7 +37,6 @@ import {
   FileId,
   CacheId,
   FunctionCall,
-  Part,
   ImagePart,
 } from "./gemini/GeminiTypes.js";
 
@@ -51,8 +47,9 @@ import {
 export class GeminiService {
   private genAI: GoogleGenAI;
   private defaultModelName?: string;
+  private modelSelector: ModelSelectionService;
+  private configManager: ConfigurationManager;
 
-  // Specialized services
   private fileService: GeminiFileService;
   private chatService: GeminiChatService;
   private contentService: GeminiContentService;
@@ -62,8 +59,12 @@ export class GeminiService {
   private gitHubApiService: GitHubApiService;
 
   constructor() {
-    const configManager = ConfigurationManager.getInstance();
-    const config = configManager.getGeminiServiceConfig();
+    this.configManager = ConfigurationManager.getInstance();
+    const config = this.configManager.getGeminiServiceConfig();
+
+    this.modelSelector = new ModelSelectionService(
+      this.configManager.getModelConfiguration()
+    );
 
     if (!config.apiKey) {
       throw new Error("Gemini API key is required");
@@ -74,8 +75,7 @@ export class GeminiService {
     this.defaultModelName = config.defaultModel;
 
     // Initialize file security service first as it's used by other services
-    // Set secure base path if configured
-    const secureBasePath = configManager.getSecureFileBasePath();
+    const secureBasePath = this.configManager.getSecureFileBasePath();
     if (secureBasePath) {
       this.fileSecurityService = new FileSecurityService(
         [secureBasePath],
@@ -122,8 +122,7 @@ export class GeminiService {
       config.defaultThinkingBudget
     );
 
-    // Initialize GitHub API service with token from config manager
-    const githubApiToken = configManager.getGitHubApiToken();
+    const githubApiToken = this.configManager.getGitHubApiToken();
     this.gitHubApiService = new GitHubApiService(githubApiToken);
   }
 
@@ -228,56 +227,245 @@ export class GeminiService {
     structuredOutput?: boolean,
     modelName?: string,
     safetySettings?: SafetySetting[]
-  ): Promise<any> {
-    throw new GeminiValidationError(
-      "analyzeContent method is not implemented",
-      "NOT_IMPLEMENTED",
-      {
-        method: "analyzeContent",
-        message: "This method requires full implementation to analyze image content",
-        suggestion: "Use geminiGenerateContent tool with image input instead",
+  ): Promise<{
+    analysis: {
+      text?: string;
+      data?: Record<string, unknown>;
+    };
+  }> {
+    logger.debug("GeminiService.analyzeContent called");
+
+    try {
+      // Prepare the prompt for analysis
+      const analysisPrompt = structuredOutput
+        ? `${prompt}\n\nPlease provide your analysis in a structured JSON format.`
+        : prompt;
+
+      // Use the existing generateContent method with the image
+      const result = await this.generateContent({
+        prompt: analysisPrompt,
+        modelName: modelName || this.defaultModelName || "gemini-1.5-flash",
+        fileReferenceOrInlineData: imagePart,
+        safetySettings: safetySettings,
+        generationConfig: structuredOutput
+          ? {
+              temperature: 0.1, // Lower temperature for more consistent structured output
+              topK: 40,
+              topP: 0.95,
+              maxOutputTokens: 2048,
+            }
+          : undefined,
+      });
+
+      // Parse the result if structured output was requested
+      if (structuredOutput) {
+        try {
+          // Try to extract JSON from the response
+          const jsonMatch = result.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+          const jsonText = jsonMatch ? jsonMatch[1] : result.trim();
+          const parsedData = JSON.parse(jsonText);
+
+          return {
+            analysis: {
+              data: parsedData,
+              text: result,
+            },
+          };
+        } catch (parseError) {
+          logger.debug(
+            "Failed to parse structured output, returning as text",
+            parseError
+          );
+          return {
+            analysis: {
+              text: result,
+            },
+          };
+        }
       }
-    );
+
+      // Return plain text analysis
+      return {
+        analysis: {
+          text: result,
+        },
+      };
+    } catch (error: unknown) {
+      logger.error("Error in analyzeContent:", error);
+      throw mapGeminiError(error, "analyzeContent");
+    }
   }
 
   /**
-   * Detect objects in an image
+   * Detect objects in an image using Gemini's vision capabilities
+   *
+   * Note: Gemini 1.5 Pro supports bounding box detection when explicitly requested.
+   * To get bounding boxes, include a request in your prompt like:
+   * "Return bounding boxes as [ymin, xmin, ymax, xmax]"
+   *
+   * The model returns coordinates as values between 0-1 scaled to a 1000x1000 grid.
+   * You'll need to convert these to match your original image dimensions.
    *
    * @param imagePart The image part to analyze
    * @param promptAddition Additional prompt to guide detection
-   * @param modelName Optional model name
+   * @param modelName Optional model name (use gemini-1.5-pro for bounding boxes)
    * @param safetySettings Optional safety settings
-   * @returns Detection results
+   * @returns Detection results with objects array and raw text
    */
   public async detectObjects(
     imagePart: ImagePart,
     promptAddition?: string,
     modelName?: string,
     safetySettings?: SafetySetting[]
-  ): Promise<any> {
-    // This is a stub method to satisfy TypeScript
-    // In a real implementation, this would call the content service
-    logger.warn("GeminiService.detectObjects called but not fully implemented");
+  ): Promise<{
+    objects: Array<{
+      label: string;
+      boundingBox?: {
+        yMin: number;
+        xMin: number;
+        yMax: number;
+        xMax: number;
+      };
+      confidence?: number;
+      description?: string;
+    }>;
+    rawText: string;
+  }> {
+    logger.debug("GeminiService.detectObjects called");
 
-    // Use a simpler approach to avoid TypeScript errors
-    logger.warn("GeminiService.detectObjects: Using mock implementation");
+    try {
+      // Construct a comprehensive prompt for object detection
+      const basePrompt = `Analyze this image and identify all objects present. For each object you detect, provide:
+1. A clear label/name for the object
+2. A brief description of the object
+3. Bounding box coordinates as [ymin, xmin, ymax, xmax] (values between 0-1)
+4. A confidence score between 0 and 1 if you can estimate it
 
-    return {
-      objects: [
-        {
-          label: "Mock Object 1",
-          boundingBox: {
-            yMin: 0.1,
-            xMin: 0.1,
-            yMax: 0.9,
-            xMax: 0.9,
-          },
-          confidence: 0.95,
+Please be thorough and identify both prominent objects and smaller details that are clearly visible.
+
+Format your response as a JSON object with this structure:
+{
+  "objects": [
+    {
+      "label": "object name",
+      "description": "brief description of the object",
+      "boundingBox": [ymin, xmin, ymax, xmax],
+      "confidence": 0.95
+    }
+  ],
+  "summary": "brief overall description of what you see in the image"
+}`;
+
+      const fullPrompt = promptAddition
+        ? `${basePrompt}\n\nAdditional instructions: ${promptAddition}`
+        : basePrompt;
+
+      // Use the existing generateContent method for consistency
+      const result = await this.generateContent({
+        prompt: fullPrompt,
+        modelName: modelName || this.defaultModelName || "gemini-1.5-flash",
+        fileReferenceOrInlineData: imagePart,
+        safetySettings: safetySettings,
+        generationConfig: {
+          temperature: 0.1, // Low temperature for more consistent object detection
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 2048,
         },
-      ],
-      rawText:
-        "This is a mock implementation of detectObjects. The actual implementation would detect objects in the image.",
-    };
+      });
+
+      logger.debug("Object detection analysis completed");
+
+      // Define interface for the expected JSON structure
+      interface ParsedObjectDetectionResult {
+        objects?: Array<{
+          label?: string;
+          description?: string;
+          boundingBox?: number[];
+          confidence?: number;
+        }>;
+        summary?: string;
+      }
+
+      // Try to parse JSON response
+      let parsedResult: ParsedObjectDetectionResult;
+      try {
+        // Extract JSON from the response (handle cases where response includes markdown code blocks)
+        const jsonMatch = result.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
+        const jsonText = jsonMatch ? jsonMatch[1] : result.trim();
+        parsedResult = JSON.parse(jsonText) as ParsedObjectDetectionResult;
+      } catch (parseError) {
+        // If JSON parsing fails, create a structured response from the text
+        logger.debug(
+          "Failed to parse JSON response, creating structured response from text"
+        );
+        parsedResult = {
+          objects: [
+            {
+              label: "General Analysis",
+              description:
+                "Multiple objects detected - see raw text for details",
+            },
+          ],
+          summary:
+            result.substring(0, 200) + (result.length > 200 ? "..." : ""),
+        };
+      }
+
+      // Format the response to match expected interface
+      const objects = Array.isArray(parsedResult.objects)
+        ? parsedResult.objects.map((obj) => {
+            interface DetectedObject {
+              label: string;
+              description?: string;
+              confidence?: number;
+              boundingBox?: {
+                yMin: number;
+                xMin: number;
+                yMax: number;
+                xMax: number;
+              };
+            }
+
+            const result: DetectedObject = {
+              label: obj.label || "Unknown Object",
+              description: obj.description,
+              confidence: obj.confidence || undefined,
+            };
+
+            // Convert bounding box coordinates if provided
+            if (
+              obj.boundingBox &&
+              Array.isArray(obj.boundingBox) &&
+              obj.boundingBox.length === 4
+            ) {
+              // Gemini returns coordinates as [ymin, xmin, ymax, xmax] with values 0-1
+              const [yMin, xMin, yMax, xMax] = obj.boundingBox;
+              result.boundingBox = {
+                yMin: Math.max(0, Math.min(1, yMin)),
+                xMin: Math.max(0, Math.min(1, xMin)),
+                yMax: Math.max(0, Math.min(1, yMax)),
+                xMax: Math.max(0, Math.min(1, xMax)),
+              };
+            }
+
+            return result;
+          })
+        : [
+            {
+              label: "Analysis Result",
+              description: "Objects detected - see raw text for details",
+            },
+          ];
+
+      return {
+        objects,
+        rawText: result,
+      };
+    } catch (error: unknown) {
+      logger.error("Error in detectObjects:", error);
+      throw mapGeminiError(error, "detectObjects");
+    }
   }
 
   /**
@@ -313,7 +501,9 @@ export class GeminiService {
     negativePrompt?: string,
     stylePreset?: string,
     seed?: number,
-    styleStrength?: number
+    styleStrength?: number,
+    preferQuality?: boolean,
+    preferSpeed?: boolean
   ): Promise<ImageGenerationResult> {
     // Log with truncated prompt for privacy/security
     logger.debug(`Generating image with prompt: ${prompt.substring(0, 30)}...`);
@@ -336,10 +526,14 @@ export class GeminiService {
         styleStrength
       );
 
-      // Default model for image generation if not specified
-      // Using the latest Imagen 3.1 model for improved quality (as of April 2025)
-      const defaultImageModel = "imagen-3.1-generate-003";
-      const effectiveModel = validatedParams.modelName || defaultImageModel;
+      const effectiveModel =
+        validatedParams.modelName ||
+        (await this.modelSelector.selectOptimalModel({
+          taskType: "image-generation",
+          preferQuality,
+          preferSpeed,
+          fallbackModel: "imagen-3.0-generate-002",
+        }));
 
       // Get the imagen model from the SDK
       // Use the models property with the type from our declaration file
@@ -438,8 +632,25 @@ export class GeminiService {
               safetyRatings: result.promptSafetyMetadata.safetyRatings?.map(
                 (rating) => ({
                   category: rating.category,
-                  severity: rating.category as any, // Map to expected format
-                  probability: rating.probability as any,
+                  severity: rating.category as
+                    | "SEVERITY_UNSPECIFIED"
+                    | "HARM_CATEGORY_DEROGATORY"
+                    | "HARM_CATEGORY_TOXICITY"
+                    | "HARM_CATEGORY_VIOLENCE"
+                    | "HARM_CATEGORY_SEXUAL"
+                    | "HARM_CATEGORY_MEDICAL"
+                    | "HARM_CATEGORY_DANGEROUS"
+                    | "HARM_CATEGORY_HARASSMENT"
+                    | "HARM_CATEGORY_HATE_SPEECH"
+                    | "HARM_CATEGORY_SEXUALLY_EXPLICIT"
+                    | "HARM_CATEGORY_DANGEROUS_CONTENT",
+                  probability: rating.probability as
+                    | "PROBABILITY_UNSPECIFIED"
+                    | "NEGLIGIBLE"
+                    | "LOW"
+                    | "MEDIUM"
+                    | "HIGH"
+                    | "VERY_HIGH",
                 })
               ),
             }
@@ -502,28 +713,38 @@ export class GeminiService {
     return this.fileSecurityService.getSecureBasePath();
   }
 
-  /**
-   * Streams content generation using the Gemini model.
-   * Returns an async generator that yields text chunks as they are generated.
-   *
-   * @param params An object containing all necessary parameters for content generation
-   * @returns An async generator yielding text chunks as they become available
-   */
   public async *generateContentStream(
-    params: any // Use any temporarily until we can properly fix typing
+    params: GenerateContentParams & {
+      preferQuality?: boolean;
+      preferSpeed?: boolean;
+      preferCost?: boolean;
+      complexityHint?: "simple" | "medium" | "complex";
+      taskType?: ModelSelectionCriteria["taskType"];
+    }
   ): AsyncGenerator<string> {
-    yield* this.contentService.generateContentStream(params);
+    const selectedModel = await this.selectModelForGeneration(params);
+    yield* this.contentService.generateContentStream({
+      ...params,
+      modelName: selectedModel,
+    });
   }
 
-  /**
-   * Generates content using the Gemini model.
-   *
-   * @param params An object containing all necessary parameters for content generation
-   * @returns A promise resolving to the generated text content
-   */
-  public async generateContent(params: any): Promise<string> {
-    // Use any temporarily until we can properly fix typing
-    return this.contentService.generateContent(params);
+  public async generateContent(
+    params: GenerateContentParams & {
+      preferQuality?: boolean;
+      preferSpeed?: boolean;
+      preferCost?: boolean;
+      complexityHint?: "simple" | "medium" | "complex";
+      taskType?: ModelSelectionCriteria["taskType"];
+    }
+  ): Promise<string> {
+    const selectedModel = await this.selectModelForGeneration(params);
+    const result = await this.contentService.generateContent({
+      ...params,
+      modelName: selectedModel,
+    });
+
+    return result;
   }
 
   /**
@@ -792,7 +1013,6 @@ Forks: ${repoOverview.forks}`;
       | "architecture"
       | "bugs"
       | "general";
-    filesOnly?: boolean;
     excludePatterns?: string[];
     customPrompt?: string;
   }): Promise<string> {
@@ -804,7 +1024,6 @@ Forks: ${repoOverview.forks}`;
         modelName,
         reasoningEffort = "medium",
         reviewFocus = "general",
-        filesOnly = false,
         excludePatterns = [],
         customPrompt,
       } = params;
@@ -851,6 +1070,118 @@ Description: ${pullRequest.body || "No description"}`;
       throw error;
     }
   }
+
+  private async selectModelForGeneration(params: {
+    modelName?: string;
+    preferQuality?: boolean;
+    preferSpeed?: boolean;
+    preferCost?: boolean;
+    complexityHint?: "simple" | "medium" | "complex";
+    taskType?: ModelSelectionCriteria["taskType"];
+    prompt?: string;
+  }): Promise<string> {
+    if (params.modelName) {
+      return params.modelName;
+    }
+
+    const complexity =
+      params.complexityHint ||
+      this.analyzePromptComplexity(params.prompt || "");
+
+    return this.modelSelector.selectOptimalModel({
+      taskType: params.taskType || "text-generation",
+      complexityLevel: complexity,
+      preferQuality: params.preferQuality,
+      preferSpeed: params.preferSpeed,
+      preferCost: params.preferCost,
+      fallbackModel:
+        this.defaultModelName ||
+        this.configManager.getModelConfiguration().default,
+    });
+  }
+
+  private analyzePromptComplexity(
+    prompt: string
+  ): "simple" | "medium" | "complex" {
+    const complexKeywords = [
+      "analyze",
+      "compare",
+      "evaluate",
+      "synthesize",
+      "reasoning",
+      "complex",
+      "detailed analysis",
+      "comprehensive",
+      "explain why",
+      "what are the implications",
+      "trade-offs",
+      "pros and cons",
+      "algorithm",
+      "architecture",
+      "design pattern",
+    ];
+
+    const codeKeywords = [
+      "function",
+      "class",
+      "import",
+      "export",
+      "const",
+      "let",
+      "var",
+      "if",
+      "else",
+      "for",
+      "while",
+      "return",
+      "async",
+      "await",
+    ];
+
+    const wordCount = prompt.split(/\s+/).length;
+    const hasComplexKeywords = complexKeywords.some((keyword) =>
+      prompt.toLowerCase().includes(keyword.toLowerCase())
+    );
+    const hasCodeKeywords = codeKeywords.some((keyword) =>
+      prompt.toLowerCase().includes(keyword.toLowerCase())
+    );
+
+    if (hasComplexKeywords || hasCodeKeywords || wordCount > 100) {
+      return "complex";
+    } else if (wordCount > 20) {
+      return "medium";
+    } else {
+      return "simple";
+    }
+  }
+
+  public getModelSelector(): ModelSelectionService {
+    return this.modelSelector;
+  }
+
+  public async getOptimalModelForTask(
+    criteria: ModelSelectionCriteria
+  ): Promise<string> {
+    return this.modelSelector.selectOptimalModel(criteria);
+  }
+
+  public isModelAvailable(modelName: string): boolean {
+    return this.modelSelector.isModelAvailable(modelName);
+  }
+
+  public getAvailableModels(): string[] {
+    return this.modelSelector.getAvailableModels();
+  }
+
+  public validateModelForTask(
+    modelName: string,
+    taskType: ModelSelectionCriteria["taskType"]
+  ): boolean {
+    return this.modelSelector.validateModelForTask(modelName, taskType);
+  }
+
+  // Model selection history and performance metrics methods removed
+  // These were not implemented in ModelSelectionService
 }
 
 // Define interfaces directly to avoid circular dependencies
@@ -861,8 +1192,26 @@ export interface GenerateContentParams {
   safetySettings?: SafetySetting[];
   systemInstruction?: Content | string;
   cachedContentName?: string;
-  fileReferenceOrInlineData?: FileId | ImagePart | string;
+  fileReferenceOrInlineData?: FileId | ImagePart | FileMetadata | string;
   inlineDataMimeType?: string;
+  urlContext?: {
+    urls: string[];
+    fetchOptions?: {
+      maxContentKb?: number;
+      timeoutMs?: number;
+      includeMetadata?: boolean;
+      convertToMarkdown?: boolean;
+      allowedDomains?: string[];
+      userAgent?: string;
+    };
+  };
+  preferQuality?: boolean;
+  preferSpeed?: boolean;
+  preferCost?: boolean;
+  complexityHint?: "simple" | "medium" | "complex";
+  taskType?: ModelSelectionCriteria["taskType"];
+  urlCount?: number;
+  estimatedUrlContentSize?: number;
 }
 
 export interface StartChatParams {
@@ -905,9 +1254,7 @@ export interface RouteMessageParams {
 }
 
 // Re-export other types for backwards compatibility
-export type { ListFilesResponseType } from "./gemini/GeminiFileService.js";
 export type {
-  ChatSession,
   Content,
   Tool,
   ToolConfig,

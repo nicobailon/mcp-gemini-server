@@ -46,6 +46,8 @@ import { geminiGitLocalDiffReviewTool } from "../geminiGitLocalDiffReviewTool.js
 import { geminiGitLocalDiffStreamReviewTool } from "../geminiGitLocalDiffStreamReviewTool.js";
 import { geminiGitHubRepoReviewTool } from "../geminiGitHubRepoReviewTool.js";
 import { geminiGitHubPRReviewTool } from "../geminiGitHubPRReviewTool.js";
+// URL Context tools
+import { geminiUrlAnalysisTool } from "../geminiUrlAnalysisTool.js";
 // MCP tools
 import { mcpConnectToServerTool } from "../mcpConnectToServerTool.js";
 import { mcpDisconnectFromServerTool } from "../mcpDisconnectFromServerTool.js";
@@ -163,6 +165,11 @@ export function registerAllTools(server: McpServer): McpClientService {
         geminiAudioTranscriptionTool,
         "geminiAudioTranscriptionTool"
       )
+    );
+
+    // URL Context tools
+    registry.registerTool(
+      adaptGeminiServiceTool(geminiUrlAnalysisTool, "geminiUrlAnalysisTool")
     );
 
     // Git diff review tools - these use a different registration pattern

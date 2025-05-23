@@ -1,10 +1,6 @@
 import { describe, it, beforeEach, expect, vi } from "vitest";
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import {
-  MockMcpClientService,
-  MockFileSecurityService,
-} from "../../../tests/utils/mock-types.js";
 import { McpClientService } from "../../../src/services/mcp/McpClientService.js";
 import { FileSecurityService } from "../../../src/utils/FileSecurityService.js";
 
@@ -59,7 +55,6 @@ import { TOOL_NAME as WRITE_FILE_TOOL_NAME } from "../../../src/tools/schemas/wr
 
 // Import mocked modules to get their mock functions
 import { logger as mockLogger } from "../../../src/utils/logger.js";
-import { FileSecurityService } from "../../../src/utils/FileSecurityService.js";
 import { ConfigurationManager } from "../../../src/config/ConfigurationManager.js";
 
 describe("MCP Client Tools Unit Tests", () => {
@@ -106,7 +101,6 @@ describe("MCP Client Tools Unit Tests", () => {
     mockMcpServer = {
       tool: vi.fn(),
       connect: vi.fn() as unknown as McpServer["connect"],
-      disconnect: vi.fn() as unknown as McpServer["disconnect"],
       registerTool: vi.fn() as unknown as McpServer["registerTool"],
     } as unknown as TestMcpServer;
 
@@ -169,7 +163,7 @@ describe("MCP Client Tools Unit Tests", () => {
       // Register the tool
       mcpConnectToServerTool(
         mockMcpServer,
-        mockMcpClientService as any as McpClientService
+        mockMcpClientService as unknown as McpClientService
       );
 
       // Verify registration
@@ -186,7 +180,7 @@ describe("MCP Client Tools Unit Tests", () => {
       // Register the tool
       mcpConnectToServerTool(
         mockMcpServer,
-        mockMcpClientService as any as McpClientService
+        mockMcpClientService as unknown as McpClientService
       );
 
       // Capture the processor function
@@ -234,7 +228,7 @@ describe("MCP Client Tools Unit Tests", () => {
       // Register the tool
       mcpConnectToServerTool(
         mockMcpServer,
-        mockMcpClientService as any as McpClientService
+        mockMcpClientService as unknown as McpClientService
       );
 
       // Capture the processor function
@@ -284,7 +278,7 @@ describe("MCP Client Tools Unit Tests", () => {
       // Register the tool
       mcpConnectToServerTool(
         mockMcpServer,
-        mockMcpClientService as any as McpClientService
+        mockMcpClientService as unknown as McpClientService
       );
 
       // Capture the processor function
@@ -313,7 +307,7 @@ describe("MCP Client Tools Unit Tests", () => {
       // Register the tool
       mcpConnectToServerTool(
         mockMcpServer,
-        mockMcpClientService as any as McpClientService
+        mockMcpClientService as unknown as McpClientService
       );
 
       // Capture the processor function
@@ -353,7 +347,7 @@ describe("MCP Client Tools Unit Tests", () => {
       // Register the tool
       mcpListServerToolsTool(
         mockMcpServer,
-        mockMcpClientService as any as McpClientService
+        mockMcpClientService as unknown as McpClientService
       );
 
       // Verify registration
@@ -370,7 +364,7 @@ describe("MCP Client Tools Unit Tests", () => {
       // Register the tool
       mcpListServerToolsTool(
         mockMcpServer,
-        mockMcpClientService as any as McpClientService
+        mockMcpClientService as unknown as McpClientService
       );
 
       // Capture the processor function
@@ -422,7 +416,7 @@ describe("MCP Client Tools Unit Tests", () => {
       // Register the tool
       mcpListServerToolsTool(
         mockMcpServer,
-        mockMcpClientService as any as McpClientService
+        mockMcpClientService as unknown as McpClientService
       );
 
       // Capture the processor function
@@ -458,7 +452,7 @@ describe("MCP Client Tools Unit Tests", () => {
       // Register the tool
       mcpListServerToolsTool(
         mockMcpServer,
-        mockMcpClientService as any as McpClientService
+        mockMcpClientService as unknown as McpClientService
       );
 
       // Capture the processor function
@@ -494,7 +488,7 @@ describe("MCP Client Tools Unit Tests", () => {
       // Register the tool
       mcpCallServerTool(
         mockMcpServer,
-        mockMcpClientService as any as McpClientService
+        mockMcpClientService as unknown as McpClientService
       );
 
       // Verify registration
@@ -511,7 +505,7 @@ describe("MCP Client Tools Unit Tests", () => {
       // Register the tool
       mcpCallServerTool(
         mockMcpServer,
-        mockMcpClientService as any as McpClientService
+        mockMcpClientService as unknown as McpClientService
       );
 
       // Capture the processor function
@@ -552,7 +546,7 @@ describe("MCP Client Tools Unit Tests", () => {
       // Register the tool
       mcpCallServerTool(
         mockMcpServer,
-        mockMcpClientService as any as McpClientService
+        mockMcpClientService as unknown as McpClientService
       );
 
       // Capture the processor function
@@ -562,12 +556,19 @@ describe("MCP Client Tools Unit Tests", () => {
       const mockImplementation = vi
         .fn()
         .mockImplementation(async () => undefined);
-      vi.mocked(FileSecurityService).mockImplementation(() => ({
-        secureWriteFile: mockImplementation,
-        validateAndResolvePath: vi.fn(),
-        isPathWithinAllowedDirs: vi.fn(),
-        setAllowedDirectories: vi.fn(),
-      }));
+      vi.mocked(FileSecurityService).mockImplementation(
+        () =>
+          ({
+            secureWriteFile: mockImplementation,
+            validateAndResolvePath: vi.fn((path) => path),
+            isPathWithinAllowedDirs: vi.fn().mockReturnValue(true),
+            setAllowedDirectories: vi.fn(),
+            getAllowedDirectories: vi.fn().mockReturnValue([]),
+            setSecureBasePath: vi.fn(),
+            getSecureBasePath: vi.fn(),
+            fullyResolvePath: vi.fn(async (path) => path),
+          }) as unknown as FileSecurityService
+      );
       const secureWriteFileSpy = mockImplementation;
 
       try {
@@ -606,7 +607,7 @@ describe("MCP Client Tools Unit Tests", () => {
       // Register the tool
       mcpCallServerTool(
         mockMcpServer,
-        mockMcpClientService as any as McpClientService
+        mockMcpClientService as unknown as McpClientService
       );
 
       // Capture the processor function
@@ -642,7 +643,7 @@ describe("MCP Client Tools Unit Tests", () => {
       // Register the tool
       mcpCallServerTool(
         mockMcpServer,
-        mockMcpClientService as any as McpClientService
+        mockMcpClientService as unknown as McpClientService
       );
 
       // The rest of this test is skipped due to mocking challenges
@@ -653,7 +654,7 @@ describe("MCP Client Tools Unit Tests", () => {
       // Register the tool
       mcpCallServerTool(
         mockMcpServer,
-        mockMcpClientService as any as McpClientService
+        mockMcpClientService as unknown as McpClientService
       );
 
       // Capture the processor function
@@ -691,7 +692,7 @@ describe("MCP Client Tools Unit Tests", () => {
       // Register the tool
       mcpDisconnectFromServerTool(
         mockMcpServer,
-        mockMcpClientService as any as McpClientService
+        mockMcpClientService as unknown as McpClientService
       );
 
       // Verify registration
@@ -705,13 +706,13 @@ describe("MCP Client Tools Unit Tests", () => {
     });
 
     it("should close an SSE connection successfully", async () => {
-      // Mock closeSseConnection to return true
-      mockMcpClientService.closeSseConnection.mockReturnValue(true);
+      // Mock disconnect to return true
+      mockMcpClientService.disconnect.mockReturnValue(true);
 
       // Register the tool
       mcpDisconnectFromServerTool(
         mockMcpServer,
-        mockMcpClientService as any as McpClientService
+        mockMcpClientService as unknown as McpClientService
       );
 
       // Capture the processor function
@@ -727,9 +728,9 @@ describe("MCP Client Tools Unit Tests", () => {
         content: Array<{ type: string; text: string }>;
       };
 
-      // Verify closeSseConnection was called
-      expect(mockMcpClientService.closeSseConnection).toHaveBeenCalledTimes(1);
-      expect(mockMcpClientService.closeSseConnection).toHaveBeenCalledWith(
+      // Verify disconnect was called
+      expect(mockMcpClientService.disconnect).toHaveBeenCalledTimes(1);
+      expect(mockMcpClientService.disconnect).toHaveBeenCalledWith(
         "test-sse-connection-id"
       );
 
@@ -740,7 +741,7 @@ describe("MCP Client Tools Unit Tests", () => {
             type: "text",
             text: JSON.stringify(
               {
-                message: "SSE Connection closed successfully.",
+                message: "Connection closed successfully.",
                 connectionId: "test-sse-connection-id",
               },
               null,
@@ -752,13 +753,13 @@ describe("MCP Client Tools Unit Tests", () => {
     });
 
     it("should close a stdio connection successfully", async () => {
-      // Mock closeStdioConnection to return true
-      mockMcpClientService.closeStdioConnection.mockReturnValue(true);
+      // Mock disconnect to return true
+      mockMcpClientService.disconnect.mockReturnValue(true);
 
       // Register the tool
       mcpDisconnectFromServerTool(
         mockMcpServer,
-        mockMcpClientService as any as McpClientService
+        mockMcpClientService as unknown as McpClientService
       );
 
       // Capture the processor function
@@ -774,11 +775,9 @@ describe("MCP Client Tools Unit Tests", () => {
         content: Array<{ type: string; text: string }>;
       };
 
-      // Verify closeStdioConnection was called
-      expect(mockMcpClientService.closeStdioConnection).toHaveBeenCalledTimes(
-        1
-      );
-      expect(mockMcpClientService.closeStdioConnection).toHaveBeenCalledWith(
+      // Verify disconnect was called
+      expect(mockMcpClientService.disconnect).toHaveBeenCalledTimes(1);
+      expect(mockMcpClientService.disconnect).toHaveBeenCalledWith(
         "test-stdio-connection-id"
       );
 
@@ -789,7 +788,7 @@ describe("MCP Client Tools Unit Tests", () => {
             type: "text",
             text: JSON.stringify(
               {
-                message: "Stdio Connection closed successfully.",
+                message: "Connection closed successfully.",
                 connectionId: "test-stdio-connection-id",
               },
               null,
@@ -801,10 +800,13 @@ describe("MCP Client Tools Unit Tests", () => {
     });
 
     it("should throw error for non-existent connection", async () => {
+      // Mock disconnect to return false (no connection found)
+      mockMcpClientService.disconnect.mockReturnValue(false);
+
       // Register the tool
       mcpDisconnectFromServerTool(
         mockMcpServer,
-        mockMcpClientService as any as McpClientService
+        mockMcpClientService as unknown as McpClientService
       );
 
       // Capture the processor function
@@ -889,12 +891,19 @@ describe("MCP Client Tools Unit Tests", () => {
       });
 
       // Mock FileSecurityService to pass through to our Buffer.from test
-      vi.mocked(FileSecurityService).mockImplementation(() => ({
-        secureWriteFile: vi.fn(),
-        validateAndResolvePath: vi.fn(),
-        isPathWithinAllowedDirs: vi.fn(),
-        setAllowedDirectories: vi.fn(),
-      }));
+      vi.mocked(FileSecurityService).mockImplementation(
+        () =>
+          ({
+            secureWriteFile: vi.fn(),
+            validateAndResolvePath: vi.fn((path) => path),
+            isPathWithinAllowedDirs: vi.fn().mockReturnValue(true),
+            setAllowedDirectories: vi.fn(),
+            getAllowedDirectories: vi.fn().mockReturnValue([]),
+            setSecureBasePath: vi.fn(),
+            getSecureBasePath: vi.fn(),
+            fullyResolvePath: vi.fn(async (path) => path),
+          }) as unknown as FileSecurityService
+      );
 
       // Create test arguments with invalid base64
       const args = {

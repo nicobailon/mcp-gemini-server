@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  ModelNameSchema,
+  ModelPreferencesSchema,
+} from "./schemas/CommonSchemas.js";
 
 // Tool Name
 export const GEMINI_GENERATE_CONTENT_TOOL_NAME = "gemini_generateContent";
@@ -113,14 +117,59 @@ export const safetySettingSchema = z
     "Setting for controlling content safety for a specific harm category."
   );
 
+// URL Context Schema for fetching and including web content in prompts
+export const urlContextSchema = z
+  .object({
+    urls: z
+      .array(z.string().url())
+      .min(1)
+      .max(20)
+      .describe("URLs to fetch and include as context (max 20)"),
+    fetchOptions: z
+      .object({
+        maxContentKb: z
+          .number()
+          .min(1)
+          .max(1000)
+          .default(100)
+          .optional()
+          .describe("Maximum content size per URL in KB"),
+        timeoutMs: z
+          .number()
+          .min(1000)
+          .max(30000)
+          .default(10000)
+          .optional()
+          .describe("Fetch timeout per URL in milliseconds"),
+        includeMetadata: z
+          .boolean()
+          .default(true)
+          .optional()
+          .describe("Include URL metadata in context"),
+        convertToMarkdown: z
+          .boolean()
+          .default(true)
+          .optional()
+          .describe("Convert HTML content to markdown"),
+        allowedDomains: z
+          .array(z.string())
+          .optional()
+          .describe("Specific domains to allow for this request"),
+        userAgent: z
+          .string()
+          .optional()
+          .describe("Custom User-Agent header for URL requests"),
+      })
+      .optional()
+      .describe("Configuration options for URL fetching"),
+  })
+  .optional()
+  .describe(
+    "Optional URL context to fetch and include web content in the prompt"
+  );
+
 export const GEMINI_GENERATE_CONTENT_PARAMS = {
-  modelName: z
-    .string()
-    .min(1)
-    .optional() // Make optional
-    .describe(
-      "Optional. The name of the Gemini model to use (e.g., 'gemini-1.5-flash'). If omitted, the server's default model (from GOOGLE_GEMINI_MODEL env var) will be used."
-    ),
+  modelName: ModelNameSchema,
   prompt: z
     .string()
     .min(1)
@@ -147,6 +196,8 @@ export const GEMINI_GENERATE_CONTENT_PARAMS = {
     .describe(
       "Optional. Identifier for cached content in format 'cachedContents/...' to use with this request."
     ),
+  urlContext: urlContextSchema,
+  modelPreferences: ModelPreferencesSchema,
 };
 
 // Optional: Define a Zod schema for the entire input object if needed later

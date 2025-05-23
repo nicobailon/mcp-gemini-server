@@ -99,6 +99,39 @@ export class GeminiModelError extends GeminiApiError {
 }
 
 /**
+ * Error for URL fetching operations
+ */
+export class GeminiUrlFetchError extends GeminiApiError {
+  constructor(
+    message: string,
+    public readonly url: string,
+    public readonly statusCode?: number,
+    cause?: unknown
+  ) {
+    super(message, cause);
+    this.name = "GeminiUrlFetchError";
+  }
+}
+
+/**
+ * Error for URL validation issues
+ */
+export class GeminiUrlValidationError extends GeminiApiError {
+  constructor(
+    message: string,
+    public readonly url: string,
+    public readonly reason:
+      | "blocked_domain"
+      | "invalid_format"
+      | "suspicious_pattern",
+    cause?: unknown
+  ) {
+    super(message, cause);
+    this.name = "GeminiUrlValidationError";
+  }
+}
+
+/**
  * Maps an error to the appropriate Gemini error type
  * @param error The original error
  * @param context Additional context about the operation
@@ -230,4 +263,12 @@ export const GeminiErrorMessages = {
   MODEL_NOT_FOUND: "The specified model was not found",
   UNSUPPORTED_MODEL: "The specified model does not support this operation",
   UNSUPPORTED_FORMAT: "The requested format is not supported by this model",
+
+  // URL context errors
+  URL_FETCH_FAILED: "Failed to fetch content from the specified URL",
+  URL_VALIDATION_FAILED: "URL validation failed due to security restrictions",
+  URL_ACCESS_DENIED: "Access to the specified URL is denied",
+  URL_CONTENT_TOO_LARGE: "URL content exceeds the maximum allowed size",
+  URL_TIMEOUT: "URL fetch operation timed out",
+  UNSUPPORTED_URL_CONTENT: "The URL content type is not supported",
 };

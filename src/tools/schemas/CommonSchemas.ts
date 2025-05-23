@@ -75,48 +75,53 @@ export const ThinkingConfigSchema = z
   .describe("Optional configuration for controlling model reasoning.");
 
 /**
+ * Base generation configuration object (without optional wrapper)
+ */
+const BaseGenerationConfigSchema = z.object({
+  temperature: z
+    .number()
+    .min(0)
+    .max(1)
+    .optional()
+    .describe(
+      "Controls randomness. Lower values (~0.2) make output more deterministic, higher values (~0.8) make it more creative. Default varies by model."
+    ),
+  topP: z
+    .number()
+    .min(0)
+    .max(1)
+    .optional()
+    .describe(
+      "Nucleus sampling parameter. The model considers only tokens with probability mass summing to this value. Default varies by model."
+    ),
+  topK: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe(
+      "Top-k sampling parameter. The model considers the k most probable tokens. Default varies by model."
+    ),
+  maxOutputTokens: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe("Maximum number of tokens to generate in the response."),
+  stopSequences: z
+    .array(z.string())
+    .optional()
+    .describe("Sequences where the API will stop generating further tokens."),
+  thinkingConfig: ThinkingConfigSchema,
+});
+
+/**
  * Configuration for controlling text generation
  */
-export const GenerationConfigSchema = z
-  .object({
-    temperature: z
-      .number()
-      .min(0)
-      .max(1)
-      .optional()
-      .describe(
-        "Controls randomness. Lower values (~0.2) make output more deterministic, higher values (~0.8) make it more creative. Default varies by model."
-      ),
-    topP: z
-      .number()
-      .min(0)
-      .max(1)
-      .optional()
-      .describe(
-        "Nucleus sampling parameter. The model considers only tokens with probability mass summing to this value. Default varies by model."
-      ),
-    topK: z
-      .number()
-      .int()
-      .min(1)
-      .optional()
-      .describe(
-        "Top-k sampling parameter. The model considers the k most probable tokens. Default varies by model."
-      ),
-    maxOutputTokens: z
-      .number()
-      .int()
-      .min(1)
-      .optional()
-      .describe("Maximum number of tokens to generate in the response."),
-    stopSequences: z
-      .array(z.string())
-      .optional()
-      .describe("Sequences where the API will stop generating further tokens."),
-    thinkingConfig: ThinkingConfigSchema,
-  })
-  .optional()
-  .describe("Optional configuration for controlling the generation process.");
+export const GenerationConfigSchema =
+  BaseGenerationConfigSchema.optional().describe(
+    "Optional configuration for controlling the generation process."
+  );
 
 // --- Function Calling Schemas ---
 
@@ -249,21 +254,74 @@ export const EncodingSchema = z
 
 // --- Other Common Schemas ---
 
-/**
- * Schema for model names
- */
 export const ModelNameSchema = z
   .string()
   .min(1)
   .optional()
   .describe(
-    "Optional. The name of the Gemini model to use. If omitted, the server's default model will be used."
+    "Optional. The name of the Gemini model to use. If omitted, the server will intelligently select the optimal model."
   );
 
-/**
- * Common schema for prompt text
- */
+export const ModelPreferencesSchema = z
+  .object({
+    preferQuality: z
+      .boolean()
+      .optional()
+      .describe("Prefer high-quality models for better results"),
+    preferSpeed: z
+      .boolean()
+      .optional()
+      .describe("Prefer fast models for quicker responses"),
+    preferCost: z
+      .boolean()
+      .optional()
+      .describe("Prefer cost-effective models to minimize usage costs"),
+    complexityHint: z
+      .enum(["simple", "medium", "complex"])
+      .optional()
+      .describe(
+        "Hint about the complexity of the task to help with model selection"
+      ),
+    taskType: z
+      .enum([
+        "text-generation",
+        "image-generation",
+        "code-review",
+        "multimodal",
+        "reasoning",
+      ])
+      .optional()
+      .describe("Type of task to optimize model selection for"),
+  })
+  .optional()
+  .describe("Optional preferences for intelligent model selection");
+
 export const PromptSchema = z
   .string()
   .min(1)
   .describe("Required. The text prompt to send to the Gemini model.");
+
+export const EnhancedGenerationConfigSchema = BaseGenerationConfigSchema.extend(
+  {
+    modelPreferences: ModelPreferencesSchema,
+  }
+)
+  .optional()
+  .describe(
+    "Extended generation configuration with model selection preferences"
+  );
+
+export const ModelValidationSchema = z
+  .object({
+    modelName: ModelNameSchema,
+    taskType: z
+      .enum([
+        "text-generation",
+        "image-generation",
+        "code-review",
+        "multimodal",
+        "reasoning",
+      ])
+      .optional(),
+  })
+  .describe("Validation schema for model and task compatibility");

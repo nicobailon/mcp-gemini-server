@@ -1,6 +1,9 @@
 import { z } from "zod";
+import {
+  ModelNameSchema,
+  ModelPreferencesSchema,
+} from "./schemas/CommonSchemas.js";
 
-// Tool Name
 export const TOOL_NAME_GENERATE_IMAGE = "gemini_generateImage";
 
 // Tool Description
@@ -39,13 +42,7 @@ import { safetySettingSchema } from "./geminiGenerateContentParams.js";
 
 // Main parameters schema
 export const GEMINI_GENERATE_IMAGE_PARAMS = z.object({
-  modelName: z
-    .string()
-    .min(1)
-    .optional()
-    .describe(
-      "Optional. The name of the model to use (e.g., 'imagen-3.1-generate-003'). If omitted, the server's default model will be used."
-    ),
+  modelName: ModelNameSchema,
   prompt: z
     .string()
     .min(1)
@@ -100,6 +97,7 @@ export const GEMINI_GENERATE_IMAGE_PARAMS = z.object({
     .describe(
       "Optional. The strength of the style preset (0.0-1.0). Higher values apply more style. Defaults to 0.5."
     ),
+  modelPreferences: ModelPreferencesSchema,
 });
 
 // Type for parameter object using zod inference

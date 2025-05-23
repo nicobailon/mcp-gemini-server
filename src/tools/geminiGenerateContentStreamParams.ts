@@ -3,7 +3,12 @@ import { z } from "zod";
 import {
   generationConfigSchema,
   safetySettingSchema,
+  urlContextSchema,
 } from "./geminiGenerateContentParams.js"; // Assuming these are exported or redefined here
+import {
+  ModelNameSchema,
+  ModelPreferencesSchema,
+} from "./schemas/CommonSchemas.js";
 
 // Tool Name
 export const GEMINI_STREAM_TOOL_NAME = "gemini_generateContentStream";
@@ -21,13 +26,7 @@ Optional parameters allow control over generation, safety settings, system instr
 
 // Zod Schema for Parameters
 export const GEMINI_STREAM_PARAMS = {
-  modelName: z
-    .string()
-    .min(1)
-    .optional() // Make optional
-    .describe(
-      "Optional. The name of the Gemini model to use (e.g., 'gemini-1.5-flash'). If omitted, the server's default model (from GOOGLE_GEMINI_MODEL env var) will be used."
-    ),
+  modelName: ModelNameSchema,
   prompt: z
     .string()
     .min(1)
@@ -54,4 +53,6 @@ export const GEMINI_STREAM_PARAMS = {
     .describe(
       "Optional. Identifier for cached content in format 'cachedContents/...' to use with this request."
     ),
+  urlContext: urlContextSchema,
+  modelPreferences: ModelPreferencesSchema,
 };

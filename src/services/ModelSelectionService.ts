@@ -373,6 +373,36 @@ export class ModelSelectionService {
       score += reasoningScore * 0.4;
     }
 
+    // URL context scoring - prefer models with larger context windows for URL-heavy requests
+    if (criteria.urlCount && criteria.urlCount > 0) {
+      // Bonus for models with large context windows when processing URLs
+      if (capabilities.contextWindow >= 1000000) {
+        score += Math.min(criteria.urlCount / 5, 2.0); // Up to 2 points for many URLs
+      } else if (capabilities.contextWindow >= 500000) {
+        score += Math.min(criteria.urlCount / 10, 1.0); // Up to 1 point for medium context
+      }
+
+      // Bonus for estimated content size handling
+      if (criteria.estimatedUrlContentSize && criteria.estimatedUrlContentSize > 0) {
+        const sizeInTokens = criteria.estimatedUrlContentSize / 4; // Rough estimate: 4 chars per token
+        const contextUtilization = sizeInTokens / capabilities.contextWindow;
+        
+        // Prefer models that won't be overwhelmed by the content size
+        if (contextUtilization < 0.3) {
+          score += 1.5; // Comfortable fit
+        } else if (contextUtilization < 0.6) {
+          score += 0.5; // Acceptable fit
+        } else if (contextUtilization > 0.8) {
+          score -= 2.0; // Penalize models that might struggle
+        }
+      }
+
+      // Slight bonus for models that support URL context natively (Gemini 2.5 models)
+      if (model.includes('gemini-2.5')) {
+        score += 0.5;
+      }
+    }
+
     // Performance metrics influence (heavily weighted)
     const metrics = this.performanceMetrics.get(model);
     if (metrics && metrics.totalCalls >= 5) {

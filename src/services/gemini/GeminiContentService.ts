@@ -19,6 +19,8 @@ import {
 import { ZodError } from "zod";
 import { validateGenerateContentParams } from "./GeminiValidationSchemas.js";
 import { RetryService } from "../../utils/RetryService.js";
+import { GeminiUrlContextService } from "./GeminiUrlContextService.js";
+import { ConfigurationManager } from "../../config/ConfigurationManager.js";
 
 // Request configuration type definition for reuse
 interface RequestConfig {
@@ -29,6 +31,21 @@ interface RequestConfig {
   systemInstruction?: Content;
   cachedContent?: string;
   thinkingConfig?: ThinkingConfig;
+}
+
+/**
+ * Interface for URL context parameters
+ */
+interface UrlContextParams {
+  urls: string[];
+  fetchOptions?: {
+    maxContentKb?: number;
+    timeoutMs?: number;
+    includeMetadata?: boolean;
+    convertToMarkdown?: boolean;
+    allowedDomains?: string[];
+    userAgent?: string;
+  };
 }
 
 /**
@@ -44,6 +61,7 @@ interface GenerateContentParams {
   cachedContentName?: string;
   fileReferenceOrInlineData?: FileId | ImagePart | FileMetadata | string;
   inlineDataMimeType?: string;
+  urlContext?: UrlContextParams;
 }
 
 /**
@@ -72,6 +90,8 @@ export class GeminiContentService {
   private defaultThinkingBudget?: number;
   private fileSecurityService: FileSecurityService;
   private retryService: RetryService;
+  private configManager: ConfigurationManager;
+  private urlContextService: GeminiUrlContextService;
 
   /**
    * Creates a new instance of the GeminiContentService.
@@ -91,6 +111,8 @@ export class GeminiContentService {
     this.defaultThinkingBudget = defaultThinkingBudget;
     this.fileSecurityService = fileSecurityService || new FileSecurityService();
     this.retryService = new RetryService(DEFAULT_RETRY_OPTIONS);
+    this.configManager = ConfigurationManager.getInstance();
+    this.urlContextService = new GeminiUrlContextService(this.configManager, logger);
   }
 
   /**
@@ -126,7 +148,7 @@ export class GeminiContentService {
       }
 
       // Create the request configuration using the helper method
-      const requestConfig = this.createRequestConfig(params);
+      const requestConfig = await this.createRequestConfig(params);
 
       // Call generateContentStream with retry
       // Note: We can't use the retry service directly here because we need to handle streaming
@@ -166,7 +188,7 @@ export class GeminiContentService {
    * @returns A properly formatted request configuration object
    * @throws GeminiApiError if parameters are invalid or model name is missing
    */
-  private createRequestConfig(params: GenerateContentParams): RequestConfig {
+  private async createRequestConfig(params: GenerateContentParams): Promise<RequestConfig> {
     const {
       prompt,
       modelName,
@@ -176,6 +198,7 @@ export class GeminiContentService {
       cachedContentName,
       fileReferenceOrInlineData,
       inlineDataMimeType,
+      urlContext,
     } = params;
 
     const effectiveModelName = modelName ?? this.defaultModelName;
@@ -189,6 +212,69 @@ export class GeminiContentService {
 
     // Construct base content parts array
     const contentParts: Part[] = [];
+
+    // Process URL context first if provided
+    if (urlContext?.urls && urlContext.urls.length > 0) {
+      const urlConfig = this.configManager.getUrlContextConfig();
+      
+      if (!urlConfig.enabled) {
+        throw new GeminiValidationError(
+          'URL context feature is not enabled. Set GOOGLE_GEMINI_ENABLE_URL_CONTEXT=true to enable.',
+          'urlContext'
+        );
+      }
+
+      try {
+        logger.debug(`Processing ${urlContext.urls.length} URLs for context`);
+        
+        const urlFetchOptions = {
+          maxContentLength: (urlContext.fetchOptions?.maxContentKb || urlConfig.defaultMaxContentKb) * 1024,
+          timeout: urlContext.fetchOptions?.timeoutMs || urlConfig.defaultTimeoutMs,
+          includeMetadata: urlContext.fetchOptions?.includeMetadata ?? urlConfig.includeMetadata,
+          convertToMarkdown: urlContext.fetchOptions?.convertToMarkdown ?? urlConfig.convertToMarkdown,
+          allowedDomains: urlContext.fetchOptions?.allowedDomains || urlConfig.allowedDomains,
+          userAgent: urlContext.fetchOptions?.userAgent || urlConfig.userAgent
+        };
+
+        const { contents: urlContents, batchResult } = await this.urlContextService.processUrlsForContext(
+          urlContext.urls,
+          urlFetchOptions
+        );
+
+        // Log the batch result for monitoring
+        logger.info('URL context processing completed', {
+          totalUrls: batchResult.summary.totalUrls,
+          successful: batchResult.summary.successCount,
+          failed: batchResult.summary.failureCount,
+          totalContentSize: batchResult.summary.totalContentSize,
+          avgResponseTime: batchResult.summary.averageResponseTime
+        });
+
+        // Add URL content parts to the beginning (before the user's prompt)
+        for (const urlContent of urlContents) {
+          contentParts.push(...urlContent.parts);
+        }
+
+        // Log any failed URLs as warnings
+        if (batchResult.failed.length > 0) {
+          for (const failure of batchResult.failed) {
+            logger.warn('Failed to fetch URL for context', {
+              url: failure.url,
+              error: failure.error.message,
+              errorCode: failure.errorCode
+            });
+          }
+        }
+
+      } catch (error) {
+        logger.error('URL context processing failed', { error });
+        // Depending on configuration, we could either fail the request or continue without URL context
+        // For now, we'll throw the error to fail fast
+        throw mapGeminiError(error, 'URL context processing');
+      }
+    }
+
+    // Add the user's prompt after URL context
     contentParts.push({ text: prompt });
 
     // Add file reference or inline data if provided
@@ -365,7 +451,7 @@ export class GeminiContentService {
       }
 
       // Create the request configuration using the helper method
-      const requestConfig = this.createRequestConfig(params);
+      const requestConfig = await this.createRequestConfig(params);
 
       // Call generateContent with retry logic
       return await this.retryService.execute(async () => {

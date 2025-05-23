@@ -27,6 +27,21 @@ interface ManagedConfigs {
     enableStreaming?: boolean;
     sessionTimeoutSeconds?: number;
   };
+  urlContext: {
+    enabled: boolean;
+    maxUrlsPerRequest: number;
+    defaultMaxContentKb: number;
+    defaultTimeoutMs: number;
+    allowedDomains: string[];
+    blocklistedDomains: string[];
+    convertToMarkdown: boolean;
+    includeMetadata: boolean;
+    enableCaching: boolean;
+    cacheExpiryMinutes: number;
+    maxCacheSize: number;
+    rateLimitPerDomainPerMinute: number;
+    userAgent: string;
+  };
   modelConfiguration: ModelConfiguration;
 }
 
@@ -70,6 +85,22 @@ export class ConfigurationManager {
         clientId: "gemini-sdk-client-default", // Must be set via env
         logLevel: "info",
         transport: "stdio",
+      },
+      urlContext: {
+        // Initialize URL context config with secure defaults
+        enabled: false, // Disabled by default for security
+        maxUrlsPerRequest: 20,
+        defaultMaxContentKb: 100,
+        defaultTimeoutMs: 10000,
+        allowedDomains: ["*"], // Allow all by default (can be restricted)
+        blocklistedDomains: [], // Empty by default
+        convertToMarkdown: true,
+        includeMetadata: true,
+        enableCaching: true,
+        cacheExpiryMinutes: 15,
+        maxCacheSize: 1000,
+        rateLimitPerDomainPerMinute: 10,
+        userAgent: "MCP-Gemini-Server/1.0 (+https://github.com/nicobailon/mcp-gemini-server)"
       },
 
       // Initialize other service configs with defaults:
@@ -214,6 +245,14 @@ export class ConfigurationManager {
   public getAllowedOutputPaths(): string[] {
     // Return a copy to prevent accidental modification
     return [...this.config.allowedOutputPaths];
+  }
+
+  /**
+   * Returns the URL context configuration
+   * @returns A copy of the URL context configuration
+   */
+  public getUrlContextConfig(): Required<ManagedConfigs["urlContext"]> {
+    return { ...this.config.urlContext };
   }
 
   // Add getters for other service configs:
@@ -443,6 +482,84 @@ export class ConfigurationManager {
     }
 
     logger.info("[ConfigurationManager] MCP configuration loaded.");
+
+    // Load URL Context Configuration
+    if (process.env.GOOGLE_GEMINI_ENABLE_URL_CONTEXT) {
+      this.config.urlContext.enabled = process.env.GOOGLE_GEMINI_ENABLE_URL_CONTEXT.toLowerCase() === 'true';
+      logger.info(`[ConfigurationManager] URL context feature enabled: ${this.config.urlContext.enabled}`);
+    }
+
+    if (process.env.GOOGLE_GEMINI_URL_MAX_COUNT) {
+      const maxCount = parseInt(process.env.GOOGLE_GEMINI_URL_MAX_COUNT, 10);
+      if (!isNaN(maxCount) && maxCount > 0 && maxCount <= 20) {
+        this.config.urlContext.maxUrlsPerRequest = maxCount;
+        logger.info(`[ConfigurationManager] URL max count set to: ${maxCount}`);
+      } else {
+        logger.warn(`[ConfigurationManager] Invalid URL max count '${process.env.GOOGLE_GEMINI_URL_MAX_COUNT}'. Must be between 1 and 20.`);
+      }
+    }
+
+    if (process.env.GOOGLE_GEMINI_URL_MAX_CONTENT_KB) {
+      const maxKb = parseInt(process.env.GOOGLE_GEMINI_URL_MAX_CONTENT_KB, 10);
+      if (!isNaN(maxKb) && maxKb > 0 && maxKb <= 1000) {
+        this.config.urlContext.defaultMaxContentKb = maxKb;
+        logger.info(`[ConfigurationManager] URL max content size set to: ${maxKb}KB`);
+      } else {
+        logger.warn(`[ConfigurationManager] Invalid URL max content size '${process.env.GOOGLE_GEMINI_URL_MAX_CONTENT_KB}'. Must be between 1 and 1000 KB.`);
+      }
+    }
+
+    if (process.env.GOOGLE_GEMINI_URL_FETCH_TIMEOUT_MS) {
+      const timeout = parseInt(process.env.GOOGLE_GEMINI_URL_FETCH_TIMEOUT_MS, 10);
+      if (!isNaN(timeout) && timeout >= 1000 && timeout <= 30000) {
+        this.config.urlContext.defaultTimeoutMs = timeout;
+        logger.info(`[ConfigurationManager] URL fetch timeout set to: ${timeout}ms`);
+      } else {
+        logger.warn(`[ConfigurationManager] Invalid URL fetch timeout '${process.env.GOOGLE_GEMINI_URL_FETCH_TIMEOUT_MS}'. Must be between 1000 and 30000 ms.`);
+      }
+    }
+
+    if (process.env.GOOGLE_GEMINI_URL_ALLOWED_DOMAINS) {
+      try {
+        const domains = this.parseStringArray(process.env.GOOGLE_GEMINI_URL_ALLOWED_DOMAINS);
+        this.config.urlContext.allowedDomains = domains;
+        logger.info(`[ConfigurationManager] URL allowed domains set to: ${domains.join(', ')}`);
+      } catch (error) {
+        logger.warn(`[ConfigurationManager] Invalid URL allowed domains format: ${error}`);
+      }
+    }
+
+    if (process.env.GOOGLE_GEMINI_URL_BLOCKLIST) {
+      try {
+        const domains = this.parseStringArray(process.env.GOOGLE_GEMINI_URL_BLOCKLIST);
+        this.config.urlContext.blocklistedDomains = domains;
+        logger.info(`[ConfigurationManager] URL blocklisted domains set to: ${domains.join(', ')}`);
+      } catch (error) {
+        logger.warn(`[ConfigurationManager] Invalid URL blocklist format: ${error}`);
+      }
+    }
+
+    if (process.env.GOOGLE_GEMINI_URL_CONVERT_TO_MARKDOWN) {
+      this.config.urlContext.convertToMarkdown = process.env.GOOGLE_GEMINI_URL_CONVERT_TO_MARKDOWN.toLowerCase() === 'true';
+      logger.info(`[ConfigurationManager] URL markdown conversion enabled: ${this.config.urlContext.convertToMarkdown}`);
+    }
+
+    if (process.env.GOOGLE_GEMINI_URL_INCLUDE_METADATA) {
+      this.config.urlContext.includeMetadata = process.env.GOOGLE_GEMINI_URL_INCLUDE_METADATA.toLowerCase() === 'true';
+      logger.info(`[ConfigurationManager] URL metadata inclusion enabled: ${this.config.urlContext.includeMetadata}`);
+    }
+
+    if (process.env.GOOGLE_GEMINI_URL_ENABLE_CACHING) {
+      this.config.urlContext.enableCaching = process.env.GOOGLE_GEMINI_URL_ENABLE_CACHING.toLowerCase() === 'true';
+      logger.info(`[ConfigurationManager] URL caching enabled: ${this.config.urlContext.enableCaching}`);
+    }
+
+    if (process.env.GOOGLE_GEMINI_URL_USER_AGENT) {
+      this.config.urlContext.userAgent = process.env.GOOGLE_GEMINI_URL_USER_AGENT;
+      logger.info(`[ConfigurationManager] URL user agent set to: ${this.config.urlContext.userAgent}`);
+    }
+
+    logger.info("[ConfigurationManager] URL context configuration loaded.");
 
     this.config.allowedOutputPaths = [];
     const allowedOutputPathsEnv = process.env.ALLOWED_OUTPUT_PATHS;
@@ -743,5 +860,33 @@ export class ConfigurationManager {
         (!process.env.GOOGLE_GEMINI_ROUTING_PREFER_COST &&
           !process.env.GOOGLE_GEMINI_ROUTING_PREFER_SPEED),
     };
+  }
+
+  /**
+   * Parse a comma-separated string or JSON array into a string array
+   */
+  private parseStringArray(value: string): string[] {
+    if (!value || value.trim() === '') {
+      return [];
+    }
+
+    // Try to parse as JSON first
+    if (value.trim().startsWith('[')) {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) {
+          return parsed;
+        }
+        throw new Error('Not a string array');
+      } catch (error) {
+        throw new Error(`Invalid JSON array format: ${error}`);
+      }
+    }
+
+    // Parse as comma-separated string
+    return value
+      .split(',')
+      .map(item => item.trim())
+      .filter(item => item.length > 0);
   }
 }

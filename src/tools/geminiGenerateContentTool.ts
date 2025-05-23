@@ -63,8 +63,20 @@ export const geminiGenerateContentTool = (
         safetySettings,
         systemInstruction,
         cachedContentName,
+        urlContext,
         modelPreferences,
       } = args;
+
+      // Calculate URL context metrics for model selection
+      let urlCount = 0;
+      let estimatedUrlContentSize = 0;
+      
+      if (urlContext?.urls) {
+        urlCount = urlContext.urls.length;
+        // Estimate content size based on configured limits
+        const maxContentKb = urlContext.fetchOptions?.maxContentKb || 100;
+        estimatedUrlContentSize = urlCount * maxContentKb * 1024; // Convert to bytes
+      }
 
       const resultText = await serviceInstance.generateContent({
         prompt,
@@ -73,11 +85,14 @@ export const geminiGenerateContentTool = (
         safetySettings: convertSafetySettings(safetySettings),
         systemInstruction,
         cachedContentName,
+        urlContext,
         preferQuality: modelPreferences?.preferQuality,
         preferSpeed: modelPreferences?.preferSpeed,
         preferCost: modelPreferences?.preferCost,
         complexityHint: modelPreferences?.complexityHint,
         taskType: modelPreferences?.taskType,
+        urlCount,
+        estimatedUrlContentSize,
       });
 
       // Format the successful output for MCP

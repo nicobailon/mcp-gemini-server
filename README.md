@@ -22,7 +22,7 @@
 
 This project provides a dedicated MCP (Model Context Protocol) server that wraps the `@google/genai` SDK (v0.10.0). It exposes Google's Gemini model capabilities as standard MCP tools, allowing other LLMs (like Claude) or MCP-compatible systems to leverage Gemini's features as a backend workhorse.
 
-This server aims to simplify integration with Gemini models by providing a consistent, tool-based interface managed via the MCP standard. It supports the latest Gemini models including `gemini-1.5-pro-latest`, `gemini-1.5-flash-latest`, and `gemini-2.5-pro` models.
+This server aims to simplify integration with Gemini models by providing a consistent, tool-based interface managed via the MCP standard. It supports the latest Gemini models including `gemini-1.5-pro-latest`, `gemini-1.5-flash`, and `gemini-2.5-pro` models.
 
 
 ## Features
@@ -30,12 +30,12 @@ This server aims to simplify integration with Gemini models by providing a consi
 * **Core Generation:** Standard (`gemini_generateContent`) and streaming (`gemini_generateContentStream`) text generation with support for system instructions and cached content.
 * **Function Calling:** Enables Gemini models to request the execution of client-defined functions (`gemini_functionCall`).
 * **Stateful Chat:** Manages conversational context across multiple turns (`gemini_startChat`, `gemini_sendMessage`, `gemini_sendFunctionResult`) with support for system instructions, tools, and cached content.
-* **File Handling:** Upload, list, retrieve, and delete files using the Gemini API with enhanced path security.
+* **Inline Data Processing:** Process images and audio content using inline base64 encoding for efficient content analysis without file uploads.
 * **Caching:** Create, list, retrieve, update, and delete cached content to optimize prompts with support for tools and tool configurations.
 * **Image Generation:** Generate images from text prompts using Gemini 2.0 Flash Experimental (`gemini_generateImage`) with control over resolution, number of images, and negative prompts. Also supports the latest Imagen 3.1 model for high-quality dedicated image generation with advanced style controls. Note that Gemini 2.5 models (Flash and Pro) do not currently support image generation.
 * **Object Detection:** Detect objects in images and return bounding box coordinates (`gemini_objectDetection`) with custom prompt additions and output format options.
 * **Visual Content Understanding:** Extract information from charts, diagrams, and other visual content (`gemini_contentUnderstanding`) with structured output options.
-* **Audio Transcription:** Transcribe audio files with optional timestamps and multilingual support (`gemini_audioTranscription`) for both small and large files.
+* **Audio Transcription:** Transcribe audio files with optional timestamps and multilingual support (`gemini_analyze_media` with `analysisType: "audio_transcription"`) - server reads files from disk and handles base64 conversion internally (up to 20MB file size limit).
 * **URL Context Processing:** Fetch and analyze web content directly from URLs with advanced security, caching, and content processing capabilities.
   * `gemini_generateContent`: Enhanced with URL context support for including web content in prompts
   * `gemini_generateContentStream`: Streaming generation with URL context integration
@@ -52,7 +52,7 @@ This server aims to simplify integration with Gemini models by providing a consi
 
 * Node.js (v18 or later)
 * An API Key from **Google AI Studio** (<https://aistudio.google.com/app/apikey>).
-  * **Important:** The File Handling and Caching APIs are **only compatible with Google AI Studio API keys** and are **not supported** when using Vertex AI credentials. This server does not currently support Vertex AI authentication.
+  * **Important:** The Caching API is **only compatible with Google AI Studio API keys** and is **not supported** when using Vertex AI credentials. This server does not currently support Vertex AI authentication.
 
 ## Installation & Setup
 
@@ -115,7 +115,7 @@ This server aims to simplify integration with Gemini models by providing a consi
             "MCP_SERVER_PORT": "8080",            // Required: Server port  
             "MCP_CONNECTION_TOKEN": "YOUR_GENERATED_CONNECTION_TOKEN", // Required: Use the token from step 4
             "GOOGLE_GEMINI_MODEL": "gemini-1.5-flash", // Optional: Set a default model
-            "GEMINI_SAFE_FILE_BASE_DIR": "/var/opt/mcp-gemini-server/gemini_files", // Optional: Restrict file operations
+            // Optional security configurations removed - file operations no longer supported
             "ALLOWED_OUTPUT_PATHS": "/var/opt/mcp-gemini-server/outputs,/tmp/mcp-gemini-outputs" // Optional: Comma-separated list of allowed output directories for mcpCallServerTool and writeToFileTool
           },
           "disabled": false,
@@ -251,23 +251,14 @@ This server provides the following MCP tools. Parameter schemas are defined usin
     * `safetySettings` (array) - Safety settings to apply to both routing and final response.
     * `systemInstruction` (string or object) - A system instruction to guide the model's behavior after routing.
 
-### File Handling (Google AI Studio Key Required)
+### Remote File Operations (Deprecated - Use Inline Data Instead)
 
-* **`gemini_uploadFile`**
-  * *Description:* Uploads a file from a local path.
-  * *Required Params:* `filePath` (string - **must be an absolute path**)
-  * *Optional Params:* `displayName` (string), `mimeType` (string)
-  * *Security Note:* File paths are strictly validated against the secure base directory specified in the `GEMINI_SAFE_FILE_BASE_DIR` environment variable. All file operations are restricted to this directory to prevent path traversal attacks. If this environment variable is not set, the current working directory is used as the default secure base path.
-* **`gemini_listFiles`**
-  * *Description:* Lists previously uploaded files.
-  * *Required Params:* None
-  * *Optional Params:* `pageSize` (number), `pageToken` (string - Note: `pageToken` may not be reliably returned currently).
-* **`gemini_getFile`**
-  * *Description:* Retrieves metadata for a specific uploaded file.
-  * *Required Params:* `fileName` (string - e.g., `files/abc123xyz`)
-* **`gemini_deleteFile`**
-  * *Description:* Deletes an uploaded file.
-  * *Required Params:* `fileName` (string - e.g., `files/abc123xyz`)
+* **`gemini_remote_files`**
+  * *Description:* Provides guidance on migrating from file upload operations to inline data usage. File upload, list, get, and delete operations are no longer supported.
+  * *Required Params:* `operation` (string - "upload", "list", "get", or "delete")
+  * *Optional Params:* `fileName` (string - for get/delete operations)
+  * *Response:* Returns detailed guidance on how to use inline base64 data instead of file operations, including code examples and limitations.
+  * *Migration Note:* This tool helps users transition from the deprecated file upload system to the current inline data approach. For images and audio files under 20MB, use base64 encoding directly in tool parameters.
 
 ### Caching (Google AI Studio Key Required)
 
@@ -321,47 +312,50 @@ This server provides the following MCP tools. Parameter schemas are defined usin
 
 * **`gemini_objectDetection`**
   * *Description:* Detects objects in images and returns their positions with bounding box coordinates.
-  * *Required Params:* `image` (object with `type` ["url" | "base64"], `data` [URL string or base64 data], and `mimeType`)
+  * *Required Params:* `image` (object with `type` "base64", `data` [base64-encoded image data], and `mimeType`)
   * *Optional Params:* 
     * `modelName` (string - defaults to server's default model)
     * `promptAddition` (string - custom instructions for detection)
     * `outputFormat` (string enum: "json" | "text", default: "json")
     * `safetySettings` (array) - Controls content filtering
   * *Response:* JSON array of detected objects with labels, normalized bounding box coordinates (0-1000 scale), and confidence scores. When `outputFormat` is "text", returns natural language description.
-  * *Notes:* This tool is optimized for common object detection in photographs, diagrams, and scenes.
+  * *Notes:* This tool is optimized for common object detection in photographs, diagrams, and scenes. Images must be provided as base64-encoded data.
 
 ### Visual Content Understanding
 
 * **`gemini_contentUnderstanding`**
   * *Description:* Analyzes and extracts information from visual content like charts, diagrams, documents, and complex visuals.
   * *Required Params:* 
-    * `image` (object with `type` ["url" | "base64"], `data` [URL string or base64 data], and `mimeType`)
+    * `image` (object with `type` "base64", `data` [base64-encoded image data], and `mimeType`)
     * `prompt` (string - instructions for analyzing the content)
   * *Optional Params:* 
     * `modelName` (string - defaults to server's default model)
     * `structuredOutput` (boolean - whether to return JSON structure)
     * `safetySettings` (array) - Controls content filtering
   * *Response:* When `structuredOutput` is true, returns JSON-structured data extracted from the visual content. Otherwise, returns natural language analysis.
-  * *Notes:* Particularly effective for extracting data from charts, tables, diagrams, receipts, documents, and other structured visual information.
+  * *Notes:* Particularly effective for extracting data from charts, tables, diagrams, receipts, documents, and other structured visual information. Images must be provided as base64-encoded data.
 
 ### Audio Transcription
 
-* **`gemini_audioTranscription`**
-  * *Description:* Transcribes audio files using Gemini models. Supports both direct processing (<20MB) and File API processing (larger files require Google AI Studio API key).
-  * *Required Params:* `filePath` (string - **must be an absolute path** accessible by the server process)
+* **`gemini_analyze_media`** (with `analysisType: "audio_transcription"`)
+  * *Description:* Transcribes audio files using Gemini models. The server reads the file from disk and handles base64 conversion internally.
+  * *Required Params:* 
+    * `analysisType` (string - must be "audio_transcription")
+    * `filePath` (string - **must be an absolute path** accessible by the server process)
   * *Optional Params:*
     * `modelName` (string - defaults to server's default model)
     * `includeTimestamps` (boolean - include timestamps for paragraphs/speaker changes)
     * `language` (string - BCP-47 code, e.g., 'en-US', 'fr-FR')
     * `prompt` (string - additional instructions for transcription)
     * `mimeType` (string - audio format, inferred from extension if not provided)
-  * *Supported Audio Formats:* MP3, WAV, OGG, M4A, FLAC (audio/mpeg, audio/wav, audio/ogg, audio/mp4, audio/x-m4a, audio/flac, audio/x-flac)
-  * *Security Note:* File paths are strictly validated against the secure base directory (`GEMINI_SAFE_FILE_BASE_DIR` environment variable). Operations are restricted to this directory to prevent path traversal attacks.
+  * *Supported Audio Formats:* WAV, MP3, AIFF, AAC, OGG, FLAC (audio/wav, audio/mp3, audio/aiff, audio/aac, audio/ogg, audio/flac)
+  * *File Size Limitation:* The server enforces a 20MB limit on the original file size (before base64 encoding). Files exceeding this limit will be rejected with an error message.
   * *Notes:*
-    * Files under 20MB are processed directly with inline base64 encoding
-    * Files over 20MB require a Google AI Studio API key and use the File API
-    * The actual upper file size limit when using File API is determined by the Gemini API itself
+    * The server reads the file from the provided path and converts it to base64 internally
+    * File paths are validated for security - must be within allowed directories
+    * The 20MB limit applies to the original file size, not the base64-encoded size
     * Transcription quality may vary based on audio quality, background noise, and number of speakers
+    * For larger files, consider splitting the audio into smaller segments before transcription
 
 ### URL Content Analysis
 
@@ -595,20 +589,21 @@ Here are examples of how an MCP client (like Claude) might call these tools usin
 </use_mcp_tool>
 ```
 
-**Example 6: Uploading a File**
+**Example 6: Using Remote Files Tool for Migration Guidance**
 
 ```xml
 <use_mcp_tool>
   <server_name>gemini-server</server_name>
-  <tool_name>gemini_uploadFile</tool_name>
+  <tool_name>gemini_remote_files</tool_name>
   <arguments>
     {
-      "filePath": "C:\\Users\\YourUser\\Documents\\my_document.txt", // IMPORTANT: Use absolute path with escaped backslashes if needed
-      "displayName": "My Document"
+      "operation": "upload"
     }
   </arguments>
 </use_mcp_tool>
 ```
+
+*This returns detailed guidance on how to use inline base64 data instead of file uploads.*
 
 
 **Example 7: Generating an Image**
@@ -676,8 +671,8 @@ Here are examples of how an MCP client (like Claude) might call these tools usin
   <arguments>
     {
       "image": {
-        "type": "url",
-        "data": "https://example.com/images/street_scene.jpg",
+        "type": "base64",
+        "data": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkG...", // Base64 encoded image data
         "mimeType": "image/jpeg"
       },
       "outputFormat": "json",
@@ -707,14 +702,15 @@ Here are examples of how an MCP client (like Claude) might call these tools usin
 </use_mcp_tool>
 ```
 
-**Example 10: Audio Transcription (Small File)**
+**Example 10: Audio Transcription**
 
 ```xml
 <use_mcp_tool>
   <server_name>gemini-server</server_name>
-  <tool_name>gemini_audioTranscription</tool_name>
+  <tool_name>gemini_analyze_media</tool_name>
   <arguments>
     {
+      "analysisType": "audio_transcription",
       "filePath": "/absolute/path/to/recording.mp3",
       "includeTimestamps": true,
       "language": "en-US",
@@ -724,15 +720,16 @@ Here are examples of how an MCP client (like Claude) might call these tools usin
 </use_mcp_tool>
 ```
 
-**Example 11: Audio Transcription (Large File with File API)**
+**Example 11: Audio Transcription with MIME Type**
 
 ```xml
 <use_mcp_tool>
   <server_name>gemini-server</server_name>
-  <tool_name>gemini_audioTranscription</tool_name>
+  <tool_name>gemini_analyze_media</tool_name>
   <arguments>
     {
-      "filePath": "/absolute/path/to/long-recording.wav",
+      "analysisType": "audio_transcription",
+      "filePath": "/absolute/path/to/recording.wav",
       "mimeType": "audio/wav",
       "includeTimestamps": true,
       "language": "fr-FR"
@@ -740,6 +737,8 @@ Here are examples of how an MCP client (like Claude) might call these tools usin
   </arguments>
 </use_mcp_tool>
 ```
+
+*Note: The server reads the file and converts it to base64 internally. Files over 20MB (original size) will return an error. Consider splitting large audio files into smaller segments.*
 
 **Example 12: Message Routing Between Models**
 
@@ -973,12 +972,12 @@ The `mcp-gemini-server` also includes tools like `mcpConnectToServer`, `mcpListS
 - `MCP_CONNECTION_TOKEN`: A strong, unique shared secret token that clients must provide when connecting to this server. This is NOT provided by Google or any external service - you must generate it yourself using a cryptographically secure method. See the installation instructions (step 4) for generation methods. This token must be identical on both the server and all connecting clients.
 
 ### Optional - Gemini API Configuration:
-- `GOOGLE_GEMINI_MODEL`: Default model to use (e.g., `gemini-1.5-pro-latest`, `gemini-1.5-flash-latest`)
+- `GOOGLE_GEMINI_MODEL`: Default model to use (e.g., `gemini-1.5-pro-latest`, `gemini-1.5-flash`)
 - `GOOGLE_GEMINI_DEFAULT_THINKING_BUDGET`: Default thinking budget in tokens (0-24576) for controlling model reasoning
 - `GOOGLE_GEMINI_IMAGE_RESOLUTION`: Default image resolution (512x512, 1024x1024, or 1536x1536)
 - `GOOGLE_GEMINI_MAX_IMAGE_SIZE_MB`: Maximum allowed image size in MB
 - `GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS`: JSON array of supported image formats (e.g., `["image/jpeg","image/png","image/webp"]`)
-- `GEMINI_SAFE_FILE_BASE_DIR`: Restricts Gemini-specific file operations (like uploads managed by `gemini_uploadFile`) to a specific directory for security (defaults to current working directory). This is primarily used for files that will be processed by Gemini API services.
+- `GEMINI_SAFE_AUDIO_BASE_DIR`: Restricts audio file access for transcription to a specific directory for security (defaults to current working directory). This is used for validating file paths in `gemini_analyze_media` when `analysisType` is "audio_transcription".
 
 ### Optional - URL Context Configuration:
 - `GOOGLE_GEMINI_ENABLE_URL_CONTEXT`: Enable URL context features (options: `true`, `false`; default: `false`)
@@ -1035,7 +1034,7 @@ GOOGLE_GEMINI_MAX_IMAGE_SIZE_MB=10
 GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS=["image/jpeg","image/png","image/webp"]
 
 # Security Configuration
-GEMINI_SAFE_FILE_BASE_DIR=/var/opt/mcp-gemini-server/gemini_files  # For Gemini API file operations
+GEMINI_SAFE_AUDIO_BASE_DIR=/var/opt/mcp-gemini-server/audio_files  # For audio transcription file validation
 ALLOWED_OUTPUT_PATHS=/var/opt/mcp-gemini-server/outputs,/tmp/mcp-gemini-outputs   # For mcpCallServerTool and writeToFileTool
 
 # URL Context Configuration
@@ -1073,7 +1072,7 @@ This server implements several security measures to protect against common vulne
 
 1. **Path Validation and Isolation**
    - **ALLOWED_OUTPUT_PATHS**: Critical security feature that restricts where file writing tools can write files
-   - **GEMINI_SAFE_FILE_BASE_DIR**: Restricts where Gemini-specific file operations can access and modify files
+   - **GEMINI_SAFE_AUDIO_BASE_DIR**: Restricts where audio transcription can access audio files for processing
    - **Security Principle**: Files can only be created, read, or modified within explicitly allowed directories
    - **Production Requirement**: Always use absolute paths to prevent potential directory traversal attacks
 
@@ -1135,7 +1134,7 @@ This server implements several security measures to protect against common vulne
 ### Production Deployment Recommendations
 
 1. **File Paths**
-   - Always use absolute paths for `ALLOWED_OUTPUT_PATHS` and `GEMINI_SAFE_FILE_BASE_DIR` 
+   - Always use absolute paths for `ALLOWED_OUTPUT_PATHS` and `GEMINI_SAFE_AUDIO_BASE_DIR` 
    - Use paths outside the application directory to prevent source code modification
    - Restrict to specific, limited-purpose directories with appropriate permissions
    - NEVER include sensitive system directories like "/", "/etc", "/usr", "/bin", or "/home"
@@ -1196,7 +1195,7 @@ The server uses a multi-layered approach to error handling:
 * **File/Cache Not Found:** `InvalidRequest` - Resource not found, with details about the missing resource.
 * **Rate Limits:** `ResourceExhausted` - API quota exceeded or rate limits hit, with details about limits.
 * **File API Unavailable:** `FailedPrecondition` - When attempting File API operations without a valid Google AI Studio key.
-* **Path Traversal Security:** `InvalidParams` - Attempts to access files outside the allowed directory with details about the security validation failure.
+* **Path Traversal Security:** `InvalidParams` - Attempts to access audio files outside the allowed directory with details about the security validation failure.
 * **Image/Audio Processing Errors:** 
   * `InvalidParams` - For format issues, size limitations, or invalid inputs
   * `InternalError` - For processing failures during analysis
@@ -1256,10 +1255,10 @@ For running tests that require API access, create a `.env.test` file in the proj
 GOOGLE_GEMINI_API_KEY=your_api_key_here
 
 # Required for router tests
-GOOGLE_GEMINI_MODEL=gemini-1.5-flash-latest
+GOOGLE_GEMINI_MODEL=gemini-1.5-flash
 
-# Required for file tests
-GEMINI_SAFE_FILE_BASE_DIR=/path/to/allowed/files
+# Required for audio transcription tests
+GEMINI_SAFE_AUDIO_BASE_DIR=/path/to/allowed/audio/files
 ```
 
 The test suite will automatically detect available environment variables and skip tests that require missing configuration.
@@ -1474,15 +1473,16 @@ This ensures clean termination when the server is run in containerized environme
 
 ## Known Issues
 
-* **Pagination Issues:** `gemini_listFiles` and `gemini_listCaches` may not reliably return `nextPageToken` due to limitations in iterating the SDK's Pager object. A workaround is implemented but has limited reliability.
-* **Path Requirements:** All file operations require absolute paths when run from the server environment. Relative paths are not supported.
-* **API Compatibility:** File Handling & Caching APIs are **not supported with Vertex AI credentials**, only Google AI Studio API keys.
+* **Pagination Issues:** `gemini_listCaches` may not reliably return `nextPageToken` due to limitations in iterating the SDK's Pager object. A workaround is implemented but has limited reliability.
+* **Path Requirements:** Audio transcription operations require absolute paths when run from the server environment. Relative paths are not supported.
+* **File Size Limitations:** Audio files for transcription are limited to 20MB (original file size, before base64 encoding). The server reads the file and converts it to base64 internally. Larger files will be rejected with an error message.
+* **API Compatibility:** Caching API is **not supported with Vertex AI credentials**, only Google AI Studio API keys.
 * **Model Support:** This server is primarily tested and optimized for the latest Gemini 1.5 and 2.5 models. While other models should work, these models are the primary focus for testing and feature compatibility.
 * **TypeScript Build Issues:** The TypeScript build may show errors primarily in test files. These are type compatibility issues that don't affect the runtime functionality. The server itself will function properly despite these build warnings.
 * **Resource Usage:** 
   * Image processing requires significant resource usage, especially for large resolution images. Consider using smaller resolutions (512x512) for faster responses.
   * Generating multiple images simultaneously increases resource usage proportionally.
-  * Audio transcription of large files may take significant time and resources.
+  * Audio transcription is limited to files under 20MB (original file size). The server reads files from disk and handles base64 conversion internally. Processing may take significant time and resources depending on file size and audio complexity.
 * **Content Handling:** 
   * Base64-encoded images are streamed in chunks to handle large file sizes efficiently.
   * Visual content understanding may perform differently across various types of visual content (charts vs. diagrams vs. documents).

@@ -152,6 +152,7 @@ export class ConfigurationManager {
       process.env.MCP_TRANSPORT || process.env.MCP_TRANSPORT_TYPE || "stdio";
 
     // Only require MCP server variables for HTTP/SSE transport modes
+    // Note: MCP_CLIENT_ID is not required as it's optional with a default value
     if (
       transportType === "http" ||
       transportType === "sse" ||

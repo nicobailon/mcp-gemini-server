@@ -63,35 +63,7 @@ export const DEFAULT_SAFETY_SETTINGS = [
 ] as SafetySetting[];
 
 /**
- * Schema for thinking configuration to control model reasoning
- */
-export const ThinkingConfigSchema = z
-  .object({
-    thinkingBudget: z.number().int().min(0).max(24576).optional(),
-    reasoningEffort: z.enum(["none", "low", "medium", "high"]).optional(),
-  })
-  .optional();
-
-/**
- * Generation configuration schema for text generation
- */
-export const GenerationConfigSchema = z
-  .object({
-    temperature: z.number().min(0).max(1).optional(),
-    topP: z.number().min(0).max(1).optional(),
-    topK: z.number().int().min(1).optional(),
-    maxOutputTokens: z.number().int().min(1).optional(),
-    stopSequences: z.array(z.string()).optional(),
-    thinkingConfig: ThinkingConfigSchema,
-  })
-  .optional();
-
-/**
- * Image generation schemas
- */
-
-/**
- * Valid image resolutions supported by Gemini image generation
+ * Image resolution schema for image generation
  */
 export const ImageResolutionSchema = z
   .enum(["512x512", "1024x1024", "1536x1536"])
@@ -136,6 +108,34 @@ export const STYLE_PRESETS = [
   "neon",
   "fantasy",
 ] as const;
+
+/**
+ * Schema for thinking configuration to control model reasoning
+ */
+export const ThinkingConfigSchema = z
+  .object({
+    thinkingBudget: z.number().int().min(0).max(24576).optional(),
+    reasoningEffort: z.enum(["none", "low", "medium", "high"]).optional(),
+  })
+  .optional();
+
+/**
+ * Generation configuration schema for text generation
+ */
+export const GenerationConfigSchema = z
+  .object({
+    temperature: z.number().min(0).max(1).optional(),
+    topP: z.number().min(0).max(1).optional(),
+    topK: z.number().int().min(1).optional(),
+    maxOutputTokens: z.number().int().min(1).optional(),
+    stopSequences: z.array(z.string()).optional(),
+    thinkingConfig: ThinkingConfigSchema,
+  })
+  .optional();
+
+/**
+ * Image generation schemas
+ */
 
 /**
  * Content generation schemas

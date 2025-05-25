@@ -1,35 +1,19 @@
+import { GeminiService } from "../services/index.js";
+import { logger } from "../utils/index.js";
 import {
   TOOL_NAME_GENERATE_IMAGE,
   TOOL_DESCRIPTION_GENERATE_IMAGE,
   GEMINI_GENERATE_IMAGE_PARAMS,
   GeminiGenerateImageArgs,
 } from "./geminiGenerateImageParams.js";
-import { GeminiService } from "../services/index.js";
-import { logger } from "../utils/index.js";
-import { mapToMcpError } from "../utils/errors.js";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import type {
-  SafetySetting,
-  HarmCategory,
-  HarmBlockThreshold,
-} from "@google/genai";
-import { ImageGenerationResult } from "../types/index.js";
+import { mapAnyErrorToMcpError } from "../utils/errors.js";
 import type { NewGeminiServiceToolObject } from "./registration/ToolAdapter.js";
-
-// Helper function to convert safety settings from schema to SDK types
-const convertSafetySettings = (
-  safetySettings?: Array<{ category: string; threshold: string }>
-): SafetySetting[] | undefined => {
-  if (!safetySettings) return undefined;
-
-  return safetySettings.map((setting) => ({
-    category: setting.category as HarmCategory,
-    threshold: setting.threshold as HarmBlockThreshold,
-  }));
-};
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { HarmCategory, HarmBlockThreshold } from "@google/genai";
 
 /**
- * Gemini Generate Image Tool - New format with dependency injection
+ * Handles Gemini image generation operations.
+ * Generates images from text prompts using Google's image generation models.
  */
 export const geminiGenerateImageTool: NewGeminiServiceToolObject<
   GeminiGenerateImageArgs,
@@ -37,22 +21,16 @@ export const geminiGenerateImageTool: NewGeminiServiceToolObject<
 > = {
   name: TOOL_NAME_GENERATE_IMAGE,
   description: TOOL_DESCRIPTION_GENERATE_IMAGE,
-  inputSchema: GEMINI_GENERATE_IMAGE_PARAMS.shape,
-  /**
-   * Processes the request for the gemini_generate_image tool.
-   * @param args - The arguments object matching GEMINI_GENERATE_IMAGE_PARAMS.
-   * @param service - The GeminiService instance injected via dependency injection.
-   * @returns Base64-encoded generated images with metadata for MCP.
-   */
+  inputSchema: GEMINI_GENERATE_IMAGE_PARAMS,
   execute: async (args: GeminiGenerateImageArgs, service: GeminiService) => {
     logger.debug(`Received ${TOOL_NAME_GENERATE_IMAGE} request:`, {
       model: args.modelName,
       resolution: args.resolution,
-      stylePreset: args.stylePreset,
+      numberOfImages: args.numberOfImages,
     }); // Avoid logging full prompt for privacy/security
 
     try {
-      // Extract arguments
+      // Extract arguments and call the service
       const {
         modelName,
         prompt,
@@ -66,12 +44,18 @@ export const geminiGenerateImageTool: NewGeminiServiceToolObject<
         modelPreferences,
       } = args;
 
-      const result: ImageGenerationResult = await service.generateImage(
+      // Convert safety settings from schema to SDK types if provided
+      const convertedSafetySettings = safetySettings?.map((setting) => ({
+        category: setting.category as HarmCategory,
+        threshold: setting.threshold as HarmBlockThreshold,
+      }));
+
+      const result = await service.generateImage(
         prompt,
         modelName,
         resolution,
         numberOfImages,
-        convertSafetySettings(safetySettings),
+        convertedSafetySettings,
         negativePrompt,
         stylePreset,
         seed,
@@ -87,13 +71,12 @@ export const geminiGenerateImageTool: NewGeminiServiceToolObject<
 
       // Format success output for MCP - provide both JSON and direct image formats
       // This allows clients to choose the most appropriate format for their needs
-      // Convert the result to the standard MCP format
       return {
         content: [
           // Include a text description of the generated images
           {
             type: "text" as const,
-            text: `Generated ${result.images.length} ${args.resolution || "1024x1024"} image(s) from prompt.`,
+            text: `Generated ${result.images.length} ${resolution || "1024x1024"} image(s) from prompt.`,
           },
           // Include the generated images as image content types
           ...result.images.map((img) => ({
@@ -107,7 +90,7 @@ export const geminiGenerateImageTool: NewGeminiServiceToolObject<
       logger.error(`Error processing ${TOOL_NAME_GENERATE_IMAGE}:`, error);
 
       // Use the centralized error mapping utility to ensure consistent error handling
-      throw mapToMcpError(error, TOOL_NAME_GENERATE_IMAGE);
+      throw mapAnyErrorToMcpError(error, TOOL_NAME_GENERATE_IMAGE);
     }
   },
 };

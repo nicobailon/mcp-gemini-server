@@ -174,44 +174,6 @@ export function generateTestPrompt(
 }
 
 /**
- * Generate a random image prompt suitable for image generation tests
- *
- * @returns A descriptive image prompt string
- */
-export function generateImagePrompt(): string {
-  const subjects = [
-    "a mountain landscape",
-    "a futuristic city",
-    "a serene beach at sunset",
-    "a fantasy castle",
-    "a colorful garden",
-    "an underwater scene",
-    "a space station orbiting a planet",
-    "a cozy coffee shop",
-    "a medieval village",
-    "a jungle with exotic animals",
-  ];
-
-  const styles = [
-    "in the style of watercolor painting",
-    "with vibrant colors",
-    "with a minimalist design",
-    "in photorealistic detail",
-    "in the style of anime",
-    "with a cyberpunk aesthetic",
-    "with a dreamy atmosphere",
-    "in a retro pixel art style",
-    "with dramatic lighting",
-    "in an impressionist style",
-  ];
-
-  const subject = subjects[Math.floor(Math.random() * subjects.length)];
-  const style = styles[Math.floor(Math.random() * styles.length)];
-
-  return `Generate ${subject} ${style}`;
-}
-
-/**
  * Generate a temporary test file with random content
  *
  * @param fileName - Name of the file (without path)

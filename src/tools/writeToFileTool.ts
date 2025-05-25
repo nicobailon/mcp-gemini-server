@@ -35,21 +35,8 @@ export const writeToFileTool = (server: McpServer): void => {
     );
 
     try {
-      // Handle base64 encoding if specified
-      let contentToWrite = validatedArgs.content;
-      if (validatedArgs.encoding === "base64") {
-        try {
-          contentToWrite = Buffer.from(
-            validatedArgs.content,
-            "base64"
-          ).toString("utf8");
-        } catch (e) {
-          throw new McpError(
-            ErrorCode.InvalidParams,
-            "Invalid base64 content."
-          );
-        }
-      }
+      // Content is always plain text now
+      const contentToWrite = validatedArgs.content;
 
       // Validate and resolve the file path
       const safePath = validateAndResolvePath(validatedArgs.filePath, {
@@ -74,10 +61,7 @@ export const writeToFileTool = (server: McpServer): void => {
 
       // Write the file
       await fs.writeFile(safePath, contentToWrite, {
-        encoding:
-          validatedArgs.encoding === "base64"
-            ? "utf8"
-            : ((validatedArgs.encoding || "utf8") as BufferEncoding),
+        encoding: (validatedArgs.encoding || "utf8") as BufferEncoding,
       });
 
       // Return success response

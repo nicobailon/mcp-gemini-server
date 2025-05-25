@@ -37,8 +37,8 @@ export const stylePresetSchema = z
   ])
   .describe("Style preset to apply to the generated image.");
 
-// Reuse existing safety settings schema from validation schemas
-import { SafetySettingSchema } from "../services/gemini/GeminiValidationSchemas.js";
+// Reuse existing safety settings schema from common schemas
+import { SafetySettingSchema } from "./schemas/CommonSchemas.js";
 
 // Main parameters schema
 export const GEMINI_GENERATE_IMAGE_PARAMS = z.object({

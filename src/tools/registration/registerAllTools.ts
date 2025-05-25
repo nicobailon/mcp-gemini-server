@@ -8,7 +8,6 @@ import { ToolRegistry } from "./ToolRegistry.js";
 import {
   adaptServerOnlyTool,
   adaptGeminiServiceTool,
-  adaptNewToolObject,
   adaptNewGeminiServiceToolObject,
   adaptNewMcpClientServiceToolObject,
 } from "./ToolAdapter.js";
@@ -20,12 +19,10 @@ import { McpClientService } from "../../services/mcp/McpClientService.js";
 import { geminiGenerateContentConsolidatedTool } from "../geminiGenerateContentConsolidatedTool.js";
 import { geminiChatTool } from "../geminiChatTool.js";
 import { geminiRouteMessageTool } from "../geminiRouteMessageTool.js";
-// --- Remote Files Migration and Cache Tools ---
-import { geminiRemoteFilesTool } from "../geminiRemoteFilesTool.js";
-import { geminiCacheTool } from "../geminiCacheTool.js";
-// Image feature tools
+// Image generation tools
 import { geminiGenerateImageTool } from "../geminiGenerateImageTool.js";
-import { geminiAnalyzeMediaTool } from "../geminiAnalyzeMediaTool.js";
+// --- Cache Tools ---
+import { geminiCacheTool } from "../geminiCacheTool.js";
 // Code review tools
 import {
   geminiCodeReviewTool,
@@ -75,23 +72,14 @@ export function registerAllTools(server: McpServer): McpClientService {
       adaptGeminiServiceTool(geminiRouteMessageTool, "geminiRouteMessageTool")
     );
 
-    // File and cache management tools
-    registry.registerTool(
-      adaptGeminiServiceTool(geminiRemoteFilesTool, "geminiRemoteFilesTool")
-    );
-    registry.registerTool(
-      adaptGeminiServiceTool(geminiCacheTool, "geminiCacheTool")
-    );
-
-    // Image feature tools
+    // Image generation tools
     registry.registerTool(
       adaptNewGeminiServiceToolObject(geminiGenerateImageTool)
     );
+
+    // Cache management tools
     registry.registerTool(
-      adaptNewToolObject({
-        ...geminiAnalyzeMediaTool,
-        execute: geminiAnalyzeMediaTool.execute, // No cast needed
-      })
+      adaptGeminiServiceTool(geminiCacheTool, "geminiCacheTool")
     );
 
     // URL Context tools

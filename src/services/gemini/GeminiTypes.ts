@@ -38,20 +38,6 @@ declare module "@google/genai" {
 // Type-safe resource IDs
 export type CacheId = `cachedContents/${string}`;
 
-/**
- * Interface for image data input used across image-related operations
- */
-export interface ImagePart {
-  /** The type of image input (base64 or URL) */
-  type: "base64" | "url";
-
-  /** The image data - either a base64-encoded string or a valid URL */
-  data: string;
-
-  /** The MIME type of the image (must be one of: 'image/jpeg', 'image/png', 'image/webp') */
-  mimeType: string;
-}
-
 // Export the ChatSession interface for use across services
 export interface ChatSession {
   model: string;

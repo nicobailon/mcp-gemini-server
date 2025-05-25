@@ -11,7 +11,6 @@ import {
   SafetySetting,
   Part,
   ThinkingConfig,
-  ImagePart,
 } from "./GeminiTypes.js";
 import { ZodError } from "zod";
 import { validateGenerateContentParams } from "./GeminiValidationSchemas.js";
@@ -56,8 +55,6 @@ interface GenerateContentParams {
   safetySettings?: SafetySetting[];
   systemInstruction?: Content | string;
   cachedContentName?: string;
-  fileReferenceOrInlineData?: ImagePart | string;
-  inlineDataMimeType?: string;
   urlContext?: UrlContextParams;
 }
 
@@ -134,8 +131,6 @@ export class GeminiContentService {
           safetySettings: params.safetySettings,
           systemInstruction: params.systemInstruction,
           cachedContentName: params.cachedContentName,
-          inlineData: params.fileReferenceOrInlineData,
-          inlineDataMimeType: params.inlineDataMimeType,
         };
         validateGenerateContentParams(validationParams);
       } catch (validationError: unknown) {
@@ -202,8 +197,6 @@ export class GeminiContentService {
       safetySettings,
       systemInstruction,
       cachedContentName,
-      fileReferenceOrInlineData,
-      inlineDataMimeType,
       urlContext,
     } = params;
 
@@ -292,52 +285,6 @@ export class GeminiContentService {
 
     // Add the user's prompt after URL context
     contentParts.push({ text: prompt });
-
-    // Add inline data if provided
-    if (fileReferenceOrInlineData) {
-      if (typeof fileReferenceOrInlineData === "string") {
-        if (inlineDataMimeType) {
-          // Handle inline base64 data
-          contentParts.push({
-            inlineData: {
-              data: fileReferenceOrInlineData,
-              mimeType: inlineDataMimeType,
-            },
-          });
-        } else {
-          throw new GeminiValidationError(
-            "For inline data, inlineDataMimeType is required",
-            "fileReferenceOrInlineData"
-          );
-        }
-      } else if (
-        typeof fileReferenceOrInlineData === "object" &&
-        "type" in fileReferenceOrInlineData &&
-        "data" in fileReferenceOrInlineData &&
-        "mimeType" in fileReferenceOrInlineData
-      ) {
-        // Handle ImagePart type
-        const imagePart = fileReferenceOrInlineData as ImagePart;
-        if (imagePart.type === "base64") {
-          contentParts.push({
-            inlineData: {
-              data: imagePart.data,
-              mimeType: imagePart.mimeType,
-            },
-          });
-        } else {
-          throw new GeminiValidationError(
-            "URL-based images are not supported. Please provide base64-encoded image data instead.",
-            "fileReferenceOrInlineData"
-          );
-        }
-      } else {
-        throw new GeminiValidationError(
-          "Invalid inline data provided. Expected base64 string with mimeType or ImagePart object",
-          "fileReferenceOrInlineData"
-        );
-      }
-    }
 
     // Process systemInstruction if it's a string
     let formattedSystemInstruction: Content | undefined;
@@ -432,8 +379,6 @@ export class GeminiContentService {
           safetySettings: params.safetySettings,
           systemInstruction: params.systemInstruction,
           cachedContentName: params.cachedContentName,
-          inlineData: params.fileReferenceOrInlineData,
-          inlineDataMimeType: params.inlineDataMimeType,
         };
         validateGenerateContentParams(validationParams);
       } catch (validationError: unknown) {

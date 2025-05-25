@@ -24,6 +24,44 @@ export interface ModelCapabilities {
 
 export type ModelCapabilitiesMap = Record<string, ModelCapabilities>;
 
+/**
+ * Interface for results returned by image generation.
+ * Includes the generated images in base64 format with metadata.
+ */
+export interface ImageGenerationResult {
+  images: Array<{
+    base64Data: string;
+    mimeType: string;
+    width: number;
+    height: number;
+  }>;
+  promptSafetyMetadata?: {
+    blocked: boolean;
+    reasons?: string[];
+    safetyRatings?: Array<{
+      category: string;
+      severity:
+        | "SEVERITY_UNSPECIFIED"
+        | "HARM_CATEGORY_DEROGATORY"
+        | "HARM_CATEGORY_TOXICITY"
+        | "HARM_CATEGORY_VIOLENCE"
+        | "HARM_CATEGORY_SEXUAL"
+        | "HARM_CATEGORY_MEDICAL"
+        | "HARM_CATEGORY_DANGEROUS"
+        | "HARM_CATEGORY_HARASSMENT"
+        | "HARM_CATEGORY_HATE_SPEECH"
+        | "HARM_CATEGORY_SEXUALLY_EXPLICIT"
+        | "HARM_CATEGORY_DANGEROUS_CONTENT";
+      probability:
+        | "PROBABILITY_UNSPECIFIED"
+        | "NEGLIGIBLE"
+        | "LOW"
+        | "MEDIUM"
+        | "HIGH";
+    }>;
+  };
+}
+
 export interface ModelConfiguration {
   default: string;
   textGeneration: string[];
@@ -166,87 +204,3 @@ export const ContentSchema = z
     role: z.enum(["user", "model", "function", "tool"]).optional(), // Role is optional for some contexts
   })
   .strict();
-
-/**
- * Interface for results returned by image generation.
- * Includes the generated images in base64 format with metadata.
- */
-export interface ImageGenerationResult {
-  images: Array<{
-    base64Data: string;
-    mimeType: string;
-    width: number;
-    height: number;
-  }>;
-  promptSafetyMetadata?: {
-    blocked: boolean;
-    reasons?: string[];
-    safetyRatings?: Array<{
-      category: string;
-      severity:
-        | "SEVERITY_UNSPECIFIED"
-        | "HARM_CATEGORY_DEROGATORY"
-        | "HARM_CATEGORY_TOXICITY"
-        | "HARM_CATEGORY_VIOLENCE"
-        | "HARM_CATEGORY_SEXUAL"
-        | "HARM_CATEGORY_MEDICAL"
-        | "HARM_CATEGORY_DANGEROUS"
-        | "HARM_CATEGORY_HARASSMENT"
-        | "HARM_CATEGORY_HATE_SPEECH"
-        | "HARM_CATEGORY_SEXUALLY_EXPLICIT"
-        | "HARM_CATEGORY_DANGEROUS_CONTENT";
-      probability:
-        | "PROBABILITY_UNSPECIFIED"
-        | "NEGLIGIBLE"
-        | "LOW"
-        | "MEDIUM"
-        | "HIGH"
-        | "VERY_HIGH";
-    }>;
-  };
-  /**
-   * Additional metadata specific to the image generation process,
-   * such as model-specific parameters or generation statistics.
-   */
-  metadata?: Record<string, unknown>;
-}
-
-/**
- * Interface for results returned by object detection.
- * Includes detected objects with normalized bounding box coordinates and confidence scores.
- */
-export interface ObjectDetectionResult {
-  objects: Array<{
-    label: string;
-    boundingBox: {
-      yMin: number;
-      xMin: number;
-      yMax: number;
-      xMax: number;
-    };
-    confidence?: number;
-  }>;
-  promptSafetyMetadata?: {
-    blocked: boolean;
-    reasons?: string[];
-  };
-  rawText?: string;
-}
-
-/**
- * Interface for results returned by content understanding.
- * Includes extracted information from charts, diagrams, and other visual content.
- */
-export interface ContentUnderstandingResult {
-  analysis: {
-    text?: string;
-    data?: {
-      [key: string]: string | number | boolean | object | null;
-    };
-  };
-  promptSafetyMetadata?: {
-    blocked: boolean;
-    reasons?: string[];
-  };
-  rawText?: string;
-}

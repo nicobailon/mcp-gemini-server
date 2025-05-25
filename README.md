@@ -2,12 +2,14 @@
 
 ## Table of Contents
 - [Overview](#overview)
+- [File Uploads vs URL-Based Analysis](#file-uploads-vs-url-based-analysis)
 - [Features](#features)
 - [Prerequisites](#prerequisites)
 - [Installation & Setup](#installation--setup)
 - [Configuration](#configuration)
 - [Available Tools](#available-tools)
 - [Usage Examples](#usage-examples)
+- [Supported Multimedia Analysis Use Cases](#supported-multimedia-analysis-use-cases)
 - [MCP Gemini Server and Gemini SDK's MCP Function Calling](#mcp-gemini-server-and-gemini-sdks-mcp-function-calling)
 - [Environment Variables](#environment-variables)
 - [Security Considerations](#security-considerations)
@@ -24,18 +26,69 @@ This project provides a dedicated MCP (Model Context Protocol) server that wraps
 
 This server aims to simplify integration with Gemini models by providing a consistent, tool-based interface managed via the MCP standard. It supports the latest Gemini models including `gemini-1.5-pro-latest`, `gemini-1.5-flash`, and `gemini-2.5-pro` models.
 
+**Important Note:** This server does not support direct file uploads. Instead, it focuses on URL-based multimedia analysis for images and videos. For text-based content processing, use the standard content generation tools.
+
+## File Uploads vs URL-Based Analysis
+
+### ❌ Not Supported: Direct File Uploads
+
+This MCP Gemini Server **does not support** the following file upload operations:
+
+- **Local file uploads**: Cannot upload files from your local filesystem to Gemini
+- **Base64 encoded files**: Cannot process base64-encoded image or video data
+- **Binary file data**: Cannot handle raw file bytes or binary data
+- **File references**: Cannot process file IDs or references from uploaded content
+- **Audio file uploads**: Cannot upload and transcribe audio files directly
+
+**Why File Uploads Are Not Supported:**
+- Simplified architecture focused on URL-based processing
+- Enhanced security by avoiding file handling complexities
+- Reduced storage and bandwidth requirements
+- Streamlined codebase maintenance
+
+### ✅ Fully Supported: URL-Based Multimedia Analysis
+
+This server **fully supports** analyzing multimedia content from publicly accessible URLs:
+
+**Image Analysis from URLs:**
+- **Public image URLs**: Analyze images hosted on any publicly accessible web server
+- **Supported formats**: PNG, JPEG, WebP, HEIC, HEIF via direct URL access
+- **Multiple images**: Process multiple image URLs in a single request
+- **Security validation**: Automatic URL validation and security screening
+
+**YouTube Video Analysis:**
+- **Public YouTube videos**: Full analysis of any public YouTube video content
+- **Video understanding**: Extract insights, summaries, and detailed analysis
+- **Educational content**: Perfect for analyzing tutorials, lectures, and educational videos
+- **Multiple videos**: Process multiple YouTube URLs (up to 10 per request with Gemini 2.5+)
+
+**Web Content Processing:**
+- **HTML content**: Analyze and extract information from web pages
+- **Mixed media**: Combine text content with embedded images and videos
+- **Contextual analysis**: Process URLs alongside text prompts for comprehensive analysis
+
+### Alternatives for Local Content
+
+**If you have local files to analyze:**
+
+1. **Host on a web server**: Upload your files to a public web server and use the URL
+2. **Use cloud storage**: Upload to services like Google Drive, Dropbox, or AWS S3 with public access
+3. **Use GitHub**: Host images in a GitHub repository and use the raw file URLs
+4. **Use image hosting services**: Upload to services like Imgur, ImageBB, or similar platforms
+
+**For audio content:**
+- Use external transcription services (Whisper API, Google Speech-to-Text, etc.)
+- Upload audio to YouTube and analyze the resulting video URL
+- Use other MCP servers that specialize in audio processing
 
 ## Features
 
 * **Core Generation:** Standard (`gemini_generateContent`) and streaming (`gemini_generateContentStream`) text generation with support for system instructions and cached content.
 * **Function Calling:** Enables Gemini models to request the execution of client-defined functions (`gemini_functionCall`).
 * **Stateful Chat:** Manages conversational context across multiple turns (`gemini_startChat`, `gemini_sendMessage`, `gemini_sendFunctionResult`) with support for system instructions, tools, and cached content.
-* **Inline Data Processing:** Process images and audio content using inline base64 encoding for efficient content analysis without file uploads.
+* **URL-Based Multimedia Analysis:** Analyze images from public URLs and YouTube videos without file uploads. Direct file uploads are not supported.
 * **Caching:** Create, list, retrieve, update, and delete cached content to optimize prompts with support for tools and tool configurations.
 * **Image Generation:** Generate images from text prompts using Gemini 2.0 Flash Experimental (`gemini_generateImage`) with control over resolution, number of images, and negative prompts. Also supports the latest Imagen 3.1 model for high-quality dedicated image generation with advanced style controls. Note that Gemini 2.5 models (Flash and Pro) do not currently support image generation.
-* **Object Detection:** Detect objects in images and return bounding box coordinates (`gemini_objectDetection`) with custom prompt additions and output format options.
-* **Visual Content Understanding:** Extract information from charts, diagrams, and other visual content (`gemini_contentUnderstanding`) with structured output options.
-* **Audio Transcription:** Transcribe audio files with optional timestamps and multilingual support (`gemini_analyze_media` with `analysisType: "audio_transcription"`) - server reads files from disk and handles base64 conversion internally (up to 20MB file size limit).
 * **URL Context Processing:** Fetch and analyze web content directly from URLs with advanced security, caching, and content processing capabilities.
   * `gemini_generateContent`: Enhanced with URL context support for including web content in prompts
   * `gemini_generateContentStream`: Streaming generation with URL context integration
@@ -251,14 +304,15 @@ This server provides the following MCP tools. Parameter schemas are defined usin
     * `safetySettings` (array) - Safety settings to apply to both routing and final response.
     * `systemInstruction` (string or object) - A system instruction to guide the model's behavior after routing.
 
-### Remote File Operations (Deprecated - Use Inline Data Instead)
+### Remote File Operations (Removed)
 
-* **`gemini_remote_files`**
-  * *Description:* Provides guidance on migrating from file upload operations to inline data usage. File upload, list, get, and delete operations are no longer supported.
-  * *Required Params:* `operation` (string - "upload", "list", "get", or "delete")
-  * *Optional Params:* `fileName` (string - for get/delete operations)
-  * *Response:* Returns detailed guidance on how to use inline base64 data instead of file operations, including code examples and limitations.
-  * *Migration Note:* This tool helps users transition from the deprecated file upload system to the current inline data approach. For images and audio files under 20MB, use base64 encoding directly in tool parameters.
+**Note:** Direct file upload operations are no longer supported by this server. The server now focuses exclusively on URL-based multimedia analysis for images and videos, and text-based content generation.
+
+**Alternative Approaches:**
+- **For Image Analysis:** Use publicly accessible image URLs with `gemini_generateContent` or `gemini_url_analysis` tools
+- **For Video Analysis:** Use publicly accessible YouTube video URLs for content analysis
+- **For Audio Content:** Audio transcription via file uploads is not supported - consider using URL-based services that provide audio transcripts
+- **For Document Analysis:** Use URL-based document analysis or convert documents to publicly accessible formats
 
 ### Caching (Google AI Studio Key Required)
 
@@ -308,54 +362,15 @@ This server provides the following MCP tools. Parameter schemas are defined usin
   * *Response:* Returns an array of base64-encoded images with metadata including dimensions and MIME type.
   * *Notes:* Image generation uses significant resources, especially at higher resolutions. Consider using smaller resolutions for faster responses and less resource usage.
 
-### Object Detection
 
-* **`gemini_objectDetection`**
-  * *Description:* Detects objects in images and returns their positions with bounding box coordinates.
-  * *Required Params:* `image` (object with `type` "base64", `data` [base64-encoded image data], and `mimeType`)
-  * *Optional Params:* 
-    * `modelName` (string - defaults to server's default model)
-    * `promptAddition` (string - custom instructions for detection)
-    * `outputFormat` (string enum: "json" | "text", default: "json")
-    * `safetySettings` (array) - Controls content filtering
-  * *Response:* JSON array of detected objects with labels, normalized bounding box coordinates (0-1000 scale), and confidence scores. When `outputFormat` is "text", returns natural language description.
-  * *Notes:* This tool is optimized for common object detection in photographs, diagrams, and scenes. Images must be provided as base64-encoded data.
+### Audio Transcription (Removed)
 
-### Visual Content Understanding
+**Note:** Audio transcription via direct file uploads is no longer supported by this server. The server focuses on URL-based multimedia analysis for images and videos.
 
-* **`gemini_contentUnderstanding`**
-  * *Description:* Analyzes and extracts information from visual content like charts, diagrams, documents, and complex visuals.
-  * *Required Params:* 
-    * `image` (object with `type` "base64", `data` [base64-encoded image data], and `mimeType`)
-    * `prompt` (string - instructions for analyzing the content)
-  * *Optional Params:* 
-    * `modelName` (string - defaults to server's default model)
-    * `structuredOutput` (boolean - whether to return JSON structure)
-    * `safetySettings` (array) - Controls content filtering
-  * *Response:* When `structuredOutput` is true, returns JSON-structured data extracted from the visual content. Otherwise, returns natural language analysis.
-  * *Notes:* Particularly effective for extracting data from charts, tables, diagrams, receipts, documents, and other structured visual information. Images must be provided as base64-encoded data.
-
-### Audio Transcription
-
-* **`gemini_analyze_media`** (with `analysisType: "audio_transcription"`)
-  * *Description:* Transcribes audio files using Gemini models. The server reads the file from disk and handles base64 conversion internally.
-  * *Required Params:* 
-    * `analysisType` (string - must be "audio_transcription")
-    * `filePath` (string - **must be an absolute path** accessible by the server process)
-  * *Optional Params:*
-    * `modelName` (string - defaults to server's default model)
-    * `includeTimestamps` (boolean - include timestamps for paragraphs/speaker changes)
-    * `language` (string - BCP-47 code, e.g., 'en-US', 'fr-FR')
-    * `prompt` (string - additional instructions for transcription)
-    * `mimeType` (string - audio format, inferred from extension if not provided)
-  * *Supported Audio Formats:* WAV, MP3, AIFF, AAC, OGG, FLAC (audio/wav, audio/mp3, audio/aiff, audio/aac, audio/ogg, audio/flac)
-  * *File Size Limitation:* The server enforces a 20MB limit on the original file size (before base64 encoding). Files exceeding this limit will be rejected with an error message.
-  * *Notes:*
-    * The server reads the file from the provided path and converts it to base64 internally
-    * File paths are validated for security - must be within allowed directories
-    * The 20MB limit applies to the original file size, not the base64-encoded size
-    * Transcription quality may vary based on audio quality, background noise, and number of speakers
-    * For larger files, consider splitting the audio into smaller segments before transcription
+**Alternative Approaches for Audio Content:**
+- **YouTube Videos:** Use the YouTube video analysis capabilities to analyze video content that includes audio
+- **External Services:** Use dedicated audio transcription services and analyze their output as text content
+- **URL-Based Audio:** If audio content is available via public URLs in supported formats, consider using external transcription services first, then analyze the resulting text
 
 ### URL Content Analysis
 
@@ -589,24 +604,7 @@ Here are examples of how an MCP client (like Claude) might call these tools usin
 </use_mcp_tool>
 ```
 
-**Example 6: Using Remote Files Tool for Migration Guidance**
-
-```xml
-<use_mcp_tool>
-  <server_name>gemini-server</server_name>
-  <tool_name>gemini_remote_files</tool_name>
-  <arguments>
-    {
-      "operation": "upload"
-    }
-  </arguments>
-</use_mcp_tool>
-```
-
-*This returns detailed guidance on how to use inline base64 data instead of file uploads.*
-
-
-**Example 7: Generating an Image**
+**Example 6: Generating an Image**
 
 ```xml
 <use_mcp_tool>
@@ -624,7 +622,7 @@ Here are examples of how an MCP client (like Claude) might call these tools usin
 </use_mcp_tool>
 ```
 
-**Example 7b: Generating a High-Quality Image with Imagen 3.1**
+**Example 6b: Generating a High-Quality Image with Imagen 3.1**
 
 ```xml
 <use_mcp_tool>
@@ -642,7 +640,7 @@ Here are examples of how an MCP client (like Claude) might call these tools usin
 </use_mcp_tool>
 ```
 
-**Example 7c: Using Advanced Style Options**
+**Example 6c: Using Advanced Style Options**
 
 ```xml
 <use_mcp_tool>
@@ -662,85 +660,8 @@ Here are examples of how an MCP client (like Claude) might call these tools usin
 </use_mcp_tool>
 ```
 
-**Example 8: Detecting Objects in an Image**
 
-```xml
-<use_mcp_tool>
-  <server_name>gemini-server</server_name>
-  <tool_name>gemini_objectDetection</tool_name>
-  <arguments>
-    {
-      "image": {
-        "type": "base64",
-        "data": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkG...", // Base64 encoded image data
-        "mimeType": "image/jpeg"
-      },
-      "outputFormat": "json",
-      "promptAddition": "Focus on vehicles and pedestrians, ignore buildings"
-    }
-  </arguments>
-</use_mcp_tool>
-```
-
-**Example 9: Understanding Chart Content**
-
-```xml
-<use_mcp_tool>
-  <server_name>gemini-server</server_name>
-  <tool_name>gemini_contentUnderstanding</tool_name>
-  <arguments>
-    {
-      "image": {
-        "type": "base64",
-        "data": "data:image/png;base64,iVBORw0KGgoAA...", // Base64 encoded chart image
-        "mimeType": "image/png"
-      },
-      "prompt": "Extract the data from this sales chart and identify the key trends",
-      "structuredOutput": true
-    }
-  </arguments>
-</use_mcp_tool>
-```
-
-**Example 10: Audio Transcription**
-
-```xml
-<use_mcp_tool>
-  <server_name>gemini-server</server_name>
-  <tool_name>gemini_analyze_media</tool_name>
-  <arguments>
-    {
-      "analysisType": "audio_transcription",
-      "filePath": "/absolute/path/to/recording.mp3",
-      "includeTimestamps": true,
-      "language": "en-US",
-      "prompt": "Identify different speakers if possible"
-    }
-  </arguments>
-</use_mcp_tool>
-```
-
-**Example 11: Audio Transcription with MIME Type**
-
-```xml
-<use_mcp_tool>
-  <server_name>gemini-server</server_name>
-  <tool_name>gemini_analyze_media</tool_name>
-  <arguments>
-    {
-      "analysisType": "audio_transcription",
-      "filePath": "/absolute/path/to/recording.wav",
-      "mimeType": "audio/wav",
-      "includeTimestamps": true,
-      "language": "fr-FR"
-    }
-  </arguments>
-</use_mcp_tool>
-```
-
-*Note: The server reads the file and converts it to base64 internally. Files over 20MB (original size) will return an error. Consider splitting large audio files into smaller segments.*
-
-**Example 12: Message Routing Between Models**
+**Example 7: Message Routing Between Models**
 
 ```xml
 <use_mcp_tool>
@@ -770,7 +691,7 @@ The response will be a JSON string containing both the text response and which m
 }
 ```
 
-**Example 13: Using URL Context with Content Generation**
+**Example 8: Using URL Context with Content Generation**
 
 ```xml
 <use_mcp_tool>
@@ -799,7 +720,7 @@ The response will be a JSON string containing both the text response and which m
 </use_mcp_tool>
 ```
 
-**Example 14: Advanced URL Analysis**
+**Example 9: Advanced URL Analysis**
 
 ```xml
 <use_mcp_tool>
@@ -824,7 +745,7 @@ The response will be a JSON string containing both the text response and which m
 </use_mcp_tool>
 ```
 
-**Example 15: Multi-URL Content Comparison**
+**Example 10: Multi-URL Content Comparison**
 
 ```xml
 <use_mcp_tool>
@@ -846,7 +767,7 @@ The response will be a JSON string containing both the text response and which m
 </use_mcp_tool>
 ```
 
-**Example 16: URL Content with Security Restrictions**
+**Example 11: URL Content with Security Restrictions**
 
 ```xml
 <use_mcp_tool>
@@ -872,7 +793,449 @@ The response will be a JSON string containing both the text response and which m
 </use_mcp_tool>
 ```
 
-**Example 8: Connecting to an External MCP Server (SSE)**
+### URL-Based Image Analysis Examples
+
+These examples demonstrate how to analyze images from public URLs using Gemini's native image understanding capabilities. The server processes images by fetching them from URLs and converting them to the format required by the Gemini API. Note that this server does not support direct file uploads - all image analysis must be performed using publicly accessible image URLs.
+
+**Example 17: Basic Image Description and Analysis**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateContent</tool_name>
+  <arguments>
+    {
+      "prompt": "Please describe this image in detail, including objects, people, colors, setting, and any text you can see.",
+      "urlContext": {
+        "urls": ["https://example.com/images/photo.jpg"],
+        "fetchOptions": {
+          "includeMetadata": true,
+          "timeoutMs": 15000
+        }
+      }
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 18: Object Detection and Identification**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateContent</tool_name>
+  <arguments>
+    {
+      "prompt": "Identify and list all objects visible in this image. For each object, describe its location, size relative to other objects, and any notable characteristics.",
+      "urlContext": {
+        "urls": ["https://example.com/images/scene.png"],
+        "fetchOptions": {
+          "includeMetadata": false,
+          "timeoutMs": 20000
+        }
+      }
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 19: Chart and Data Visualization Analysis**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateContent</tool_name>
+  <arguments>
+    {
+      "prompt": "Analyze this chart or graph. What type of visualization is it? What are the main data points, trends, and insights? Extract any numerical values, labels, and time periods shown.",
+      "urlContext": {
+        "urls": ["https://example.com/charts/sales-data.png"]
+      },
+      "modelPreferences": {
+        "preferQuality": true,
+        "taskType": "reasoning"
+      }
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 20: Comparative Image Analysis**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateContent</tool_name>
+  <arguments>
+    {
+      "prompt": "Compare these two images side by side. Describe the differences and similarities in terms of objects, composition, colors, style, and any other notable aspects.",
+      "urlContext": {
+        "urls": [
+          "https://example.com/before-renovation.jpg",
+          "https://example.com/after-renovation.jpg"
+        ],
+        "fetchOptions": {
+          "maxContentKb": 200,
+          "includeMetadata": true
+        }
+      }
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 21: Text Extraction from Images (OCR)**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateContent</tool_name>
+  <arguments>
+    {
+      "prompt": "Extract all text visible in this image. Include any signs, labels, captions, or written content. Maintain the original formatting and structure as much as possible.",
+      "urlContext": {
+        "urls": ["https://example.com/documents/screenshot.png"]
+      }
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 22: Technical Diagram or Flowchart Analysis**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateContent</tool_name>
+  <arguments>
+    {
+      "prompt": "Analyze this technical diagram, flowchart, or schematic. Explain the system architecture, identify components, describe the relationships and data flow, and interpret any symbols or notations used.",
+      "urlContext": {
+        "urls": ["https://docs.example.com/architecture-diagram.png"],
+        "fetchOptions": {
+          "maxContentKb": 100,
+          "includeMetadata": true
+        }
+      },
+      "modelPreferences": {
+        "preferQuality": true,
+        "taskType": "reasoning"
+      }
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 23: Image Analysis with Specific Questions**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateContent</tool_name>
+  <arguments>
+    {
+      "prompt": "Looking at this image, please answer these specific questions: 1) What is the main subject? 2) What colors dominate the scene? 3) Are there any people visible? 4) What appears to be the setting or location? 5) What mood or atmosphere does the image convey?",
+      "urlContext": {
+        "urls": ["https://example.com/images/landscape.jpg"]
+      }
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 24: Image Analysis with Security Restrictions**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateContent</tool_name>
+  <arguments>
+    {
+      "prompt": "Analyze the composition and design elements in this image, focusing on visual hierarchy, layout principles, and aesthetic choices.",
+      "urlContext": {
+        "urls": ["https://trusted-cdn.example.com/design-mockup.jpg"],
+        "fetchOptions": {
+          "allowedDomains": ["trusted-cdn.example.com", "assets.example.com"],
+          "maxContentKb": 150,
+          "timeoutMs": 25000,
+          "includeMetadata": false
+        }
+      }
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Important Notes for URL-Based Image Analysis:**
+- **Supported formats**: PNG, JPEG, WebP, HEIC, HEIF (as per Gemini API specifications)
+- **Image access**: Images must be accessible via public URLs without authentication
+- **Size considerations**: Large images are automatically processed in sections by Gemini
+- **Processing**: The server fetches images from URLs and converts them to the format required by Gemini API
+- **Security**: The server applies restrictions to prevent access to private networks or malicious domains
+- **Performance**: Image analysis may take longer for high-resolution images due to processing complexity
+- **Token usage**: Image dimensions affect token consumption - larger images use more tokens
+
+### YouTube Video Analysis Examples
+
+These examples demonstrate how to analyze YouTube videos using Gemini's video understanding capabilities. The server can process publicly accessible YouTube videos by providing their URLs. Note that only public YouTube videos are supported - private, unlisted, or region-restricted videos cannot be analyzed.
+
+**Example 25: Basic YouTube Video Analysis**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateContent</tool_name>
+  <arguments>
+    {
+      "prompt": "Please analyze this YouTube video and provide a comprehensive summary including the main topics discussed, key points, and overall theme.",
+      "urlContext": {
+        "urls": ["https://www.youtube.com/watch?v=dQw4w9WgXcQ"],
+        "fetchOptions": {
+          "includeMetadata": true,
+          "timeoutMs": 30000
+        }
+      }
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 26: YouTube Video Content Extraction with Timestamps**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateContent</tool_name>
+  <arguments>
+    {
+      "prompt": "Analyze this educational YouTube video and create a detailed outline with key topics and approximate timestamps. Identify the main learning objectives and key concepts covered.",
+      "urlContext": {
+        "urls": ["https://www.youtube.com/watch?v=EXAMPLE_VIDEO_ID"],
+        "fetchOptions": {
+          "maxContentKb": 300,
+          "includeMetadata": true,
+          "timeoutMs": 45000
+        }
+      },
+      "modelPreferences": {
+        "preferQuality": true,
+        "taskType": "reasoning"
+      }
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 27: YouTube Video Analysis with Specific Questions**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateContent</tool_name>
+  <arguments>
+    {
+      "prompt": "Watch this YouTube video and answer these specific questions: 1) What is the main message or thesis? 2) Who is the target audience? 3) What evidence or examples are provided? 4) What are the key takeaways? 5) How is the content structured?",
+      "urlContext": {
+        "urls": ["https://www.youtube.com/watch?v=EXAMPLE_VIDEO_ID"]
+      }
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 28: Comparative Analysis of Multiple YouTube Videos**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateContent</tool_name>
+  <arguments>
+    {
+      "prompt": "Compare and contrast these YouTube videos. Analyze their different approaches to the topic, presentation styles, key arguments, and conclusions. Identify similarities and differences in their perspectives.",
+      "urlContext": {
+        "urls": [
+          "https://www.youtube.com/watch?v=VIDEO_ID_1",
+          "https://www.youtube.com/watch?v=VIDEO_ID_2"
+        ],
+        "fetchOptions": {
+          "maxContentKb": 400,
+          "includeMetadata": true,
+          "timeoutMs": 60000
+        }
+      },
+      "modelPreferences": {
+        "preferQuality": true,
+        "taskType": "reasoning"
+      }
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 29: YouTube Video Technical Analysis**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateContent</tool_name>
+  <arguments>
+    {
+      "prompt": "Analyze this technical YouTube tutorial and extract step-by-step instructions, identify required tools or materials, note any code examples or commands shown, and highlight important warnings or best practices mentioned.",
+      "urlContext": {
+        "urls": ["https://www.youtube.com/watch?v=TECH_TUTORIAL_ID"],
+        "fetchOptions": {
+          "includeMetadata": true,
+          "timeoutMs": 40000
+        }
+      }
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 30: YouTube Video Sentiment and Style Analysis**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_url_analysis</tool_name>
+  <arguments>
+    {
+      "urls": ["https://www.youtube.com/watch?v=EXAMPLE_VIDEO_ID"],
+      "analysisType": "sentiment",
+      "outputFormat": "structured",
+      "query": "Analyze the tone, mood, and presentation style of this YouTube video. Assess the speaker's credibility, engagement level, and overall effectiveness of communication."
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 31: YouTube Video Educational Content Assessment**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateContent</tool_name>
+  <arguments>
+    {
+      "prompt": "Evaluate this educational YouTube video for accuracy, clarity, and pedagogical effectiveness. Identify the teaching methods used, assess how well complex concepts are explained, and suggest improvements if any.",
+      "urlContext": {
+        "urls": ["https://www.youtube.com/watch?v=EDUCATIONAL_VIDEO_ID"],
+        "fetchOptions": {
+          "maxContentKb": 250,
+          "includeMetadata": true
+        }
+      },
+      "modelPreferences": {
+        "preferQuality": true,
+        "taskType": "reasoning"
+      }
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Example 32: YouTube Video with Domain Security Restrictions**
+
+```xml
+<use_mcp_tool>
+  <server_name>gemini-server</server_name>
+  <tool_name>gemini_generateContent</tool_name>
+  <arguments>
+    {
+      "prompt": "Analyze the content and key messages of this YouTube video, focusing on factual accuracy and source credibility.",
+      "urlContext": {
+        "urls": ["https://www.youtube.com/watch?v=TRUSTED_VIDEO_ID"],
+        "fetchOptions": {
+          "allowedDomains": ["youtube.com", "www.youtube.com"],
+          "maxContentKb": 200,
+          "timeoutMs": 35000,
+          "includeMetadata": true
+        }
+      }
+    }
+  </arguments>
+</use_mcp_tool>
+```
+
+**Important Notes for YouTube Video Analysis:**
+- **Public videos only**: Only publicly accessible YouTube videos can be analyzed
+- **URL format**: Use standard YouTube URLs (youtube.com/watch?v=VIDEO_ID or youtu.be/VIDEO_ID)
+- **Processing time**: Video analysis typically takes longer than text or image analysis
+- **Content limitations**: Very long videos may have content truncated or processed in segments
+- **Metadata**: Video metadata (title, description, duration) is included when `includeMetadata: true`
+- **Language support**: Gemini can analyze videos in multiple languages
+- **Content restrictions**: The server applies the same security restrictions as other URL content
+- **Token usage**: Video analysis can consume significant tokens depending on video length and complexity
+
+## Supported Multimedia Analysis Use Cases
+
+The MCP Gemini Server supports comprehensive multimedia analysis through URL-based processing, leveraging Google Gemini's advanced vision and video understanding capabilities. Below are the key use cases organized by content type:
+
+### Image Analysis Use Cases
+
+**Content Understanding:**
+- **Product Analysis**: Analyze product images for features, design elements, and quality assessment
+- **Document OCR**: Extract and transcribe text from images of documents, receipts, and forms
+- **Chart & Graph Analysis**: Interpret data visualizations, extract key insights, and explain trends
+- **Technical Diagrams**: Understand architectural diagrams, flowcharts, and technical schematics
+- **Medical Images**: Analyze medical charts, X-rays, and diagnostic images (for educational purposes)
+- **Art & Design**: Analyze artistic compositions, color schemes, and design principles
+
+**Comparative Analysis:**
+- **Before/After Comparisons**: Compare multiple images to identify changes and differences
+- **Product Comparisons**: Analyze multiple product images for feature comparison
+- **A/B Testing**: Evaluate design variations and visual differences
+
+**Security & Quality:**
+- **Content Moderation**: Identify inappropriate or harmful visual content
+- **Quality Assessment**: Evaluate image quality, resolution, and technical aspects
+- **Brand Compliance**: Check images for brand guideline adherence
+
+### Video Analysis Use Cases
+
+**Educational Content:**
+- **Lecture Analysis**: Extract key concepts, create summaries, and identify important timestamps
+- **Tutorial Understanding**: Break down step-by-step instructions and highlight key procedures
+- **Training Materials**: Analyze corporate training videos and extract learning objectives
+- **Academic Research**: Process research presentations and extract methodologies
+
+**Content Creation:**
+- **Video Summarization**: Generate concise summaries of long-form video content
+- **Transcript Generation**: Create detailed transcripts with speaker identification
+- **Content Categorization**: Classify videos by topic, genre, or content type
+- **Sentiment Analysis**: Assess emotional tone and audience engagement indicators
+
+**Technical Analysis:**
+- **Software Demonstrations**: Extract software features and usage instructions
+- **Product Reviews**: Analyze product demonstration videos and extract key insights
+- **Troubleshooting Guides**: Parse technical support videos for problem-solving steps
+- **Code Reviews**: Analyze programming tutorial videos and extract code examples
+
+**Business Intelligence:**
+- **Market Research**: Analyze promotional videos and marketing content
+- **Competitive Analysis**: Study competitor video content and strategies
+- **Customer Feedback**: Process video testimonials and feedback sessions
+- **Event Coverage**: Analyze conference presentations and keynote speeches
+
+### Integration Capabilities
+
+**Multi-Modal Analysis:**
+- Combine text prompts with image/video URLs for contextual analysis
+- Process multiple media types in single requests for comprehensive insights
+- Cross-reference visual content with textual instructions
+
+**Workflow Integration:**
+- Chain multiple analysis operations for complex workflows
+- Export results to files for further processing
+- Integrate with external MCP servers for extended functionality
+
+**Security & Performance:**
+- URL validation and security screening for safe content processing
+- Caching support for frequently analyzed content
+- Batch processing capabilities for multiple media items
+
+**Example 12: Connecting to an External MCP Server (SSE)**
 
 ```xml
 <use_mcp_tool>
@@ -890,7 +1253,7 @@ The response will be a JSON string containing both the text response and which m
 
 *(Assume response contains a unique connection ID like: `connectionId: "12345-abcde-67890"`)*
 
-**Example 9: Calling a Tool on an External MCP Server and Writing Output to File**
+**Example 13: Calling a Tool on an External MCP Server and Writing Output to File**
 
 ```xml
 <use_mcp_tool>
@@ -911,7 +1274,7 @@ The response will be a JSON string containing both the text response and which m
 
 **Note:** The `outputToFile` path must be within one of the directories specified in the `ALLOWED_OUTPUT_PATHS` environment variable. For example, if `ALLOWED_OUTPUT_PATHS="/path/to/allowed/output,/another/allowed/path"`, then the file path must be a subdirectory of one of these paths.
 
-**Example 10: Writing Content Directly to a File**
+**Example 14: Writing Content Directly to a File**
 
 ```xml
 <use_mcp_tool>
@@ -974,10 +1337,6 @@ The `mcp-gemini-server` also includes tools like `mcpConnectToServer`, `mcpListS
 ### Optional - Gemini API Configuration:
 - `GOOGLE_GEMINI_MODEL`: Default model to use (e.g., `gemini-1.5-pro-latest`, `gemini-1.5-flash`)
 - `GOOGLE_GEMINI_DEFAULT_THINKING_BUDGET`: Default thinking budget in tokens (0-24576) for controlling model reasoning
-- `GOOGLE_GEMINI_IMAGE_RESOLUTION`: Default image resolution (512x512, 1024x1024, or 1536x1536)
-- `GOOGLE_GEMINI_MAX_IMAGE_SIZE_MB`: Maximum allowed image size in MB
-- `GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS`: JSON array of supported image formats (e.g., `["image/jpeg","image/png","image/webp"]`)
-- `GEMINI_SAFE_AUDIO_BASE_DIR`: Restricts audio file access for transcription to a specific directory for security (defaults to current working directory). This is used for validating file paths in `gemini_analyze_media` when `analysisType` is "audio_transcription".
 
 ### Optional - URL Context Configuration:
 - `GOOGLE_GEMINI_ENABLE_URL_CONTEXT`: Enable URL context features (options: `true`, `false`; default: `false`)
@@ -1029,12 +1388,8 @@ MCP_CONNECTION_TOKEN=your_secure_token_here
 # Optional API Configuration
 GOOGLE_GEMINI_MODEL=gemini-1.5-pro-latest
 GOOGLE_GEMINI_DEFAULT_THINKING_BUDGET=4096
-GOOGLE_GEMINI_IMAGE_RESOLUTION=1024x1024
-GOOGLE_GEMINI_MAX_IMAGE_SIZE_MB=10
-GOOGLE_GEMINI_SUPPORTED_IMAGE_FORMATS=["image/jpeg","image/png","image/webp"]
 
 # Security Configuration
-GEMINI_SAFE_AUDIO_BASE_DIR=/var/opt/mcp-gemini-server/audio_files  # For audio transcription file validation
 ALLOWED_OUTPUT_PATHS=/var/opt/mcp-gemini-server/outputs,/tmp/mcp-gemini-outputs   # For mcpCallServerTool and writeToFileTool
 
 # URL Context Configuration
@@ -1072,7 +1427,6 @@ This server implements several security measures to protect against common vulne
 
 1. **Path Validation and Isolation**
    - **ALLOWED_OUTPUT_PATHS**: Critical security feature that restricts where file writing tools can write files
-   - **GEMINI_SAFE_AUDIO_BASE_DIR**: Restricts where audio transcription can access audio files for processing
    - **Security Principle**: Files can only be created, read, or modified within explicitly allowed directories
    - **Production Requirement**: Always use absolute paths to prevent potential directory traversal attacks
 
@@ -1134,7 +1488,7 @@ This server implements several security measures to protect against common vulne
 ### Production Deployment Recommendations
 
 1. **File Paths**
-   - Always use absolute paths for `ALLOWED_OUTPUT_PATHS` and `GEMINI_SAFE_AUDIO_BASE_DIR` 
+   - Always use absolute paths for `ALLOWED_OUTPUT_PATHS`
    - Use paths outside the application directory to prevent source code modification
    - Restrict to specific, limited-purpose directories with appropriate permissions
    - NEVER include sensitive system directories like "/", "/etc", "/usr", "/bin", or "/home"
@@ -1256,9 +1610,6 @@ GOOGLE_GEMINI_API_KEY=your_api_key_here
 
 # Required for router tests
 GOOGLE_GEMINI_MODEL=gemini-1.5-flash
-
-# Required for audio transcription tests
-GEMINI_SAFE_AUDIO_BASE_DIR=/path/to/allowed/audio/files
 ```
 
 The test suite will automatically detect available environment variables and skip tests that require missing configuration.

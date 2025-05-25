@@ -81,7 +81,6 @@ describe("GeminiChatService", () => {
       apiClient: {} as unknown,
       generateContentInternal: vi.fn(),
       generateContentStreamInternal: vi.fn(),
-      generateImagesInternal: vi.fn(),
     },
     // Add other required properties for GoogleGenAI
     apiClient: {} as unknown,

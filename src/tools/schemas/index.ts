@@ -23,14 +23,8 @@ export { GeminiGenerateContentConsolidatedParamsModule };
 import * as GeminiChatParamsModule from "../geminiChatParams.js";
 export { GeminiChatParamsModule };
 
-import * as GeminiRemoteFilesParamsModule from "../geminiRemoteFilesParams.js";
-export { GeminiRemoteFilesParamsModule };
-
 import * as GeminiCacheParamsModule from "../geminiCacheParams.js";
 export { GeminiCacheParamsModule };
-
-import * as GeminiAnalyzeMediaParamsModule from "../geminiAnalyzeMediaParams.js";
-export { GeminiAnalyzeMediaParamsModule };
 
 import * as GeminiCodeReviewParamsModule from "../geminiCodeReviewParams.js";
 export { GeminiCodeReviewParamsModule };

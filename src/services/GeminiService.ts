@@ -17,6 +17,8 @@ import { GitHubApiService } from "./gemini/GitHubApiService.js";
 import { GeminiChatService } from "./gemini/GeminiChatService.js";
 import { GeminiContentService } from "./gemini/GeminiContentService.js";
 import { GeminiCacheService } from "./gemini/GeminiCacheService.js";
+import { GeminiUrlContextService } from "./gemini/GeminiUrlContextService.js";
+import { UrlSecurityService } from "../utils/UrlSecurityService.js";
 import {
   Content,
   Tool,
@@ -26,6 +28,7 @@ import {
   CacheId,
   FunctionCall,
 } from "./gemini/GeminiTypes.js";
+import type { ImagePart } from "@google/genai";
 
 /**
  * Service for interacting with the Google Gemini API.
@@ -42,6 +45,8 @@ export class GeminiService {
   private cacheService: GeminiCacheService;
   private gitDiffService: GeminiGitDiffService;
   private gitHubApiService: GitHubApiService;
+  private urlContextService: GeminiUrlContextService;
+  private urlSecurityService: UrlSecurityService;
 
   constructor() {
     this.configManager = ConfigurationManager.getInstance();
@@ -89,6 +94,10 @@ export class GeminiService {
 
     const githubApiToken = this.configManager.getGitHubApiToken();
     this.gitHubApiService = new GitHubApiService(githubApiToken);
+
+    // Initialize URL-related services
+    this.urlContextService = new GeminiUrlContextService(this.configManager);
+    this.urlSecurityService = new UrlSecurityService(this.configManager);
   }
 
   public async *generateContentStream(
@@ -657,6 +666,98 @@ Description: ${pullRequest.body || "No description"}`;
         );
       }
     }
+  }
+
+  /**
+   * Process an image URL for use with Gemini Vision API
+   * Validates URL, downloads image, and converts to base64 inline data
+   *
+   * @param url The image URL to process
+   * @returns Promise resolving to ImagePart with inline data
+   * @throws {GeminiUrlValidationError} If URL is invalid or blocked
+   * @throws {GeminiUrlFetchError} If image download fails
+   * @throws {Error} If content is not an image or exceeds size limit
+   */
+  public async processImageUrl(url: string): Promise<ImagePart> {
+    // Validate URL security
+    await this.urlSecurityService.validateUrl(url);
+
+    // Fetch image content
+    const response = await this.urlContextService.fetchUrlContent(url, {
+      maxContentLength: 20 * 1024 * 1024, // 20MB limit
+      convertToMarkdown: false, // We need raw image data
+      includeMetadata: true,
+    });
+
+    // Validate content type is an image
+    const contentType = response.metadata.contentType;
+    if (!contentType || !contentType.toLowerCase().startsWith("image/")) {
+      throw new Error(
+        `URL does not point to an image. Content-Type: ${contentType}`
+      );
+    }
+
+    // Check if it's a supported image format
+    const supportedFormats = [
+      "image/png",
+      "image/jpeg",
+      "image/jpg",
+      "image/webp",
+    ];
+    if (
+      !supportedFormats.some((format) =>
+        contentType.toLowerCase().includes(format)
+      )
+    ) {
+      throw new Error(
+        `Unsupported image format: ${contentType}. Supported formats: PNG, JPEG, WEBP`
+      );
+    }
+
+    // Convert content to base64
+    const base64Data = Buffer.from(response.content).toString("base64");
+
+    // Return as ImagePart format expected by Gemini
+    return {
+      inlineData: {
+        data: base64Data,
+        mimeType: contentType,
+      },
+    };
+  }
+
+  /**
+   * Analyze an image with a text prompt using Gemini Vision API
+   *
+   * @param imagePart The image part containing base64 data
+   * @param prompt The analysis prompt
+   * @param modelName Optional model name (defaults to vision-capable model)
+   * @returns Promise resolving to the analysis result
+   */
+  public async analyzeImageWithPrompt(
+    imagePart: ImagePart,
+    prompt: string,
+    modelName?: string
+  ): Promise<string> {
+    // Use a vision-capable model
+    const effectiveModel = modelName || "gemini-2.0-flash-exp";
+
+    // Get the model
+    const model = this.genAI.getGenerativeModel({ model: effectiveModel });
+
+    // Create the multimodal content
+    const result = await model.generateContent({
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: prompt }, imagePart],
+        },
+      ],
+    });
+
+    // Extract and return the text response
+    const response = result.response;
+    return response.text();
   }
 
   private async selectModelForGeneration(params: {

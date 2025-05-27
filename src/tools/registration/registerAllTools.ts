@@ -31,6 +31,7 @@ import {
 import type { GeminiCodeReviewArgs } from "../geminiCodeReviewParams.js";
 // URL Context tools
 import { geminiUrlAnalysisTool } from "../geminiUrlAnalysisTool.js";
+import { geminiAnalyzeImageUrlTool } from "../geminiAnalyzeImageUrlTool.js";
 // MCP tools
 import { mcpClientTool } from "../mcpClientTool.js";
 // File utils tool
@@ -85,6 +86,9 @@ export function registerAllTools(server: McpServer): McpClientService {
     // URL Context tools
     registry.registerTool(
       adaptGeminiServiceTool(geminiUrlAnalysisTool, "geminiUrlAnalysisTool")
+    );
+    registry.registerTool(
+      adaptNewGeminiServiceToolObject(geminiAnalyzeImageUrlTool)
     );
 
     // Code review tools

@@ -9,7 +9,8 @@
   "include": [
     "src/**/*",
     "tests/**/*",
-    "vitest.setup.ts"
+    "vitest.setup.ts",
+    "vitest-globals.d.ts"
   ],
   "exclude": [
     "node_modules",

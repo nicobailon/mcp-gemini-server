@@ -35,5 +35,8 @@ export { McpClientParamsModule };
 import * as WriteToFileParamsModule from "./writeToFileParams.js";
 export { WriteToFileParamsModule };
 
+import * as GeminiAnalyzeImageUrlParamsModule from "../geminiAnalyzeImageUrlParams.js";
+export { GeminiAnalyzeImageUrlParamsModule };
+
 // Add exports for other tool parameter schemas as they are added
 // export * from "./yourNewToolParams.js";

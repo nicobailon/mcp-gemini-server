@@ -174,44 +174,6 @@ export function generateTestPrompt(
 }
 
 /**
- * Generate a random image prompt suitable for image generation tests
- *
- * @returns A descriptive image prompt string
- */
-export function generateImagePrompt(): string {
-  const subjects = [
-    "a mountain landscape",
-    "a futuristic city",
-    "a serene beach at sunset",
-    "a fantasy castle",
-    "a colorful garden",
-    "an underwater scene",
-    "a space station orbiting a planet",
-    "a cozy coffee shop",
-    "a medieval village",
-    "a jungle with exotic animals",
-  ];
-
-  const styles = [
-    "in the style of watercolor painting",
-    "with vibrant colors",
-    "with a minimalist design",
-    "in photorealistic detail",
-    "in the style of anime",
-    "with a cyberpunk aesthetic",
-    "with a dreamy atmosphere",
-    "in a retro pixel art style",
-    "with dramatic lighting",
-    "in an impressionist style",
-  ];
-
-  const subject = subjects[Math.floor(Math.random() * subjects.length)];
-  const style = styles[Math.floor(Math.random() * styles.length)];
-
-  return `Generate ${subject} ${style}`;
-}
-
-/**
  * Generate a temporary test file with random content
  *
  * @param fileName - Name of the file (without path)
@@ -262,14 +224,29 @@ export async function generateTestFile(
 export function generateTestContentArray(
   messageCount: number = 3,
   includeImages: boolean = false
-): any[] {
-  const contents = [];
+): Array<{
+  role: string;
+  parts: Array<{
+    text?: string;
+    inline_data?: { mime_type: string; data: string };
+  }>;
+}> {
+  const contents: Array<{
+    role: string;
+    parts: Array<{
+      text?: string;
+      inline_data?: { mime_type: string; data: string };
+    }>;
+  }> = [];
 
   for (let i = 0; i < messageCount; i++) {
     const isUserMessage = i % 2 === 0;
     const role = isUserMessage ? "user" : "model";
 
-    const parts = [];
+    const parts: Array<{
+      text?: string;
+      inline_data?: { mime_type: string; data: string };
+    }> = [];
 
     // Always add a text part
     parts.push({
@@ -279,8 +256,8 @@ export function generateTestContentArray(
     // Optionally add an image part for user messages
     if (includeImages && isUserMessage && Math.random() > 0.5) {
       parts.push({
-        inlineData: {
-          mimeType: "image/jpeg",
+        inline_data: {
+          mime_type: "image/jpeg",
           data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
         },
       });
@@ -304,8 +281,8 @@ export function generateTestContentArray(
  */
 export function generateFunctionCall(
   functionName: string,
-  args: Record<string, any> = {}
-): any {
+  args: Record<string, unknown> = {}
+): { name: string; args: Record<string, unknown> } {
   return {
     name: functionName,
     args,
@@ -318,7 +295,11 @@ export function generateFunctionCall(
  * @param objectCount - Number of objects to generate
  * @returns Array of objects with bounding boxes
  */
-export function generateBoundingBoxes(objectCount: number = 3): any[] {
+export function generateBoundingBoxes(objectCount: number = 3): Array<{
+  label: string;
+  boundingBox: { xMin: number; yMin: number; xMax: number; yMax: number };
+  confidence: number;
+}> {
   const commonObjects = [
     "dog",
     "cat",
@@ -335,7 +316,11 @@ export function generateBoundingBoxes(objectCount: number = 3): any[] {
     "bird",
   ];
 
-  const result = [];
+  const result: Array<{
+    label: string;
+    boundingBox: { xMin: number; yMin: number; xMax: number; yMax: number };
+    confidence: number;
+  }> = [];
 
   for (let i = 0; i < objectCount; i++) {
     // Select a random object

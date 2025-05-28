@@ -36,9 +36,9 @@ export function isMcpError(obj: unknown): boolean {
     typeof obj === "object" &&
     "code" in obj &&
     "message" in obj &&
-    typeof errorLike.code === "string" &&
+    typeof errorLike.code === "number" &&
     typeof errorLike.message === "string" &&
-    Object.values(ErrorCode).includes(errorLike.code as ErrorCode)
+    Object.values(ErrorCode).includes(errorLike.code as number)
   );
 }
 
@@ -60,12 +60,12 @@ export function ensureMcpError(obj: unknown): McpError {
     const errObj = obj as {
       code: unknown;
       message: unknown;
-      details?: unknown;
+      data?: unknown;
     };
     return new McpError(
-      errObj.code as ErrorCode,
+      errObj.code as number,
       errObj.message as string,
-      errObj.details
+      errObj.data
     );
   }
 

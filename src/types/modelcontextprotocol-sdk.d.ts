@@ -10,15 +10,15 @@ declare module "@modelcontextprotocol/sdk" {
 
 declare module "@modelcontextprotocol/sdk/types.js" {
   export enum ErrorCode {
-    InvalidParams = "INVALID_PARAMS",
-    InvalidRequest = "INVALID_REQUEST",
-    InternalError = "INTERNAL_ERROR",
+    InvalidParams = -32602,
+    InvalidRequest = -32600,
+    InternalError = -32603,
   }
 
   export class McpError extends Error {
-    constructor(code: ErrorCode, message: string, details?: unknown);
-    code: ErrorCode;
-    details?: unknown;
+    constructor(code: number, message: string, data?: unknown);
+    readonly code: number;
+    readonly data?: unknown;
   }
 
   export interface CallToolResult {

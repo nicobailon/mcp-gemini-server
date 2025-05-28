@@ -1,5 +1,6 @@
 // Simple helper to debug errors
 import { GeminiApiError, mapToMcpError } from "../../src/utils/errors.js";
+import { McpError } from "@modelcontextprotocol/sdk/types.js";
 
 // Create a test error with details
 const errorWithDetails = new GeminiApiError("API error with details", {
@@ -14,9 +15,12 @@ console.log("Original Error:", {
   hasDetailsProperty: "details" in errorWithDetails,
 });
 
+// Type assertion to McpError to ensure TypeScript recognizes the optional details property
+const typedMappedError = mappedError as McpError;
+
 console.log("Mapped Error:", {
-  code: mappedError.code,
-  message: mappedError.message,
-  details: mappedError.details,
-  hasDetailsProperty: "details" in mappedError,
+  code: typedMappedError.code,
+  message: typedMappedError.message,
+  data: typedMappedError.data,
+  hasDataProperty: "data" in typedMappedError,
 });

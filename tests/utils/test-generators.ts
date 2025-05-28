@@ -231,13 +231,22 @@ export function generateTestContentArray(
     inline_data?: { mime_type: string; data: string };
   }>;
 }> {
-  const contents = [];
+  const contents: Array<{
+    role: string;
+    parts: Array<{
+      text?: string;
+      inline_data?: { mime_type: string; data: string };
+    }>;
+  }> = [];
 
   for (let i = 0; i < messageCount; i++) {
     const isUserMessage = i % 2 === 0;
     const role = isUserMessage ? "user" : "model";
 
-    const parts = [];
+    const parts: Array<{
+      text?: string;
+      inline_data?: { mime_type: string; data: string };
+    }> = [];
 
     // Always add a text part
     parts.push({
@@ -307,7 +316,11 @@ export function generateBoundingBoxes(objectCount: number = 3): Array<{
     "bird",
   ];
 
-  const result = [];
+  const result: Array<{
+    label: string;
+    boundingBox: { xMin: number; yMin: number; xMax: number; yMax: number };
+    confidence: number;
+  }> = [];
 
   for (let i = 0; i < objectCount; i++) {
     // Select a random object

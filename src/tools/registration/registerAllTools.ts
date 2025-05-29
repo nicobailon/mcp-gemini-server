@@ -36,6 +36,8 @@ import { geminiAnalyzeImageUrlTool } from "../geminiAnalyzeImageUrlTool.js";
 import { mcpClientTool } from "../mcpClientTool.js";
 // File utils tool
 import { writeToFileTool } from "../writeToFileTool.js";
+// GitHub PR review tool
+import { geminiGithubPrReviewTool } from "../geminiGithubPrReviewTool.js";
 
 /**
  * Register all tools with the MCP server using the new registry system
@@ -113,6 +115,11 @@ export function registerAllTools(server: McpServer): McpClientService {
           return results[results.length - 1];
         },
       })
+    );
+
+    // GitHub PR review tool
+    registry.registerTool(
+      adaptNewGeminiServiceToolObject(geminiGithubPrReviewTool)
     );
 
     // MCP client tool

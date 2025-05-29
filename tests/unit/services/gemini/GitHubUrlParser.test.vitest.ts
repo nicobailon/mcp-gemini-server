@@ -173,4 +173,67 @@ describe("GitHubUrlParser", () => {
       expect(GitHubUrlParser.getRepositoryInfo(url)).toBeNull();
     });
   });
+
+  describe("getPullRequestInfo()", () => {
+    it("should have the getPullRequestInfo method", () => {
+      expect(typeof GitHubUrlParser.getPullRequestInfo).toBe("function");
+    });
+
+    it("should extract PR info from basic PR URL", () => {
+      const url = "https://github.com/owner/repo/pull/123";
+      const info = GitHubUrlParser.getPullRequestInfo(url);
+      expect(info?.owner).toBe("owner");
+      expect(info?.repo).toBe("repo");
+      expect(info?.prNumber).toBe(123);
+    });
+
+    it("should extract PR info from PR files URL", () => {
+      const url = "https://github.com/owner/repo/pull/123/files";
+      const info = GitHubUrlParser.getPullRequestInfo(url);
+      expect(info?.owner).toBe("owner");
+      expect(info?.repo).toBe("repo");
+      expect(info?.prNumber).toBe(123);
+    });
+
+    it("should handle different PR number formats", () => {
+      const testCases = [
+        { url: "https://github.com/test/repo/pull/1", prNumber: 1 },
+        { url: "https://github.com/test/repo/pull/999", prNumber: 999 },
+        { url: "https://github.com/test/repo/pull/12345", prNumber: 12345 },
+      ];
+
+      for (const { url, prNumber } of testCases) {
+        const info = GitHubUrlParser.getPullRequestInfo(url);
+        expect(info?.prNumber).toBe(prNumber);
+      }
+    });
+
+    it("should return null for non-PR URLs", () => {
+      const urls = [
+        "https://github.com/owner/repo",
+        "https://github.com/owner/repo/tree/main",
+        "https://github.com/owner/repo/issues/123",
+        "https://github.com/owner/repo/pull/123/commits", // Not supported
+        "https://example.com",
+        "not a url",
+      ];
+
+      for (const url of urls) {
+        expect(GitHubUrlParser.getPullRequestInfo(url)).toBeNull();
+      }
+    });
+
+    it("should return null for invalid PR numbers", () => {
+      const urls = [
+        "https://github.com/owner/repo/pull/0",
+        "https://github.com/owner/repo/pull/-1",
+        "https://github.com/owner/repo/pull/abc",
+        "https://github.com/owner/repo/pull/",
+      ];
+
+      for (const url of urls) {
+        expect(GitHubUrlParser.getPullRequestInfo(url)).toBeNull();
+      }
+    });
+  });
 });

@@ -162,6 +162,35 @@ export class GitHubUrlParser {
       repo: parsed.repo,
     };
   }
+
+  /**
+   * Extract pull request information from a GitHub PR URL
+   *
+   * @param url GitHub PR URL
+   * @returns Object with owner, repo, and PR number or null if not a valid GitHub PR URL
+   */
+  public static getPullRequestInfo(
+    url: string
+  ): { owner: string; repo: string; prNumber: number } | null {
+    const parsed = this.parse(url);
+    if (
+      !parsed ||
+      (parsed.type !== "pull_request" && parsed.type !== "pr_files")
+    ) {
+      return null;
+    }
+
+    const prNumber = parseInt(parsed.prNumber!, 10);
+    if (isNaN(prNumber) || prNumber <= 0) {
+      return null;
+    }
+
+    return {
+      owner: parsed.owner,
+      repo: parsed.repo,
+      prNumber,
+    };
+  }
 }
 
 /**

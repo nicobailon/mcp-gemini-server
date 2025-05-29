@@ -30,6 +30,16 @@ export const REQUIRED_ENV_VARS = {
   // Router tests need the API key and at least two models to test routing between
   ROUTER_TESTS: ["GOOGLE_GEMINI_API_KEY", "GOOGLE_GEMINI_MODEL"],
 
+  // GitHub integration tests need both API keys
+  GITHUB_INTEGRATION: ["GOOGLE_GEMINI_API_KEY", "GITHUB_TOKEN"],
+
+  // Real API tests need API keys and explicit enablement flag
+  REAL_API_TESTS: [
+    "GOOGLE_GEMINI_API_KEY",
+    "GITHUB_TOKEN",
+    "ENABLE_REAL_API_TESTS",
+  ],
+
   // All test types in a single array for convenience
   ALL: [
     "GOOGLE_GEMINI_API_KEY",

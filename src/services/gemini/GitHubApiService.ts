@@ -5,6 +5,7 @@ import { logger } from "../../utils/logger.js";
 import { ConfigurationManager } from "../../config/ConfigurationManager.js";
 import { GeminiValidationError } from "../../utils/geminiErrors.js";
 import { GitHubUrlParser } from "./GitHubUrlParser.js";
+import { RetryService } from "../../utils/RetryService.js";
 import KeyV from "keyv";
 
 /**
@@ -90,6 +91,7 @@ export class GitHubApiService {
   private rateLimitRemaining: number = 5000; // Default for authenticated users
   private rateLimitResetTime: Date = new Date();
   private requestCount: number = 0;
+  private retryService: RetryService;
 
   /**
    * Creates a new instance of GitHubApiService
@@ -138,11 +140,76 @@ export class GitHubApiService {
       ttl: cacheTtl * 1000, // Convert to milliseconds
     });
 
+    // Initialize retry service with GitHub-specific retry logic
+    this.retryService = new RetryService({
+      maxAttempts: 3,
+      initialDelayMs: 1000,
+      maxDelayMs: 30000,
+      backoffFactor: 2,
+      jitter: true,
+      retryableErrorCheck: this.isRetryableGitHubError,
+      onRetry: (error, attempt, delayMs) => {
+        logger.warn(
+          `Retrying GitHub API request (attempt ${attempt}) after ${delayMs}ms`,
+          { error }
+        );
+      },
+    });
+
     // Check the rate limit initially
     this.checkRateLimit().catch((error) => {
       logger.warn("Failed to check initial rate limit", { error });
     });
   }
+
+  /**
+   * Determines if a GitHub API error is retryable
+   * @param error The error to check
+   * @returns True if the error should be retried
+   */
+  private isRetryableGitHubError = (error: unknown): boolean => {
+    if (error instanceof RequestError) {
+      // Retry on rate limit errors (should not happen with our rate limiting, but just in case)
+      if (error.status === 429) {
+        return true;
+      }
+
+      // Retry on server errors
+      if (
+        error.status === 502 ||
+        error.status === 503 ||
+        error.status === 504
+      ) {
+        return true;
+      }
+
+      // Retry on abuse detection (rare but can happen with rapid requests)
+      if (error.status === 403 && error.message.includes("abuse")) {
+        return true;
+      }
+
+      // Don't retry on client errors (4xx except those above)
+      if (error.status >= 400 && error.status < 500) {
+        return false;
+      }
+    }
+
+    // Handle network errors
+    if (error instanceof Error) {
+      const message = error.message.toLowerCase();
+      if (
+        message.includes("network") ||
+        message.includes("timeout") ||
+        message.includes("connection") ||
+        message.includes("econnreset") ||
+        message.includes("etimedout")
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  };
 
   /**
    * Check the current rate limit status
@@ -196,6 +263,20 @@ export class GitHubApiService {
       const minutesUntilReset = Math.ceil(
         (this.rateLimitResetTime.getTime() - now.getTime()) / (60 * 1000)
       );
+
+      // If rate limit resets very soon (< 1 minute), wait for it
+      if (minutesUntilReset <= 1) {
+        const waitMs = this.rateLimitResetTime.getTime() - now.getTime() + 1000; // Add 1 second buffer
+        if (waitMs > 0 && waitMs < 70000) {
+          // Only wait up to 70 seconds
+          logger.warn(
+            `Rate limit low, waiting ${Math.ceil(waitMs / 1000)} seconds for reset`
+          );
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
+          await this.checkRateLimit(); // Refresh rate limit info
+          return;
+        }
+      }
 
       throw new Error(
         `GitHub API rate limit nearly exceeded. ${this.rateLimitRemaining} requests remaining. Resets in ${minutesUntilReset} minutes.`
@@ -693,6 +774,163 @@ export class GitHubApiService {
         );
       }
     });
+  }
+
+  /**
+   * Get Pull Request metadata (title, files_changed, additions, deletions)
+   * @param owner Repository owner
+   * @param repo Repository name
+   * @param prNumber Pull request number
+   * @returns Promise resolving to PR metadata
+   */
+  public async getPullRequestMetadata(
+    owner: string,
+    repo: string,
+    prNumber: number
+  ): Promise<{
+    title: string;
+    files_changed: number;
+    additions: number;
+    deletions: number;
+  }> {
+    // Validate input parameters
+    if (!owner?.trim()) {
+      throw new GeminiValidationError("Repository owner is required", "owner");
+    }
+    if (!repo?.trim()) {
+      throw new GeminiValidationError("Repository name is required", "repo");
+    }
+    if (!Number.isInteger(prNumber) || prNumber <= 0) {
+      throw new GeminiValidationError(
+        "PR number must be a positive integer",
+        "prNumber"
+      );
+    }
+
+    const pr = await this.getPullRequest(owner, repo, prNumber);
+
+    // Validate PR response structure
+    if (!pr.title || typeof pr.title !== "string") {
+      throw new GeminiValidationError(
+        "Invalid PR response: missing or invalid title",
+        "title"
+      );
+    }
+    if (typeof pr.changed_files !== "number" || pr.changed_files < 0) {
+      throw new GeminiValidationError(
+        "Invalid PR response: missing or invalid changed_files",
+        "changed_files"
+      );
+    }
+    if (typeof pr.additions !== "number" || pr.additions < 0) {
+      throw new GeminiValidationError(
+        "Invalid PR response: missing or invalid additions",
+        "additions"
+      );
+    }
+    if (typeof pr.deletions !== "number" || pr.deletions < 0) {
+      throw new GeminiValidationError(
+        "Invalid PR response: missing or invalid deletions",
+        "deletions"
+      );
+    }
+
+    return {
+      title: pr.title,
+      files_changed: pr.changed_files,
+      additions: pr.additions,
+      deletions: pr.deletions,
+    };
+  }
+
+  /**
+   * Get complete PR diff data with file-level breakdown
+   * @param owner Repository owner
+   * @param repo Repository name
+   * @param prNumber Pull request number
+   * @returns Promise resolving to complete PR diff data
+   */
+  public async getPullRequestDiffData(
+    owner: string,
+    repo: string,
+    prNumber: number
+  ): Promise<{
+    raw_diff: string;
+    files: PrFile[];
+    stats: {
+      total_files: number;
+      total_additions: number;
+      total_deletions: number;
+    };
+  }> {
+    // Validate input parameters
+    if (!owner?.trim()) {
+      throw new GeminiValidationError("Repository owner is required", "owner");
+    }
+    if (!repo?.trim()) {
+      throw new GeminiValidationError("Repository name is required", "repo");
+    }
+    if (!Number.isInteger(prNumber) || prNumber <= 0) {
+      throw new GeminiValidationError(
+        "PR number must be a positive integer",
+        "prNumber"
+      );
+    }
+
+    // Fetch diff and file information in parallel
+    const [rawDiff, files] = await Promise.all([
+      this.getPullRequestDiff(owner, repo, prNumber),
+      this.getPullRequestFiles(owner, repo, prNumber),
+    ]);
+
+    // Validate response data
+    if (typeof rawDiff !== "string") {
+      throw new GeminiValidationError(
+        "Invalid API response: diff data is not a string",
+        "raw_diff"
+      );
+    }
+    if (!Array.isArray(files)) {
+      throw new GeminiValidationError(
+        "Invalid API response: files data is not an array",
+        "files"
+      );
+    }
+
+    // Validate file entries structure
+    for (const file of files) {
+      if (!file.filename || typeof file.filename !== "string") {
+        throw new GeminiValidationError(
+          "Invalid file entry: missing or invalid filename",
+          "filename"
+        );
+      }
+      if (typeof file.additions !== "number" || file.additions < 0) {
+        throw new GeminiValidationError(
+          `Invalid file entry for ${file.filename}: invalid additions count`,
+          "additions"
+        );
+      }
+      if (typeof file.deletions !== "number" || file.deletions < 0) {
+        throw new GeminiValidationError(
+          `Invalid file entry for ${file.filename}: invalid deletions count`,
+          "deletions"
+        );
+      }
+    }
+
+    // Calculate stats from files data
+    const stats = {
+      total_files: files.length,
+      total_additions: files.reduce((sum, file) => sum + file.additions, 0),
+      total_deletions: files.reduce((sum, file) => sum + file.deletions, 0),
+    };
+
+    return {
+      raw_diff: rawDiff,
+      files,
+      stats,
+    };
   }
 
   /**
